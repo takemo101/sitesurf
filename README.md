@@ -2,7 +2,7 @@
 
 AIと一緒にWebページを操作するChrome拡張機能。
 
-[Claude in Chrome](https://chrome.google.com/webstore/detail/claude-in-chrome/) に影響を受けて開発しています。
+[Claude in Chrome](https://chromewebstore.google.com/detail/claude/fcoeoabgfenejglbffodgkkbkcdhcgfn) に影響を受けて開発しています。
 
 ## 機能
 
