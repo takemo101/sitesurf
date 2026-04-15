@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ActionIcon, Group, Tooltip } from "@mantine/core";
+import { ActionIcon, Group, Text, Tooltip } from "@mantine/core";
 import { useMantineColorScheme } from "@mantine/core";
 import { FileCode, History, Monitor, Moon, Plus, Settings, Sun, Trash2 } from "lucide-react";
 import { useStore } from "@/store/index";
@@ -107,6 +107,9 @@ export function Header() {
             </ActionIcon>
           </Tooltip>
           <SessionTitle />
+          <Text size="xs" c="dimmed" style={{ fontSize: 10, userSelect: "none" }}>
+            v{__APP_VERSION__}
+          </Text>
         </Group>
         <Group gap={4}>
           {artifacts.length > 0 && (

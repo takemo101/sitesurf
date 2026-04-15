@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import { copyFileSync, mkdirSync, existsSync, readFileSync, writeFileSync, readdirSync } from "fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf-8"));
 
 // Chrome拡張のビルド後処理をViteプラグインとして統合
 function chromeExtensionPlugin() {
@@ -104,6 +105,9 @@ export function getManualChunk(id: string): string | undefined {
 }
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   plugins: [...react(), chromeExtensionPlugin()],
   test: {
     include: ["src/**/*.test.ts"],
