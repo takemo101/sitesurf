@@ -1,7 +1,7 @@
 // トークン関連の定数
-export const DEFAULT_MAX_TOKENS = 8192;
+export const DEFAULT_MAX_TOKENS = 16384;
 export const MIN_TOKENS = 1024;
-export const MAX_TOKENS = 32768;
+export const MAX_TOKENS = 131072;
 export const TOKENS_STEP = 1024;
 
 // スライダーのマーク
@@ -10,4 +10,6 @@ export const TOKEN_MARKS = [
   { value: 8192, label: "8K" },
   { value: 16384, label: "16K" },
   { value: 32768, label: "32K" },
+  { value: 65536, label: "64K" },
+  { value: 131072, label: "128K" },
 ] as const;
