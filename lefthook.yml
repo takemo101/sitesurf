@@ -1,0 +1,9 @@
+pre-push:
+  parallel: true
+  commands:
+    check:
+      run: vp check </dev/null
+    test:
+      run: vp test </dev/null
+    build:
+      run: vp build </dev/null

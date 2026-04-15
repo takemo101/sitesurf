@@ -1,0 +1,12 @@
+import { describe, expect, it } from "vitest";
+import { createDefaultToolRendererRegistry } from "../index";
+
+describe("createDefaultToolRendererRegistry", () => {
+  it("既定の specialized renderer を登録した registry を返す", () => {
+    const registry = createDefaultToolRendererRegistry();
+
+    expect(registry.get("repl")).toBeDefined();
+    expect(registry.get("extract_image")).toBeDefined();
+    expect(registry.get("artifacts")).toBeDefined();
+  });
+});

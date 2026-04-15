@@ -1,0 +1,17 @@
+{
+  "version": "1.0.0",
+  "builtinSkills": [
+    {
+      "id": "youtube",
+      "file": "youtube.md"
+    },
+    {
+      "id": "google-search",
+      "file": "google-search.md"
+    },
+    {
+      "id": "dom-mutation",
+      "file": "dom-mutation.md"
+    }
+  ]
+}

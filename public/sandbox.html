@@ -1,0 +1,307 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <script>
+      let pendingId = 0;
+      const pending = new Map();
+
+      async function browserjs(fn, ...args) {
+        if (typeof fn !== "function")
+          throw new Error("browserjs: first argument must be a function");
+        return sendToParent("browserjs", { code: fn.toString(), args });
+      }
+
+      async function navigate(url) {
+        return sendToParent("navigate", { url });
+      }
+
+      // Base64 conversion helper for Uint8Array
+      function arrayBufferToBase64(bytes) {
+        let binary = "";
+        const chunk = 0x8000; // 32KB chunks to avoid stack overflow
+        for (let i = 0; i < bytes.length; i += chunk) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+        }
+        return btoa(binary);
+      }
+
+      // Artifact functions
+      async function createOrUpdateArtifact(name, data) {
+        if (typeof name !== "string" || !name) {
+          throw new Error("Artifact name must be a non-empty string");
+        }
+        return sendToParent("createOrUpdateArtifact", { name, data });
+      }
+
+      async function getArtifact(name) {
+        if (typeof name !== "string" || !name) {
+          throw new Error("Artifact name must be a non-empty string");
+        }
+        const data = await sendToParent("getArtifact", { name });
+        if (data === null) {
+          throw new Error(`Artifact '${name}' not found`);
+        }
+        return data;
+      }
+
+      async function listArtifacts() {
+        return sendToParent("listArtifacts", {});
+      }
+
+      async function deleteArtifact(name) {
+        if (typeof name !== "string" || !name) {
+          throw new Error("Artifact name must be a non-empty string");
+        }
+        return sendToParent("deleteArtifact", { name });
+      }
+
+      // File return function
+      async function returnFile(name, content, mimeType) {
+        if (typeof name !== "string" || !name) {
+          throw new Error("File name must be a non-empty string");
+        }
+        if (!mimeType || typeof mimeType !== "string") {
+          throw new Error("MIME type is required");
+        }
+
+        // Convert to base64
+        let base64;
+        let size;
+        if (typeof content === "string") {
+          const utf8Bytes = new TextEncoder().encode(content);
+          base64 = arrayBufferToBase64(utf8Bytes);
+          size = utf8Bytes.length;
+        } else if (content instanceof Uint8Array) {
+          base64 = arrayBufferToBase64(content);
+          size = content.length;
+        } else {
+          throw new Error("Content must be string or Uint8Array");
+        }
+
+        return sendToParent("returnFile", { name, contentBase64: base64, mimeType, size });
+      }
+
+      // Native input functions (for bot-resistant sites)
+      async function nativeClick(selector, options) {
+        if (typeof selector !== "string" || !selector) {
+          throw new Error("Selector must be a non-empty string");
+        }
+        return sendToParent("nativeClick", { selector, options });
+      }
+
+      async function nativeDoubleClick(selector) {
+        if (typeof selector !== "string" || !selector) {
+          throw new Error("Selector must be a non-empty string");
+        }
+        return sendToParent("nativeDoubleClick", { selector });
+      }
+
+      async function nativeRightClick(selector) {
+        if (typeof selector !== "string" || !selector) {
+          throw new Error("Selector must be a non-empty string");
+        }
+        return sendToParent("nativeRightClick", { selector });
+      }
+
+      async function nativeHover(selector) {
+        if (typeof selector !== "string" || !selector) {
+          throw new Error("Selector must be a non-empty string");
+        }
+        return sendToParent("nativeHover", { selector });
+      }
+
+      async function nativeFocus(selector) {
+        if (typeof selector !== "string" || !selector) {
+          throw new Error("Selector must be a non-empty string");
+        }
+        return sendToParent("nativeFocus", { selector });
+      }
+
+      async function nativeBlur(selector) {
+        // selector is optional - if omitted, blurs activeElement
+        if (selector !== undefined && (typeof selector !== "string" || !selector)) {
+          throw new Error("Selector must be a non-empty string or omitted");
+        }
+        return sendToParent("nativeBlur", { selector });
+      }
+
+      async function nativeScroll(selector, options) {
+        if (typeof selector !== "string" || !selector) {
+          throw new Error("Selector must be a non-empty string");
+        }
+        return sendToParent("nativeScroll", { selector, options });
+      }
+
+      async function nativeSelectText(selector, start, end) {
+        if (typeof selector !== "string" || !selector) {
+          throw new Error("Selector must be a non-empty string");
+        }
+        return sendToParent("nativeSelectText", { selector, start, end });
+      }
+
+      async function nativeType(selector, text) {
+        if (typeof selector !== "string" || !selector) {
+          throw new Error("Selector must be a non-empty string");
+        }
+        if (typeof text !== "string") {
+          throw new Error("Text must be a string");
+        }
+        return sendToParent("nativeType", { selector, text });
+      }
+
+      async function nativePress(key) {
+        if (typeof key !== "string" || !key) {
+          throw new Error("Key must be a non-empty string");
+        }
+        return sendToParent("nativePress", { key });
+      }
+
+      async function nativeKeyDown(key) {
+        if (typeof key !== "string" || !key) {
+          throw new Error("Key must be a non-empty string");
+        }
+        return sendToParent("nativeKeyDown", { key });
+      }
+
+      async function nativeKeyUp(key) {
+        if (typeof key !== "string" || !key) {
+          throw new Error("Key must be a non-empty string");
+        }
+        return sendToParent("nativeKeyUp", { key });
+      }
+
+      function sendToParent(action, payload) {
+        return new Promise((resolve, reject) => {
+          const id = ++pendingId;
+          pending.set(id, { resolve, reject });
+          window.parent.postMessage({ type: "sandbox-request", id, action, ...payload }, "*");
+        });
+      }
+
+      window.addEventListener("message", async (event) => {
+        if (event.source !== window.parent) return;
+        const msg = event.data;
+
+        if (msg.type === "sandbox-response") {
+          const handler = pending.get(msg.id);
+          if (!handler) return;
+          pending.delete(msg.id);
+          if (msg.ok) handler.resolve(msg.value);
+          else handler.reject(new Error(msg.error));
+          return;
+        }
+
+        if (msg.type === "exec") {
+          const execId = msg.id;
+          const skills = msg.skills || {};
+          const consoleLogs = [];
+          const origConsole = {
+            log: console.log,
+            warn: console.warn,
+            error: console.error,
+            info: console.info,
+          };
+
+          console.log = (...a) => {
+            const message = a.map(String).join(" ");
+            consoleLogs.push(message);
+            window.parent.postMessage({ type: "exec-console", id: execId, message }, "*");
+            origConsole.log(...a);
+          };
+          console.warn = (...a) => {
+            const message = "[WARN] " + a.map(String).join(" ");
+            consoleLogs.push(message);
+            window.parent.postMessage({ type: "exec-console", id: execId, message }, "*");
+            origConsole.warn(...a);
+          };
+          console.error = (...a) => {
+            const message = "[ERROR] " + a.map(String).join(" ");
+            consoleLogs.push(message);
+            window.parent.postMessage({ type: "exec-console", id: execId, message }, "*");
+            origConsole.error(...a);
+          };
+          console.info = (...a) => {
+            const message = "[INFO] " + a.map(String).join(" ");
+            consoleLogs.push(message);
+            window.parent.postMessage({ type: "exec-console", id: execId, message }, "*");
+            origConsole.info(...a);
+          };
+
+          try {
+            const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
+            const fn = new AsyncFunction(
+              "browserjs",
+              "navigate",
+              "skills",
+              "createOrUpdateArtifact",
+              "getArtifact",
+              "listArtifacts",
+              "deleteArtifact",
+              "returnFile",
+              "nativeClick",
+              "nativeDoubleClick",
+              "nativeRightClick",
+              "nativeHover",
+              "nativeFocus",
+              "nativeBlur",
+              "nativeScroll",
+              "nativeSelectText",
+              "nativeType",
+              "nativePress",
+              "nativeKeyDown",
+              "nativeKeyUp",
+              "console",
+              msg.code,
+            );
+            const result = await fn(
+              browserjs,
+              navigate,
+              skills,
+              createOrUpdateArtifact,
+              getArtifact,
+              listArtifacts,
+              deleteArtifact,
+              returnFile,
+              nativeClick,
+              nativeDoubleClick,
+              nativeRightClick,
+              nativeHover,
+              nativeFocus,
+              nativeBlur,
+              nativeScroll,
+              nativeSelectText,
+              nativeType,
+              nativePress,
+              nativeKeyDown,
+              nativeKeyUp,
+              console,
+            );
+
+            Object.assign(console, origConsole);
+            window.parent.postMessage(
+              { type: "exec-result", id: execId, ok: true, value: result, console: consoleLogs },
+              "*",
+            );
+          } catch (e) {
+            Object.assign(console, origConsole);
+            window.parent.postMessage(
+              {
+                type: "exec-result",
+                id: execId,
+                ok: false,
+                error: e.message,
+                console: consoleLogs,
+              },
+              "*",
+            );
+          }
+        }
+      });
+
+      window.parent.postMessage({ type: "sandbox-ready" }, "*");
+    </script>
+  </body>
+</html>

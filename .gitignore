@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# vite-plus
+.vp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+
+# Debug
+*.log
+
+# Context (large library docs, not part of source)
+.context/
+
+# Pi agent
+.pi/
+
+# Worktrees (runtime)
+.worktrees/
+
+# OpenCode workflow
+.opencode/
+opencode.json
+bun.lockb
+.serena/
+
+# Isuner specific
+.isuner/
+.isuner-prompt.md
+.isuner-prompt-details.md

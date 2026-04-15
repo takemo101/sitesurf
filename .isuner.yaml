@@ -1,0 +1,349 @@
+# TandemWeb isuner 設定ファイル
+
+# =====================================
+# Worktree設定
+# =====================================
+worktree:
+  base_dir: ".worktrees"
+  base_branch: "origin/main"
+  setup_commands:
+    - command: "pnpm install"
+      description: "依存関係インストール"
+      on_error: "stop"
+
+# =====================================
+# マルチプレクサ設定
+# =====================================
+multiplexer:
+  type: "tmux"
+  session_prefix: "tandemweb"
+  start_in_session: true
+
+# =====================================
+# エージェント設定（デフォルト: pi）
+# =====================================
+agent:
+  type: "pi"
+
+# =====================================
+# Faceted Prompting（グローバルデフォルト）
+# =====================================
+persona: "preset:coder"
+policy: "preset:coding"
+
+# =====================================
+# GitHub設定
+# =====================================
+github:
+  include_comments: true
+  max_comments: 10
+
+# =====================================
+# 並列実行設定
+# =====================================
+parallel:
+  max_concurrent: 2
+  conflict_detection:
+    enabled: true
+    strategy: "sequentialize"
+
+# =====================================
+# auto ワークフロー選択設定
+# =====================================
+auto:
+  provider: anthropic
+  model: claude-haiku-4-5
+
+# =====================================
+# ワークフロー定義
+# =====================================
+workflows:
+  # 新機能実装
+  feature:
+    description: 新機能実装（Plan → Implement → Check → Review → Merge）
+    agent:
+      type: "opencode"
+    steps:
+      - agent: plan
+        instruction: "preset:plan"
+        context: |
+          Chrome拡張機能の新機能の実装計画を立ててください。
+
+          ## アーキテクチャ
+          Feature-Sliced + Ports & Adapters のハイブリッド。
+          必ず AGENTS.md を読んでから設計ドキュメントを確認してください。
+
+          ## 参照ドキュメント
+          - AGENTS.md — 実装ガイドライン、依存ルール、コーディング規約
+          - docs/architecture/overview.md — 全体構造、レイヤ関係
+          - docs/architecture/package-structure.md — ディレクトリ構成、依存ルール
+          - docs/design/feature-spec.md — v0.1 機能仕様
+
+          ## 技術スタック
+          - React + Mantine v9 (UI)
+          - Vercel AI SDK (AI接続)
+          - Zustand (状態管理)
+          - vite-plus + pnpm (ビルド)
+          - Chrome Extension MV3
+
+          ## 依存ルール
+          - features/ は ports/ にのみ依存 (adapters/ に直接依存しない)
+          - feature間の直接依存は禁止 (orchestration/ が仲介)
+          - background/ は shared/message-types のみに依存
+      - agent: implement
+        instruction: "preset:implement"
+        context: |
+          計画に従って実装してください。
+
+          ## 必須参照
+          - AGENTS.md — コーディング規約、Zustandセレクター規約、Mantineテーマ規約
+          - docs/design/implementation-patterns.md — Zustand slice統合、AI SDK接続、要素ピッカー
+          - docs/references/ — ライブラリリファレンス (Mantine v9, AI SDK, Zustand)
+
+          ## コーディング規約
+          - TypeScript strict モード
+          - Mantine: ハードコード禁止 (dark.7 等)、CSS変数を使う
+          - Zustand: 個別セレクター、getState() でstale closure回避
+          - ファイル命名: コンポーネント PascalCase.tsx、ロジック kebab-case.ts
+          - エラー: 回復可能は Result型、回復不能は例外
+
+          ## Mantine v9 の注意
+          - Collapse: `expanded` prop (`in` ではない)
+          - Select: `creatable` なし
+          - 必ず docs/references/mantine/changelog/version-v9.0.0---mantine.md を確認
+      - run: "vp check"
+        description: "format + lint + 型チェック"
+      - run: "vp build"
+        description: "ビルド確認"
+      - name: review
+        max_loops: 3
+        rules:
+          - condition: needs_fix
+            next: implement
+          - condition: approved
+            next: merge
+        context: |
+          実装のレビューを行ってください。
+
+          ## チェック項目
+          - AGENTS.md の依存ルールに違反していないか
+          - features/ が adapters/ に直接依存していないか
+          - Mantine のハードコードカラー (dark.7 等) がないか
+          - Zustand の destructuring (不要な再レンダリング) がないか
+          - Port の Result 型が正しく使われているか
+          - Chrome API の使用が adapters/ または background/ に閉じているか
+      - merge
+
+  # バグ修正
+  bugfix:
+    description: バグ修正（根本原因特定 → 修正 → チェック → Merge）
+    agent:
+      type: "opencode"
+    steps:
+      - agent: implement
+        instruction: "preset:fix"
+        context: |
+          バグを修正してください。
+
+          ## 手順
+          1. AGENTS.md と関連する設計ドキュメントを確認
+          2. 根本原因を特定
+          3. 最小限の修正を実施
+
+          ## 遵守事項
+          - docs/architecture/error-handling.md — Result型、エラー分類
+          - TypeScript strict: true
+          - Mantine v9 の API を使う (v8 以前と互換性なし)
+      - run: "vp check"
+        description: "format + lint + 型チェック"
+      - run: "vp build"
+        description: "ビルド確認"
+      - name: review
+        max_loops: 3
+        rules:
+          - condition: needs_fix
+            next: implement
+          - condition: approved
+            next: merge
+        context: |
+          バグ修正のレビューを行ってください。
+          根本原因の修正・副作用なし・依存ルール準拠を確認してください。
+      - merge
+
+  # UIコンポーネント実装
+  ui:
+    description: UIコンポーネント実装（Implement → Check → Review → Merge）
+    agent:
+      type: "opencode"
+    steps:
+      - agent: implement
+        instruction: "preset:implement"
+        context: |
+          UIコンポーネントを実装してください。
+
+          ## 必須参照
+          - docs/design/ui-ux-design.md — レイアウト、テーマ、コンポーネントツリー
+          - docs/design/ui-components-detail.md — 全コンポーネントのJSX
+          - docs/references/mantine/ — Mantine v9 リファレンス
+
+          ## Mantine v9 ルール
+          - ハードコードカラー禁止: `bg="dark.7"` → `bg="var(--mantine-color-body)"`
+          - CSS変数 or Mantine props を使う: `withBorder`, `c="dimmed"`
+          - Collapse は `expanded` prop
+          - テーマ切替 (auto/light/dark) に対応すること
+
+          ## コンポーネント規約
+          - features/chat/ のコンポーネントは PascalCase.tsx
+          - store アクセスは個別セレクター: `useStore((s) => s.xxx)`
+          - Port アクセスは useDeps(): `const { browserExecutor } = useDeps()`
+          - ローカル state は useState、グローバルは Zustand
+      - run: "vp check"
+        description: "format + lint + 型チェック"
+      - run: "vp build"
+        description: "ビルド確認"
+      - name: review
+        max_loops: 3
+        rules:
+          - condition: needs_fix
+            next: implement
+          - condition: approved
+            next: merge
+        context: |
+          UIコンポーネントのレビューを行ってください。
+
+          ## チェック項目
+          - Mantine v9 API を正しく使っているか (v8 の旧API使用がないか)
+          - ハードコードカラーがないか
+          - テーマ切替で壊れないか
+          - アクセシビリティ (Tooltip, aria-label)
+          - コンポーネントツリー (ui-ux-design.md) との整合性
+      - merge
+
+  # Adapter / Port 実装
+  adapter:
+    description: Port / Adapter 実装（Implement → Check → Review → Merge）
+    agent:
+      type: "opencode"
+    steps:
+      - agent: implement
+        instruction: "preset:implement"
+        context: |
+          Port の Adapter 実装を行ってください。
+
+          ## 必須参照
+          - AGENTS.md — 依存ルール
+          - docs/architecture/package-structure.md — 依存方向
+          - docs/design/implementation-patterns.md — AI SDK v6 接続の正確な仕様
+
+          ## 依存ルール
+          - adapters/ は ports/ を implements する
+          - adapters/ は shared/ に依存可能
+          - adapters/ は features/ に依存しない
+          - background/ は Port/Adapter の枠外 (shared/message-types のみ)
+
+          ## エラーハンドリング
+          - Port のメソッドは Result<T, E> を返す
+          - Adapter は外部APIエラーをキャッチし AppError に変換
+      - run: "vp check"
+        description: "format + lint + 型チェック"
+      - run: "vp build"
+        description: "ビルド確認"
+      - name: review
+        max_loops: 3
+        rules:
+          - condition: needs_fix
+            next: implement
+          - condition: approved
+            next: merge
+        context: |
+          Adapter 実装のレビューを行ってください。
+          Port interface の完全な implements・依存ルール準拠・Result型の正しい使用を確認。
+      - merge
+
+  # ドキュメント更新
+  docs:
+    description: ドキュメント更新
+    steps:
+      - agent: implement
+        instruction: "preset:implement"
+        context: |
+          ドキュメントを更新してください。
+
+          ## 遵守事項
+          - 既存の設計ドキュメント (docs/) との整合性を確認
+          - AGENTS.md との矛盾がないこと
+          - 関連ドキュメントへのリンクを含めること
+      - merge
+
+  # 軽微な修正
+  quick:
+    description: 軽微な修正（typo・設定値・コメント等）
+    steps:
+      - agent: implement
+        instruction: "preset:implement"
+        context: |
+          軽微な修正を行ってください。変更は最小限に留めてください。
+      - run: "vp check"
+        description: "format + lint + 型チェック"
+      - run: "vp build"
+        description: "ビルド確認"
+      - merge
+
+# =====================================
+# Improve設定
+# =====================================
+improve:
+  review_timeout_ms: 1200000 # 20分
+
+# =====================================
+# Self-Healing設定
+# =====================================
+self_healing:
+  enabled: true
+  max_simple_retries: 1
+  max_diagnosed_retries: 2
+  allow_step_skip: false
+  escalate_to_human: true
+  critical_steps:
+    - implement
+    - review
+  auto_handover: true
+  auto_create_issue: false
+
+# =====================================
+# メモリ設定
+# =====================================
+memory:
+  inject_context: true
+  max_tokens: 2000
+
+# =====================================
+# リトライ設定
+# =====================================
+retry:
+  enabled: true
+  max_attempts: 3
+  preserve_worktree: true
+
+# =====================================
+# Intervention設定
+# =====================================
+intervention:
+  stall_timeout: 300
+  stall_action: "nudge"
+  max_nudges: 3
+  escalation_action: "stop"
+
+# =====================================
+# Hook設定
+# =====================================
+hooks:
+  on_workflow_start: |
+    osascript -e 'display notification "Issue #'"$PI_ISSUE_NUMBER"' を開始しました" with title "TandemWeb" subtitle "🚀 開始" sound name "Pop"'
+
+  on_workflow_end: |
+    if [ "$PI_STATUS" = "success" ]; then
+      osascript -e 'display notification "Issue #'"$PI_ISSUE_NUMBER"' が完了しました" with title "TandemWeb" subtitle "✅ 完了" sound name "Glass"'
+    else
+      osascript -e 'display notification "Issue #'"$PI_ISSUE_NUMBER"' でエラーが発生しました" with title "TandemWeb" subtitle "❌ エラー" sound name "Basso"'
+    fi
