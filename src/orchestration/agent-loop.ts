@@ -299,7 +299,17 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
         }
 
         if (name === "repl" && toolResult.ok) {
+          const prevNames = new Set(useStore.getState().artifacts.map((a) => a.name));
           await useStore.getState().loadArtifacts();
+          const { artifacts } = useStore.getState();
+          if (artifacts.length > 0) {
+            useStore.getState().setArtifactPanelOpen(true);
+            // 新しいアーティファクトがあれば自動選択
+            const newArtifact = artifacts.find((a) => !prevNames.has(a.name));
+            if (newArtifact) {
+              useStore.getState().selectArtifact(newArtifact.name);
+            }
+          }
         }
       };
 

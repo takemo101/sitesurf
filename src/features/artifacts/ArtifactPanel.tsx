@@ -181,8 +181,8 @@ export function ArtifactPanel() {
 
   const handlePopout = async () => {
     if (!currentData) return;
+    const popupKey = `artifact-popup-${Date.now()}`;
     try {
-      const popupKey = `artifact-popup-${Date.now()}`;
       await chrome.storage.session.set({
         [popupKey]: {
           name: currentData.name,
@@ -197,6 +197,7 @@ export function ArtifactPanel() {
         height: 768,
       });
     } catch {
+      chrome.storage.session.remove(popupKey);
       notifications.show({ message: "別ウィンドウを開けませんでした", color: "red" });
     }
   };

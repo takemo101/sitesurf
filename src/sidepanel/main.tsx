@@ -28,6 +28,11 @@ function isColorScheme(value: unknown): value is ColorScheme {
 }
 
 (async () => {
+  // bundler (rolldown) が MantineProvider 等の共有モジュールを sidepanel.js に
+  // 巻き上げるため、artifact-popup エントリからも sidepanel.js が import される。
+  // このガードにより、sidepanel 以外のページでは初期化を実行しない。
+  if (!location.pathname.endsWith("/sidepanel/index.html")) return;
+
   const browserExecutor = new ChromeBrowserExecutor();
   const storage = new ChromeStorageAdapter();
   const sessionStorage = new IndexedDBSessionStorage();
