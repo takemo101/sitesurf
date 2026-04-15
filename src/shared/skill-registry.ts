@@ -1,9 +1,9 @@
 import type { Skill, SkillMatch, DOMSnapshot, DOMIndicators } from "./skill-types";
 
 // パスパターンのワイルドカードマッチング。
-// * は / 以外の任意の文字列にマッチ（末尾・中間・拡張子いずれも対応）。
-// * を含まないパターンは startsWith によるプレフィックスマッチ。
-// ** はサポートしない（* と同じ扱い）。
+// *  は / 以外の任意の文字列にマッチ（単一セグメント）。
+// ** は / を含む任意の文字列にマッチ（複数セグメント）。
+// ワイルドカードを含まないパターンは startsWith によるプレフィックスマッチ。
 const regexCache = new Map<string, RegExp>();
 
 export function matchPath(pathname: string, pattern: string): boolean {
@@ -16,7 +16,12 @@ export function matchPath(pathname: string, pattern: string): boolean {
   let regex = regexCache.get(pattern);
   if (!regex) {
     const escaped = pattern.replace(/[.+?^${}()|\\[\]]/g, "\\$&");
-    const regexStr = escaped.replace(/\*/g, "[^/]*");
+    // ** → 任意パス（.*)、* → 単一セグメント（[^/]*）
+    // 先に ** を置換してから * を置換する
+    const regexStr = escaped
+      .replace(/\*\*/g, "<<GLOBSTAR>>")
+      .replace(/\*/g, "[^/]*")
+      .replace(/<<GLOBSTAR>>/g, ".*");
     regex = new RegExp(`^${regexStr}$`);
     regexCache.set(pattern, regex);
   }

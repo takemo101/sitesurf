@@ -195,7 +195,8 @@ validation 結果を返し、Settings の下書き一覧で内容を確認した
           paths: {
             type: "array",
             items: { type: "string" },
-            description: "マッチ対象のパスパターン（省略可）",
+            description:
+              "マッチ対象のパスパターン（省略可）。* は単一セグメント、** は複数セグメントにマッチ。例: /articles/* は /articles/slug にマッチ、/articles/** は /articles/slug/edit にもマッチ。ワイルドカードなしは前方一致。",
           },
           signals: {
             type: "array",
@@ -272,7 +273,8 @@ draftId で指定した承認待ちの下書きに対して、部分的な変更
               paths: {
                 type: "array",
                 items: { type: "string" },
-                description: "マッチ対象のパスパターン",
+                description:
+                  "マッチ対象のパスパターン。* は単一セグメント、** は複数セグメントにマッチ。",
               },
               signals: {
                 type: "array",

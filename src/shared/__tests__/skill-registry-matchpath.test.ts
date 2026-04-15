@@ -83,6 +83,44 @@ describe("matchPath", () => {
     });
   });
 
+  describe("ダブルワイルドカード（**）", () => {
+    it("/articles/** は /articles/slug にマッチ", () => {
+      expect(matchPath("/articles/slug", "/articles/**")).toBe(true);
+    });
+
+    it("/articles/** は /articles/slug/edit にマッチ", () => {
+      expect(matchPath("/articles/slug/edit", "/articles/**")).toBe(true);
+    });
+
+    it("/articles/** は /articles/a/b/c にマッチ", () => {
+      expect(matchPath("/articles/a/b/c", "/articles/**")).toBe(true);
+    });
+
+    it("/articles/** は /books/slug にマッチしない", () => {
+      expect(matchPath("/books/slug", "/articles/**")).toBe(false);
+    });
+
+    it("/**/settings は /user/settings にマッチ", () => {
+      expect(matchPath("/user/settings", "/**/settings")).toBe(true);
+    });
+
+    it("/**/settings は /a/b/settings にマッチ", () => {
+      expect(matchPath("/a/b/settings", "/**/settings")).toBe(true);
+    });
+
+    it("/api/**/detail は /api/v1/users/detail にマッチ", () => {
+      expect(matchPath("/api/v1/users/detail", "/api/**/detail")).toBe(true);
+    });
+
+    it("** と * の混在: /a/*/b/** は /a/x/b/c/d にマッチ", () => {
+      expect(matchPath("/a/x/b/c/d", "/a/*/b/**")).toBe(true);
+    });
+
+    it("** と * の混在: /a/*/b/** は /a/x/y/b/c にマッチしない", () => {
+      expect(matchPath("/a/x/y/b/c", "/a/*/b/**")).toBe(false);
+    });
+  });
+
   describe("エッジケース", () => {
     it("空パターンはマッチしない", () => {
       expect(matchPath("/anything", "")).toBe(false);
