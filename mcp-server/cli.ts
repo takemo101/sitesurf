@@ -1,6 +1,12 @@
 #!/usr/bin/env npx tsx
 import { Cli, z } from "incur";
 import { ChromeBridge } from "./bridge.js";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(resolve(__dirname, "../package.json"), "utf-8"));
 
 const PORT = parseInt(process.env.TANDEMWEB_PORT || "7331");
 const bridge = new ChromeBridge(PORT);
@@ -14,7 +20,7 @@ async function ensureBridge(): Promise<void> {
 
 const cli = Cli.create("sitesurf", {
   description: "Browser automation via SiteSurf Chrome extension",
-  version: "0.1.0",
+  version: pkg.version,
 })
   .command("tabs-list", {
     description: "List all open tabs",
