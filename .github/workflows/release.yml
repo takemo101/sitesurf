@@ -21,14 +21,11 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - name: Install vite-plus
-        run: curl -fsSL https://vite.plus | bash
-
       - name: Install dependencies
         run: pnpm install
 
       - name: Build
-        run: vp build
+        run: pnpm run build
 
       - name: Create dist.zip
         run: cd dist && zip -r ../dist.zip . && cd ..
