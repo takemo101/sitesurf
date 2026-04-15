@@ -478,8 +478,8 @@ function injectPicker(message: string): Promise<{
         currentEl = el;
         const rect = el.getBoundingClientRect();
         highlight.style.display = "block";
-        highlight.style.top = `${rect.top + window.scrollY}px`;
-        highlight.style.left = `${rect.left + window.scrollX}px`;
+        highlight.style.top = `${rect.top}px`;
+        highlight.style.left = `${rect.left}px`;
         highlight.style.width = `${rect.width}px`;
         highlight.style.height = `${rect.height}px`;
       };
