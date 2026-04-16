@@ -1,7 +1,7 @@
 export const TOOL_PHILOSOPHY = [
   "# Tool Philosophy",
   "",
-  "TandemWeb provides four distinct tool categories with strict boundaries:",
+  "SiteSurf provides four distinct tool categories with strict boundaries:",
   "",
   "## 1. Artifacts Tool (AI authors content)",
   "",

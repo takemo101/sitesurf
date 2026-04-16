@@ -215,7 +215,7 @@ export function ArtifactPanel() {
         background: "var(--mantine-color-body)",
       }}
     >
-      {/* Header - TandemWeb style */}
+      {/* Header - SiteSurf style */}
       <Group
         px="sm"
         py={6}
