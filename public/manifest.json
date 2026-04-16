@@ -28,7 +28,8 @@
     "alarms",
     "notifications",
     "debugger",
-    "downloads"
+    "downloads",
+    "offscreen"
   ],
   "host_permissions": ["<all_urls>"],
   "commands": {
