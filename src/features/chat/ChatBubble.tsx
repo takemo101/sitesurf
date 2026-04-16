@@ -3,7 +3,6 @@ import {
   Collapse,
   CopyButton,
   Group,
-  Image,
   Paper,
   Text,
   UnstyledButton,
@@ -16,6 +15,7 @@ import { useStore } from "@/store/index";
 import { messageStyles, type StyledRole } from "./theme";
 import { MarkdownContent } from "./MarkdownContent";
 import { ToolCallBlock } from "./ToolCallBlock";
+import { ImageLightbox } from "./tool-renderers/components";
 
 const roleConfig = {
   user: { icon: User, label: "You" },
@@ -100,13 +100,9 @@ export function ChatBubble({ msg, isLast }: { msg: ChatMessage; isLast?: boolean
         <MarkdownContent content={msg.content} />
 
         {msg.image && (
-          <Image
-            src={msg.image}
-            radius="sm"
-            mt={4}
-            maw={300}
-            style={{ border: "1px solid var(--mantine-color-default-border)" }}
-          />
+          <Paper mt={4} radius="sm" withBorder style={{ maxWidth: 300, overflow: "hidden" }}>
+            <ImageLightbox src={msg.image} alt="Screenshot" />
+          </Paper>
         )}
 
         {msg.toolCalls?.map((tc) => (

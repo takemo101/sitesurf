@@ -6,6 +6,7 @@ import {
   Group,
   Image,
   Loader,
+  Modal,
   Paper,
   Text,
   UnstyledButton,
@@ -22,6 +23,7 @@ import {
   FileCode,
   Image as ImageIcon,
   Terminal,
+  X,
   Zap,
   XCircle,
 } from "lucide-react";
@@ -261,6 +263,59 @@ function JsonValue({ value }: { value: unknown }) {
   );
 }
 
+export function ImageLightbox({ src, alt }: { src: string; alt?: string }) {
+  const [opened, setOpened] = useState(false);
+
+  return (
+    <>
+      <UnstyledButton onClick={() => setOpened(true)} style={{ cursor: "zoom-in", display: "block" }}>
+        <Image src={src} alt={alt ?? "Image"} style={{ maxWidth: "100%", height: "auto" }} />
+      </UnstyledButton>
+      {opened && (
+        <Modal
+          opened
+          onClose={() => setOpened(false)}
+          fullScreen
+          withCloseButton={false}
+          styles={{
+            body: {
+              padding: 0,
+              height: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "rgba(0, 0, 0, 0.9)",
+            },
+            content: { background: "transparent", boxShadow: "none" },
+          }}
+        >
+          <ActionIcon
+            variant="filled"
+            color="dark"
+            size="lg"
+            radius="xl"
+            onClick={() => setOpened(false)}
+            aria-label="閉じる"
+            style={{ position: "fixed", top: 16, right: 16, zIndex: 1 }}
+          >
+            <X size={24} />
+          </ActionIcon>
+          <UnstyledButton
+            onClick={() => setOpened(false)}
+            style={{ cursor: "zoom-out", maxWidth: "95vw", maxHeight: "95vh" }}
+          >
+            <img
+              src={src}
+              alt={alt ?? "Image"}
+              style={{ maxWidth: "95vw", maxHeight: "95vh", objectFit: "contain" }}
+            />
+          </UnstyledButton>
+        </Modal>
+      )}
+    </>
+  );
+}
+
 function syncConsoleLogsFromOutput(
   consoleLogService: ToolRendererContext["consoleLogService"],
   toolCallId: string,
@@ -494,7 +549,7 @@ function ExtractImageRendererView({ toolCall }: ToolRendererContext) {
         mt="xs"
         style={{ overflow: "hidden", maxWidth: "100%", position: "relative" }}
       >
-        <Image src={imageUrl} alt="Extracted image" style={{ maxWidth: "100%", height: "auto" }} />
+        <ImageLightbox src={imageUrl} alt="Extracted image" />
 
         <ActionIcon
           variant="filled"
@@ -504,7 +559,8 @@ function ExtractImageRendererView({ toolCall }: ToolRendererContext) {
           title="画像をダウンロード"
           aria-label="画像をダウンロード"
           loading={isDownloading}
-          onClick={async () => {
+          onClick={async (e) => {
+            e.stopPropagation();
             const mediaTypeMatch = imageUrl.match(/^data:image\/([^;]+);/);
             const mediaType = mediaTypeMatch?.[1]?.toLowerCase();
             const extension = mediaType === "jpeg" ? "jpg" : mediaType || "png";
