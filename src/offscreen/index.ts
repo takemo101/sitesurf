@@ -1,6 +1,8 @@
 import { Readability } from "@mozilla/readability";
 import type { ReadabilityMessage, ReadabilityResponse } from "@/shared/message-types";
 
+const MAX_CONTENT_LENGTH = 100_000; // 100K chars
+
 chrome.runtime.onMessage.addListener(
   (msg: ReadabilityMessage, _sender, sendResponse: (r: ReadabilityResponse) => void) => {
     if (msg.type !== "BG_READABILITY") return false;
@@ -21,10 +23,15 @@ chrome.runtime.onMessage.addListener(
       const article = reader.parse();
 
       const title = article?.title || doc.title || "";
-      const content =
+      let content =
         article && article.textContent && article.textContent.length > 100
           ? article.textContent.trim()
           : extractFallback(doc);
+
+      // Truncate to prevent token explosion
+      if (content.length > MAX_CONTENT_LENGTH) {
+        content = content.substring(0, MAX_CONTENT_LENGTH) + "\n... (truncated)";
+      }
 
       sendResponse({ success: true, title, content, links });
     } catch (e) {
@@ -67,5 +74,9 @@ function extractFallback(doc: Document): string {
       return el.textContent.trim();
     }
   }
-  return doc.body?.textContent?.trim() ?? "";
+  // Truncate body fallback too
+  const bodyText = doc.body?.textContent?.trim() ?? "";
+  return bodyText.length > MAX_CONTENT_LENGTH
+    ? bodyText.substring(0, MAX_CONTENT_LENGTH) + "\n... (truncated)"
+    : bodyText;
 }

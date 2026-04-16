@@ -48,15 +48,6 @@ export const bgFetchToolDef: ToolDefinition = {
   },
 };
 
-interface BgFetchArgs {
-  urls: string[];
-  method?: string;
-  headers?: Record<string, string>;
-  body?: string;
-  response_type?: "text" | "json" | "base64" | "readability";
-  timeout?: number;
-}
-
 interface BgFetchResultItem {
   url: string;
   ok: boolean;
@@ -69,28 +60,63 @@ interface BgFetchResultItem {
   error?: string;
 }
 
+function truncateBody(body: string | object): string | object {
+  if (typeof body === "string") {
+    return body.length > MAX_BODY_CHARS
+      ? body.substring(0, MAX_BODY_CHARS) + "\n... (truncated)"
+      : body;
+  }
+
+  // Handle readability body { title, content, links }
+  if (typeof body === "object" && body !== null && "content" in body) {
+    const rb = body as { title: string; content: string; links: unknown[] };
+    if (rb.content.length > MAX_BODY_CHARS) {
+      return { ...rb, content: rb.content.substring(0, MAX_BODY_CHARS) + "\n... (truncated)" };
+    }
+  }
+
+  return body;
+}
+
 export async function executeBgFetch(
   args: Record<string, unknown>,
 ): Promise<Result<BgFetchResultItem | BgFetchResultItem[], ToolError>> {
-  const { urls, method, headers, body, response_type, timeout } = args as unknown as BgFetchArgs;
-
+  // Runtime input validation
+  const urls = args.urls;
   if (!urls || !Array.isArray(urls) || urls.length === 0) {
     return err({ code: "tool_script_error", message: "urls must be a non-empty array" });
   }
   if (urls.length > MAX_URLS) {
     return err({ code: "tool_script_error", message: `Maximum ${MAX_URLS} URLs per request` });
   }
+  if (urls.some((u) => typeof u !== "string")) {
+    return err({ code: "tool_script_error", message: "All urls must be strings" });
+  }
+
+  const method = typeof args.method === "string" ? args.method : "GET";
+  const headers =
+    args.headers && typeof args.headers === "object" && !Array.isArray(args.headers)
+      ? (args.headers as Record<string, string>)
+      : undefined;
+  const body = typeof args.body === "string" ? args.body : undefined;
+  const responseType =
+    typeof args.response_type === "string" &&
+    ["text", "json", "base64", "readability"].includes(args.response_type)
+      ? (args.response_type as BgFetchMessage["responseType"])
+      : "text";
+  const timeout =
+    typeof args.timeout === "number" ? Math.min(Math.max(args.timeout, 1000), 60000) : 30000;
 
   const fetchOne = async (url: string): Promise<BgFetchResultItem> => {
     try {
       const message: BgFetchMessage = {
         type: "BG_FETCH",
         url,
-        method: method ?? "GET",
+        method,
         headers,
         body,
-        responseType: response_type ?? "text",
-        timeout: Math.min(timeout ?? 30000, 60000),
+        responseType,
+        timeout,
       };
 
       const result = await chrome.runtime.sendMessage<BgFetchMessage, BgFetchResponse>(message);
@@ -103,16 +129,11 @@ export async function executeBgFetch(
           statusText: "",
           headers: {},
           body: "",
-          error: result?.error ?? "bgFetch failed",
+          error: result?.error ?? "bgFetch: no response from background handler",
         };
       }
 
-      const data = result.data;
-      if (typeof data.body === "string" && data.body.length > MAX_BODY_CHARS) {
-        data.body = data.body.substring(0, MAX_BODY_CHARS) + "\n... (truncated)";
-      }
-
-      return { ...data, url };
+      return { ...result.data, url, body: truncateBody(result.data.body) };
     } catch (e: unknown) {
       return {
         url,
