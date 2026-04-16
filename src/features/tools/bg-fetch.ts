@@ -11,7 +11,9 @@ export const bgFetchToolDef: ToolDefinition = {
   description:
     "外部URLのコンテンツを取得する。CORSを回避してあらゆるURLにアクセス可能。" +
     "複数URLを並列取得できる。Webページはresponse_type='readability'で本文のみ抽出すると効率的。" +
-    "readabilityモードでは本文テキストに加え、ページ内リンク一覧も返すのでドキュメント探索に活用できる。",
+    "readabilityモードでは本文テキストに加え、ページ内リンク一覧も返すのでドキュメント探索に活用できる。" +
+    "注意: SPA/CSRサイト（React, Vue, Next.js等）ではJSレンダリング後のコンテンツを取得できない。" +
+    "SPA/CSRサイトの場合はnavigateでページを開いてからread_pageやbrowserjs()を使うこと。",
   parameters: {
     type: "object",
     properties: {
