@@ -59,6 +59,7 @@ type Unsubscribe = () => void;
 | `pick_element` | `getActiveTab()` + `injectElementPicker()`            |
 | `screenshot`   | `captureScreenshot()`                                 |
 | `skill`        | ストレージ操作（SkillRegistry経由）                   |
+| `bg_fetch`     | 不使用（`chrome.runtime.sendMessage` で background に直接通信） |
 
 新ツール `click_element` を追加する場合:
 
@@ -110,6 +111,7 @@ shared/port.ts                          background/index.ts
 | `background/handlers/session-lock.ts`        | chrome.storage.session を使ったセッション排他ロック  | Chrome API のみ          |
 | `background/handlers/panel-tracker.ts`       | サイドパネルの開閉状態追跡                           | Chrome API のみ          |
 | `background/handlers/native-input.ts`        | Native Input Functions（デバッガー経由）             | Chrome API のみ          |
+| `background/handlers/bg-fetch.ts`            | bg_fetch（URLバリデーション、fetch、セマフォ、キャッシュ） | Chrome API + offscreen  |
 
 **ツール実行はすべて Side Panel から直接 Chrome API を呼び出す。**
 Background は以下に特化:
@@ -367,6 +369,21 @@ const info = await browserjs(fn);
 | `pick_element` | インタラクティブな要素選択ピッカー                |
 | `screenshot`   | 可視領域のスクリーンショット取得                  |
 | `skill`        | サイト固有の自動化ライブラリ（Skill）の管理       |
+| `bg_fetch`     | 外部URLのコンテンツ取得（CORS回避、複数URL並列）  |
+
+### bg_fetch ツール
+
+`bg_fetch` は background service worker 経由で外部URLのコンテンツを取得する独立ツール。
+
+- `urls: string[]` で複数URLを1回のtool callで並列取得
+- `response_type: "readability"` でHTMLページから本文+リンク一覧を抽出
+- background SWの `host_permissions: <all_urls>` によりCORS制限を回避
+- offscreen document で `@mozilla/readability` を使った本文抽出
+
+**BrowserExecutor は不使用** — ブラウザ操作ではなくネットワークリクエストのため。
+`chrome.runtime.sendMessage` でbackgroundに直接通信する（NativeInput と同パターン）。
+
+詳細: [bg_fetch 設計](../design/bg-fetch.md)
 
 ### 将来拡張候補
 
@@ -379,6 +396,63 @@ const info = await browserjs(fn);
 | `list_tabs`     | `getActiveTab` の拡張版    | 要検討   |
 
 ## メッセージプロトコル
+
+### bg_fetch メッセージ
+
+bg_fetchはBackground経由で外部URLを取得する。readability時はさらにoffscreen documentに転送。
+
+```typescript
+// shared/message-types.ts
+
+// sidepanel → background
+export interface BgFetchMessage {
+  type: "BG_FETCH";
+  url: string;
+  method: string;
+  headers?: Record<string, string>;
+  body?: string;
+  responseType: "text" | "json" | "base64" | "readability";
+  timeout: number;
+}
+
+export interface BgFetchResponse {
+  success: boolean;
+  data?: {
+    url: string;
+    ok: boolean;
+    status: number;
+    statusText: string;
+    headers: Record<string, string>;
+    body: string | object;
+    redirected?: boolean;
+    redirectUrl?: string;
+  };
+  error?: string;
+}
+
+// background → offscreen (readability時)
+export interface ReadabilityMessage {
+  type: "BG_READABILITY";
+  html: string;
+  url: string;
+}
+
+export interface ReadabilityResponse {
+  success: boolean;
+  title?: string;
+  content?: string;
+  links?: Array<{ text: string; href: string }>;
+  error?: string;
+}
+```
+
+実行フロー:
+
+1. `executeBgFetch()` が `chrome.runtime.sendMessage({ type: "BG_FETCH", ... })`
+2. `background/handlers/bg-fetch.ts` でURLバリデーション、fetch実行
+3. readability時: `chrome.runtime.sendMessage({ type: "BG_READABILITY", ... })` → offscreen
+4. `offscreen/index.ts` でDOMParser + Readability + リンク抽出
+5. 結果を返却
 
 ### Native Input Functions
 
