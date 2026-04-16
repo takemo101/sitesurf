@@ -254,6 +254,27 @@ body,
   }
 }
 
+/* Tool running pulse animation */
+.tool-running {
+  animation: toolPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes toolPulse {
+  0%,
+  100% {
+    background: var(--mantine-color-indigo-light);
+  }
+  50% {
+    background: color-mix(in srgb, var(--mantine-color-indigo-light) 60%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-running {
+    animation: none;
+  }
+}
+
 /* Markdown content styles */
 .markdown-content pre {
   scrollbar-width: thin;

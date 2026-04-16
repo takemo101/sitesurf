@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Box, Collapse, Code, Paper, Text, UnstyledButton } from "@mantine/core";
-import { ChevronDown, ChevronUp, FileCode, Image as ImageIcon, Terminal } from "lucide-react";
+import { ChevronDown, ChevronUp, FileCode, Globe, Image as ImageIcon, Terminal } from "lucide-react";
 import type { ToolCallInfo } from "@/ports/session-types";
 import { defaultConsoleLogService } from "./services/console-log";
 import { defaultToolRendererRegistry } from "./tool-renderers";
@@ -198,14 +198,18 @@ function getToolDescription(toolCall: ToolCallInfo): string | null {
 
 function getToolIcon(toolName: string) {
   if (toolName === "artifacts") {
-    return <FileCode size={18} color="var(--mantine-color-indigo-5)" />;
+    return <FileCode size={14} color="var(--mantine-color-indigo-5)" />;
   }
 
   if (toolName === "extract_image") {
-    return <ImageIcon size={18} color="var(--mantine-color-green-5)" />;
+    return <ImageIcon size={14} color="var(--mantine-color-green-5)" />;
   }
 
-  return <Terminal size={18} color="var(--mantine-color-indigo-5)" />;
+  if (toolName === "bg_fetch") {
+    return <Globe size={14} color="var(--mantine-color-cyan-5)" />;
+  }
+
+  return <Terminal size={14} color="var(--mantine-color-indigo-5)" />;
 }
 
 export function ToolCallBlock({ tc }: { tc: ToolCallInfo }) {

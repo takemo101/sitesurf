@@ -1,4 +1,5 @@
 import { defaultConsoleLogService } from "../services/console-log";
+import { bgFetchToolRenderer } from "./bg-fetch-renderer";
 import { artifactsToolRenderer, extractImageToolRenderer, replToolRenderer } from "./components";
 import { ToolRendererRegistry } from "./registry";
 
@@ -8,6 +9,7 @@ export function createDefaultToolRendererRegistry(consoleLogService = defaultCon
   registry.register("repl", replToolRenderer);
   registry.register("extract_image", extractImageToolRenderer);
   registry.register("artifacts", artifactsToolRenderer);
+  registry.register("bg_fetch", bgFetchToolRenderer);
   return registry;
 }
 
