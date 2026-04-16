@@ -21,6 +21,9 @@ function chromeExtensionPlugin() {
         copyFileSync(`public/icons/${f}`, `${dist}/icons/${f}`);
       }
 
+      // offscreen.html をコピー
+      copyFileSync("public/offscreen.html", `${dist}/offscreen.html`);
+
       // 2. sidepanel HTML を正しい位置に移動
       const srcHtml = `${dist}/src/sidepanel/index.html`;
       if (existsSync(srcHtml)) {
@@ -58,6 +61,11 @@ export function getManualChunk(id: string): string | undefined {
   const normalizedId = normalizePath(id);
 
   if (normalizedId.includes("/node_modules/")) return "vendor";
+
+  // Offscreen document — isolated like background
+  if (normalizedId.includes("/src/offscreen/")) {
+    return "offscreen";
+  }
 
   // Background service-worker modules — isolated so they never pull in the
   // heavy sidepanel/artifacts dependency tree.
@@ -134,6 +142,7 @@ export default defineConfig({
         sidepanel: resolve(__dirname, "src/sidepanel/index.html"),
         "artifact-popup": resolve(__dirname, "src/artifact-popup/index.html"),
         background: resolve(__dirname, "src/background/index.ts"),
+        offscreen: resolve(__dirname, "src/offscreen/index.ts"),
       },
       output: {
         entryFileNames: "[name].js",

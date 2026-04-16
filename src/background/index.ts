@@ -5,6 +5,7 @@ import { acquireLock, releaseLocksForWindow } from "./handlers/session-lock";
 import { addOpenPanel, removeOpenPanel } from "./handlers/panel-tracker";
 import { initWire, sendPing } from "./handlers/wire";
 import "./handlers/native-input";
+import "./handlers/bg-fetch";
 
 const log = createLogger("background");
 const browserExecutor = new ChromeBrowserExecutor();

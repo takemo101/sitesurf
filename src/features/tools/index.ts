@@ -37,6 +37,7 @@ import {
   type DeleteSkillDraftArgs,
   type DeleteSkillDraftResult,
 } from "./skill";
+import { bgFetchToolDef, executeBgFetch } from "./bg-fetch";
 import { artifactsTool } from "./definitions/artifacts-tool";
 import { handleArtifactsTool } from "./handlers/artifacts-handler";
 
@@ -58,6 +59,7 @@ export {
   executeUpdateSkillDraft,
   executeDeleteSkillDraft,
 };
+export { bgFetchToolDef, executeBgFetch };
 export { artifactsTool, handleArtifactsTool };
 export type {
   SkillAction,
@@ -102,6 +104,7 @@ export const ALL_TOOL_DEFS: ToolDefinition[] = [
   updateSkillDraftToolDef,
   deleteSkillDraftToolDef,
   artifactsTool,
+  bgFetchToolDef,
 ];
 
 export const AGENT_TOOL_DEFS: ToolDefinition[] = ALL_TOOL_DEFS.filter(
@@ -160,6 +163,8 @@ export function createToolExecutorWithSkills(
           selector: args.selector,
           maxWidth: typeof args.maxWidth === "number" ? args.maxWidth : undefined,
         });
+      case "bg_fetch":
+        return executeBgFetch(args);
       case "skill": {
         const tab = await browser.getActiveTab();
         return executeSkill(storage, skillRegistry, tab.url, args as SkillAction);
