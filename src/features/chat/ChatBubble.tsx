@@ -1,5 +1,8 @@
+import { useState } from "react";
 import {
   ActionIcon,
+  Badge,
+  Box,
   Collapse,
   CopyButton,
   Group,
@@ -9,8 +12,17 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { motion } from "framer-motion";
-import { Bot, Brain, Check, ChevronDown, ChevronRight, Copy, User } from "lucide-react";
-import type { ChatMessage } from "@/ports/session-types";
+import {
+  Bot,
+  Brain,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Wrench,
+  User,
+} from "lucide-react";
+import type { ChatMessage, ToolCallInfo } from "@/ports/session-types";
 import { useStore } from "@/store/index";
 import { messageStyles, type StyledRole } from "./theme";
 import { MarkdownContent } from "./MarkdownContent";
@@ -41,6 +53,67 @@ function ReasoningBlock({ text, isThinking }: { text: string; isThinking?: boole
         </Text>
       </Collapse>
     </Paper>
+  );
+}
+
+function ToolCallGroup({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
+  const hasRunning = toolCalls.some((tc) => tc.isRunning);
+  const allSuccess = toolCalls.every((tc) => tc.success === true);
+  const hasError = toolCalls.some((tc) => tc.success === false);
+  const [expanded, setExpanded] = useState(hasRunning || toolCalls.length <= 2);
+
+  // If only 1-2 tools, show inline without grouping
+  if (toolCalls.length <= 2) {
+    return (
+      <>
+        {toolCalls.map((tc) => (
+          <ToolCallBlock key={tc.id} tc={tc} />
+        ))}
+      </>
+    );
+  }
+
+  return (
+    <Box mt={8}>
+      <UnstyledButton
+        onClick={() => setExpanded((prev) => !prev)}
+        py={4}
+        px={6}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          borderRadius: 4,
+        }}
+        className="hover-highlight"
+      >
+        <Wrench size={12} color="var(--mantine-color-dimmed)" />
+        <Text size="xs" c="dimmed" fw={500}>
+          ツール実行
+        </Text>
+        <Badge
+          size="xs"
+          variant="light"
+          color={hasRunning ? "indigo" : hasError ? "red" : allSuccess ? "green" : "gray"}
+        >
+          {toolCalls.length}
+        </Badge>
+        <ChevronDown
+          size={12}
+          color="var(--mantine-color-dimmed)"
+          style={{
+            transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 0.15s ease",
+          }}
+        />
+      </UnstyledButton>
+
+      <Collapse expanded={expanded}>
+        {toolCalls.map((tc) => (
+          <ToolCallBlock key={tc.id} tc={tc} />
+        ))}
+      </Collapse>
+    </Box>
   );
 }
 
@@ -105,9 +178,9 @@ export function ChatBubble({ msg, isLast }: { msg: ChatMessage; isLast?: boolean
           </Paper>
         )}
 
-        {msg.toolCalls?.map((tc) => (
-          <ToolCallBlock key={tc.id} tc={tc} />
-        ))}
+        {msg.toolCalls && msg.toolCalls.length > 0 && (
+          <ToolCallGroup toolCalls={msg.toolCalls} />
+        )}
       </Paper>
     </motion.div>
   );

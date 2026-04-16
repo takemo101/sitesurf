@@ -14,7 +14,6 @@ import {
 import {
   CheckCircle,
   ChevronDown,
-  ChevronUp,
   Check,
   Code2,
   Copy,
@@ -75,7 +74,10 @@ export function ToolMessageContainer({
   defaultExpanded,
   children,
 }: ToolMessageContainerProps) {
-  const [expanded, setExpanded] = useState(toolCall.isRunning || defaultExpanded === true);
+  const isComplete = !toolCall.isRunning && toolCall.success !== undefined;
+  const [expanded, setExpanded] = useState(
+    toolCall.isRunning || (defaultExpanded === true && !isComplete),
+  );
 
   useEffect(() => {
     if (toolCall.isRunning) {
@@ -83,48 +85,70 @@ export function ToolMessageContainer({
     }
   }, [toolCall.isRunning]);
 
+  const borderLeftColor = toolCall.isRunning
+    ? "var(--mantine-color-indigo-5)"
+    : toolCall.success === true
+      ? "var(--mantine-color-green-5)"
+      : toolCall.success === false
+        ? "var(--mantine-color-red-5)"
+        : "var(--mantine-color-default-border)";
+
   return (
-    <Paper
-      mt="sm"
-      radius="md"
-      withBorder
+    <Box
+      mt={6}
+      className={toolCall.isRunning ? "tool-running" : undefined}
       style={{
-        borderColor: toolCall.isRunning
-          ? "var(--mantine-color-indigo-3)"
-          : "var(--mantine-color-default-border)",
-        boxShadow: toolCall.isRunning ? "0 0 0 1px var(--mantine-color-indigo-light)" : undefined,
+        borderLeft: `3px solid ${borderLeftColor}`,
+        borderRadius: 4,
+        background: toolCall.isRunning
+          ? "var(--mantine-color-indigo-light)"
+          : expanded
+            ? "var(--mantine-color-default-hover)"
+            : "transparent",
+        transition: "background 0.15s ease",
       }}
     >
       <UnstyledButton
         onClick={() => !toolCall.isRunning && setExpanded((prev) => !prev)}
         w="100%"
-        px="md"
-        py="sm"
-        style={{ display: "flex", alignItems: "center", gap: 10 }}
+        px="sm"
+        py={6}
+        style={{ display: "flex", alignItems: "center", gap: 8 }}
         aria-label={`ツール: ${toolCall.name}`}
         aria-expanded={expanded}
       >
-        {icon ?? <Terminal size={18} color="var(--mantine-color-indigo-5)" />}
-        <Text size="sm" fw={600} c="indigo">
+        {icon ?? <Terminal size={14} color="var(--mantine-color-indigo-5)" />}
+        <Text size="xs" fw={600} c={toolCall.isRunning ? "indigo" : "dimmed"}>
           {toolCall.name}
         </Text>
         {summary ? (
           <Box style={{ flex: 1 }}>{summary}</Box>
         ) : description ? (
-          <Text size="sm" c="dimmed" truncate style={{ flex: 1 }}>
+          <Text size="xs" c="dimmed" truncate style={{ flex: 1 }}>
             {description}
           </Text>
-        ) : null}
+        ) : (
+          <Box style={{ flex: 1 }} />
+        )}
         <StatusIcon toolCall={toolCall} />
-        {!toolCall.isRunning && (expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />)}
+        {!toolCall.isRunning && (
+          <ChevronDown
+            size={12}
+            style={{
+              transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
+              transition: "transform 0.15s ease",
+              opacity: 0.5,
+            }}
+          />
+        )}
       </UnstyledButton>
 
       {expanded && (
-        <Box px="md" pb="md">
+        <Box px="sm" pb="sm">
           {children}
         </Box>
       )}
-    </Paper>
+    </Box>
   );
 }
 
