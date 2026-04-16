@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Box, Collapse, Code, Image, Paper, Text, UnstyledButton } from "@mantine/core";
+import { Box, Collapse, Code, Paper, Text, UnstyledButton } from "@mantine/core";
 import { ChevronDown, ChevronUp, FileCode, Image as ImageIcon, Terminal } from "lucide-react";
 import type { ToolCallInfo } from "@/ports/session-types";
 import { defaultConsoleLogService } from "./services/console-log";
 import { defaultToolRendererRegistry } from "./tool-renderers";
-import { ToolMessageContainer } from "./tool-renderers/components";
+import { ImageLightbox, ToolMessageContainer } from "./tool-renderers/components";
 import type { ToolRendererContext } from "./tool-renderers/types";
 
 export function formatArgs(args: Record<string, unknown> | unknown): string | null {
@@ -151,7 +151,7 @@ function GenericToolResult({ toolCall }: { toolCall: ToolCallInfo }) {
   return (
     <Box mt={4} pt={4} style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}>
       {imageUrl ? (
-        <Image src={imageUrl} radius="sm" maw="100%" alt="Screenshot" />
+        <ImageLightbox src={imageUrl} alt="Screenshot" />
       ) : canShowStructuredJson ? (
         <Paper withBorder p="sm" radius="md" style={{ maxWidth: "100%", overflowX: "auto" }}>
           <Text size="xs" fw={700} mb={6}>
