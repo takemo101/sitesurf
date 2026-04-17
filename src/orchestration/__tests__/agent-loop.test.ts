@@ -12,6 +12,7 @@ import { ok, err } from "@/shared/errors";
 import { initStore, useStore } from "@/store/index";
 import { defaultConsoleLogService } from "@/features/chat/services/console-log";
 import type { ArtifactStoragePort } from "@/ports/artifact-storage";
+import type { ToolResultStorePort } from "@/ports/tool-result-store";
 import { estimateTokens } from "@/shared/token-utils";
 
 const mockArtifactStorage: ArtifactStoragePort & { setSessionId(id: string | null): void } = {
@@ -25,6 +26,13 @@ const mockArtifactStorage: ArtifactStoragePort & { setSessionId(id: string | nul
   deleteFile: async () => {},
   clearAll: async () => {},
   setSessionId: () => {},
+};
+
+const mockToolResultStore: ToolResultStorePort = {
+  save: async () => {},
+  get: async () => null,
+  list: async () => [],
+  deleteSession: async () => {},
 };
 
 vi.mock("@/shared/utils", () => ({
@@ -128,6 +136,7 @@ function createParams(overrides?: Partial<AgentLoopParams>): AgentLoopParams {
     deps: {
       createAIProvider: () => createMockAIProvider(),
       browserExecutor: {} as BrowserExecutor,
+      toolResultStore: mockToolResultStore,
     },
     chatStore: createMockChatStore(),
     settings: {
@@ -209,6 +218,56 @@ describe("runAgentLoop", () => {
       ok: true,
       value: { content: "page text" },
     });
+  });
+
+  it("stores large tool results as summaries when tool result store is enabled", async () => {
+    setStreamEvents(
+      [
+        { type: "tool-call", id: "tc-store", name: "read_page", args: {} },
+        { type: "finish", finishReason: "tool-calls" },
+      ],
+      [
+        { type: "text-delta", text: "done" },
+        { type: "finish", finishReason: "stop" },
+      ],
+    );
+
+    const save = vi.fn(async () => undefined);
+    const syncHistory = vi.fn();
+    const params = createParams({
+      settings: {
+        provider: "openai",
+        model: "gpt-4",
+        apiKey: "sk-test",
+        baseUrl: "",
+        enterpriseDomain: "",
+      },
+      deps: {
+        createAIProvider: () => createMockAIProvider(),
+        browserExecutor: {
+          getActiveTab: vi.fn().mockResolvedValue({ url: "https://example.com", title: "Example" }),
+        } as unknown as BrowserExecutor,
+        toolResultStore: { ...mockToolResultStore, save },
+      },
+      chatStore: createMockChatStore({ syncHistory }),
+      toolExecutor: vi.fn().mockResolvedValue({
+        ok: true,
+        value: { text: "A".repeat(1200), simplifiedDom: "" },
+      }),
+    });
+
+    await runAgentLoop(params);
+
+    expect(save).toHaveBeenCalledTimes(1);
+    const [messages] = syncHistory.mock.calls.at(-1) ?? [];
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: "tool",
+          result: expect.stringContaining("Stored: tool_result://"),
+        }),
+      ]),
+    );
   });
 
   it("repl 実行時は console log callback を渡して realtime log service に反映できる", async () => {
@@ -315,7 +374,11 @@ describe("runAgentLoop", () => {
     const params = createParams({
       chatStore,
       skillRegistry: registry,
-      deps: { createAIProvider: () => createMockAIProvider(), browserExecutor },
+      deps: {
+        createAIProvider: () => createMockAIProvider(),
+        browserExecutor,
+        toolResultStore: mockToolResultStore,
+      },
     });
     await runAgentLoop(params);
 
@@ -393,6 +456,7 @@ describe("auth refresh on ai_auth_invalid", () => {
         createAIProvider: () => createMockAIProvider(),
         browserExecutor: {} as BrowserExecutor,
         authProvider: mockAuthProvider,
+        toolResultStore: mockToolResultStore,
       },
       credentials: createMockCredentials(),
       onCredentialsUpdate,
@@ -433,6 +497,7 @@ describe("auth refresh on ai_auth_invalid", () => {
         createAIProvider: () => createMockAIProvider(),
         browserExecutor: {} as BrowserExecutor,
         authProvider: mockAuthProvider,
+        toolResultStore: mockToolResultStore,
       },
       credentials: createMockCredentials(),
       onCredentialsUpdate,
@@ -464,6 +529,7 @@ describe("auth refresh on ai_auth_invalid", () => {
         createAIProvider: () => createMockAIProvider(),
         browserExecutor: {} as BrowserExecutor,
         authProvider: mockAuthProvider,
+        toolResultStore: mockToolResultStore,
       },
     });
 
@@ -764,6 +830,7 @@ describe("tool execution error", () => {
         createAIProvider: () => createMockAIProvider(),
         browserExecutor: {} as BrowserExecutor,
         securityMiddleware: createSecurityMiddleware({ auditLogger }),
+        toolResultStore: mockToolResultStore,
       },
     });
     vi.mocked(params.toolExecutor).mockResolvedValueOnce({
@@ -806,6 +873,7 @@ describe("tool execution error", () => {
         createAIProvider: () => createMockAIProvider(),
         browserExecutor: {} as BrowserExecutor,
         securityMiddleware: createSecurityMiddleware({ auditLogger }),
+        toolResultStore: mockToolResultStore,
       },
     });
     vi.mocked(params.toolExecutor).mockResolvedValueOnce({
@@ -860,14 +928,10 @@ describe("context budget integration", () => {
       messages: Array<{ role: string; result?: string; toolName?: string }>;
     };
     const toolMessage = secondCall.messages.find((message) => message.role === "tool");
-    const budget = getContextBudget("gpt-4");
 
     expect(toolMessage?.toolName).toBe("read_page");
-    expect(toolMessage?.result).toMatch(/^\{"text":"/);
-    expect(toolMessage?.result).toMatch(/\n\.\.\. \(truncated\)$/);
-    expect(toolMessage?.result).toHaveLength(
-      budget.maxToolResultChars + "\n... (truncated)".length,
-    );
+    expect(toolMessage?.result).toContain("Stored: tool_result://");
+    expect(toolMessage?.result).toContain("Body preview:");
   });
 
   it("retries context overflow after trimming down to budget.compressionThreshold", async () => {

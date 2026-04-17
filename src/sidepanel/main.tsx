@@ -10,6 +10,7 @@ import { CopilotAuth } from "@/adapters/auth/copilot-auth";
 import { ChromeBrowserExecutor } from "@/adapters/chrome/chrome-browser-executor";
 import { ChromeArtifactStorage } from "@/adapters/storage/artifact-storage";
 import { ChromeStorageAdapter } from "@/adapters/storage/chrome-storage";
+import { IndexedDBToolResultStore } from "@/adapters/storage/indexeddb-tool-result-store";
 import { IndexedDBSessionStorage } from "@/adapters/storage/indexeddb-session-storage";
 import { LEGACY_THEME_STORAGE_KEY, THEME_STORAGE_KEY, type ColorScheme } from "@/shared/constants";
 
@@ -38,6 +39,7 @@ function isColorScheme(value: unknown): value is ColorScheme {
   const storage = new ChromeStorageAdapter();
   const sessionStorage = new IndexedDBSessionStorage();
   const artifactStorage = new ChromeArtifactStorage();
+  const toolResultStore = new IndexedDBToolResultStore();
 
   initStore(artifactStorage);
 
@@ -60,6 +62,7 @@ function isColorScheme(value: unknown): value is ColorScheme {
     storage,
     sessionStorage,
     artifactStorage,
+    toolResultStore,
   };
 
   if (import.meta.env.DEV) {

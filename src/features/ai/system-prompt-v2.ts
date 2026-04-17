@@ -5,6 +5,7 @@ import { PromptCache, createPromptCacheKey } from "./prompt-cache";
 export interface SystemPromptOptions {
   includeSkills?: boolean;
   skills?: SkillMatch[];
+  includeToolResultStore?: boolean;
   locale?: string;
 }
 
@@ -97,8 +98,18 @@ export function getSystemPromptV2(options: SystemPromptOptions): string {
 
   const skillsSection =
     options.includeSkills && options.skills ? generateSkillsSection(options.skills) : "";
+  const toolResultSection = options.includeToolResultStore
+    ? [
+        "# Stored Tool Results",
+        "",
+        "When a tool result includes `Stored: tool_result://<key>`, only a summary is in context.",
+        'Use `get_tool_result({"key": "<key>"})` when you need the full content.',
+        "The retrieved full content automatically returns to summary form after 1 turn, so only re-fetch it when immediately needed.",
+      ].join("\n")
+    : "";
 
-  const prompt = skillsSection ? `${base}\n\n${skillsSection}` : base;
+  const sections = [base, skillsSection, toolResultSection].filter((section) => section.length > 0);
+  const prompt = sections.join("\n\n");
 
   cache.set(key, prompt);
 

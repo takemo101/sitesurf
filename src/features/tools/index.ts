@@ -1,6 +1,7 @@
 import type { ToolDefinition } from "@/ports/ai-provider";
 import type { ArtifactStoragePort } from "@/ports/artifact-storage";
 import type { StoragePort } from "@/ports/storage";
+import type { ToolResultStorePort } from "@/ports/tool-result-store";
 import type { ToolExecutionHooks, ToolExecutor } from "@/ports/tool-executor";
 import { SkillRegistry } from "@/shared/skill-registry";
 import { useStore } from "@/store/index";
@@ -38,6 +39,12 @@ import {
   type DeleteSkillDraftResult,
 } from "./skill";
 import { bgFetchToolDef, executeBgFetch } from "./bg-fetch";
+import {
+  getToolResultToolDef,
+  executeGetToolResult,
+  type GetToolResultArgs,
+  type GetToolResultValue,
+} from "./get-tool-result";
 import { artifactsTool } from "./definitions/artifacts-tool";
 import { handleArtifactsTool } from "./handlers/artifacts-handler";
 
@@ -60,6 +67,7 @@ export {
   executeDeleteSkillDraft,
 };
 export { bgFetchToolDef, executeBgFetch };
+export { getToolResultToolDef, executeGetToolResult };
 export { artifactsTool, handleArtifactsTool };
 export type {
   SkillAction,
@@ -80,6 +88,7 @@ export type {
 export type { ScreenshotResult } from "./screenshot";
 export type { ExtractImageResult } from "./extract-image";
 export type { ArtifactsParams } from "./handlers/artifacts-handler";
+export type { GetToolResultArgs, GetToolResultValue } from "./get-tool-result";
 export { loadSkillRegistry } from "./skills";
 export type { SkillRegistry } from "@/shared/skill-registry";
 export type {
@@ -105,16 +114,23 @@ export const ALL_TOOL_DEFS: ToolDefinition[] = [
   deleteSkillDraftToolDef,
   artifactsTool,
   bgFetchToolDef,
+  getToolResultToolDef,
 ];
 
 export const AGENT_TOOL_DEFS: ToolDefinition[] = ALL_TOOL_DEFS.filter(
   (tool) => tool.name !== "skill",
 );
 
-export function getAgentToolDefs(options?: { enableBgFetch?: boolean }): ToolDefinition[] {
-  const defs = AGENT_TOOL_DEFS;
+export function getAgentToolDefs(options?: {
+  enableBgFetch?: boolean;
+  enableToolResultStore?: boolean;
+}): ToolDefinition[] {
+  let defs = AGENT_TOOL_DEFS;
   if (!options?.enableBgFetch) {
-    return defs.filter((tool) => tool.name !== "bg_fetch");
+    defs = defs.filter((tool) => tool.name !== "bg_fetch");
+  }
+  if (!options?.enableToolResultStore) {
+    defs = defs.filter((tool) => tool.name !== "get_tool_result");
   }
   return defs;
 }
@@ -125,6 +141,7 @@ export function createToolExecutorWithSkills(
   skillRegistry: SkillRegistry,
   artifactStorage: ArtifactStoragePort & { setSessionId(id: string | null): void },
   storage: StoragePort,
+  toolResultStore: ToolResultStorePort,
 ): ToolExecutor {
   return async (name, args, browser, signal, hooks?: ToolExecutionHooks) => {
     // Ensure storage session ID matches current session
@@ -183,6 +200,22 @@ export function createToolExecutorWithSkills(
           };
         }
         return executeBgFetch(args);
+      }
+      case "get_tool_result": {
+        if (!currentSessionId) {
+          return {
+            ok: false as const,
+            error: {
+              code: "tool_script_error" as const,
+              message: "No active session for get_tool_result",
+            },
+          };
+        }
+        return executeGetToolResult(
+          toolResultStore,
+          currentSessionId,
+          args as unknown as GetToolResultArgs,
+        );
       }
       case "skill": {
         const tab = await browser.getActiveTab();
