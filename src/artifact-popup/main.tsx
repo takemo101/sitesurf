@@ -1,6 +1,13 @@
 import { createRoot } from "react-dom/client";
+import { MantineProvider } from "@mantine/core";
 import type { ArtifactType } from "@/features/artifacts/types";
 import { useEffect, useRef, useState } from "react";
+import { THEME_STORAGE_KEY, LEGACY_THEME_STORAGE_KEY } from "@/shared/constants";
+import { MarkdownContent } from "@/features/chat/MarkdownContent";
+
+import "@mantine/core/styles.css";
+import "@/shared/hljs-theme.css";
+import "@/shared/markdown.css";
 
 interface PopupData {
   name: string;
@@ -8,9 +15,53 @@ interface PopupData {
   type: ArtifactType;
 }
 
-function PopupApp() {
+type ResolvedTheme = "light" | "dark";
+
+function resolveThemeFromOS(): ResolvedTheme {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function resolveTheme(saved: string | undefined): ResolvedTheme {
+  if (saved === "light" || saved === "dark") return saved;
+  return resolveThemeFromOS();
+}
+
+async function loadInitialTheme(): Promise<ResolvedTheme> {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([THEME_STORAGE_KEY, LEGACY_THEME_STORAGE_KEY], (result) => {
+      const saved = (result[THEME_STORAGE_KEY] ?? result[LEGACY_THEME_STORAGE_KEY]) as
+        | string
+        | undefined;
+      resolve(resolveTheme(saved));
+    });
+  });
+}
+
+function useThemeSync(initial: ResolvedTheme): ResolvedTheme {
+  const [theme, setTheme] = useState(initial);
+
+  useEffect(() => {
+    const listener = (
+      changes: { [key: string]: chrome.storage.StorageChange },
+      area: string,
+    ) => {
+      if (area !== "local") return;
+      const change = changes[THEME_STORAGE_KEY] ?? changes[LEGACY_THEME_STORAGE_KEY];
+      if (change) {
+        setTheme(resolveTheme(change.newValue as string | undefined));
+      }
+    };
+    chrome.storage.onChanged.addListener(listener);
+    return () => chrome.storage.onChanged.removeListener(listener);
+  }, []);
+
+  return theme;
+}
+
+function PopupApp({ initialTheme }: { initialTheme: ResolvedTheme }) {
   const [data, setData] = useState<PopupData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const theme = useThemeSync(initialTheme);
 
   useEffect(() => {
     const key = new URLSearchParams(window.location.search).get("key");
@@ -29,22 +80,39 @@ function PopupApp() {
     });
   }, []);
 
-  if (error) {
-    return (
-      <div style={{ padding: 24, color: "#888", textAlign: "center", marginTop: 40 }}>{error}</div>
-    );
-  }
+  const content = error ? (
+    <div style={{ padding: 24, color: "#888", textAlign: "center", marginTop: 40 }}>{error}</div>
+  ) : !data ? (
+    <div style={{ padding: 24, color: "#888", textAlign: "center", marginTop: 40 }}>
+      読み込み中...
+    </div>
+  ) : (
+    <PopupPreview data={data} />
+  );
 
-  if (!data) {
-    return (
-      <div style={{ padding: 24, color: "#888", textAlign: "center", marginTop: 40 }}>
-        読み込み中...
-      </div>
-    );
-  }
-
-  return <PopupPreview data={data} />;
+  return (
+    <MantineProvider
+      forceColorScheme={theme}
+      theme={{
+        primaryColor: "indigo",
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      }}
+    >
+      {content}
+    </MantineProvider>
+  );
 }
+
+const preStyle: React.CSSProperties = {
+  margin: 0,
+  padding: 16,
+  minHeight: "100vh",
+  overflow: "auto",
+  fontSize: 13,
+  fontFamily: "monospace",
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-all",
+};
 
 function PopupPreview({ data }: { data: PopupData }) {
   const { name, content, type } = data;
@@ -54,7 +122,11 @@ function PopupPreview({ data }: { data: PopupData }) {
     case "html":
       return <HtmlFullscreen html={stringContent} name={name} />;
     case "markdown":
-      return <MarkdownFullscreen markdown={stringContent} />;
+      return (
+        <div style={{ maxWidth: 800, margin: "0 auto", padding: 24 }}>
+          <MarkdownContent content={stringContent} />
+        </div>
+      );
     case "image":
       return (
         <div
@@ -63,7 +135,6 @@ function PopupPreview({ data }: { data: PopupData }) {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: "#1a1a1a",
           }}
         >
           <img
@@ -75,38 +146,12 @@ function PopupPreview({ data }: { data: PopupData }) {
       );
     case "json":
       return (
-        <pre
-          style={{
-            margin: 0,
-            padding: 16,
-            height: "100vh",
-            overflow: "auto",
-            fontSize: 13,
-            fontFamily: "monospace",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-all",
-          }}
-        >
+        <pre style={preStyle}>
           {typeof content === "object" ? JSON.stringify(content, null, 2) : stringContent}
         </pre>
       );
     default:
-      return (
-        <pre
-          style={{
-            margin: 0,
-            padding: 16,
-            height: "100vh",
-            overflow: "auto",
-            fontSize: 13,
-            fontFamily: "monospace",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-all",
-          }}
-        >
-          {stringContent}
-        </pre>
-      );
+      return <pre style={preStyle}>{stringContent}</pre>;
   }
 }
 
@@ -150,66 +195,8 @@ function HtmlFullscreen({ html, name }: { html: string; name: string }) {
   );
 }
 
-function MarkdownFullscreen({ markdown }: { markdown: string }) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [isReady, setIsReady] = useState(false);
-  const sandboxUrl = chrome.runtime.getURL("sandbox.html");
-
-  useEffect(() => {
-    const handleMessage = (e: MessageEvent) => {
-      if (e.source !== iframeRef.current?.contentWindow) return;
-      if (e.data?.type === "sandbox-ready") {
-        setIsReady(true);
-      }
-    };
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, []);
-
-  useEffect(() => {
-    if (!isReady || !iframeRef.current) return;
-    // Markdownをシンプルなスタイル付きHTMLとして描画
-    const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><style>
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 24px; color: #333; }
-pre { background: #f5f5f5; padding: 12px; border-radius: 4px; overflow-x: auto; }
-code { background: #f5f5f5; padding: 2px 4px; border-radius: 2px; font-size: 0.9em; }
-pre code { background: none; padding: 0; }
-blockquote { border-left: 3px solid #ddd; margin: 0; padding-left: 16px; color: #666; }
-table { border-collapse: collapse; width: 100%; }
-th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-th { background: #f5f5f5; }
-img { max-width: 100%; }
-@media (prefers-color-scheme: dark) {
-  body { color: #e0e0e0; background: #1a1a1a; }
-  pre, code { background: #2a2a2a; }
-  th { background: #2a2a2a; }
-  th, td { border-color: #444; }
-  blockquote { border-color: #555; color: #aaa; }
-}
-</style></head><body></body></html>`;
-    const renderScript = `
-      document.open();
-      document.write(${JSON.stringify(html)});
-      document.close();
-      document.body.innerText = ${JSON.stringify(markdown)};
-    `;
-    iframeRef.current.contentWindow?.postMessage(
-      { type: "exec", id: "popup-markdown", code: renderScript },
-      "*",
-    );
-  }, [isReady, markdown]);
-
-  return (
-    <iframe
-      ref={iframeRef}
-      src={sandboxUrl}
-      style={{ width: "100%", height: "100vh", border: "none" }}
-      sandbox="allow-scripts allow-modals allow-same-origin"
-      title="Markdown Preview"
-    />
-  );
-}
-
-const root = createRoot(document.getElementById("root")!);
-root.render(<PopupApp />);
+(async () => {
+  const initialTheme = await loadInitialTheme();
+  const root = createRoot(document.getElementById("root")!);
+  root.render(<PopupApp initialTheme={initialTheme} />);
+})();
