@@ -5,10 +5,7 @@ import type { ProviderId } from "@/shared/constants";
 import { estimateTokens } from "@/shared/token-utils";
 import { restoreRetrievedToolResultToSummary } from "@/features/tools/result-summarizer";
 
-import {
-  compressMessagesIfNeeded,
-  stripStructuredSummaryMessage,
-} from "./context-compressor";
+import { compressMessagesIfNeeded, stripStructuredSummaryMessage } from "./context-compressor";
 
 export interface ContextManagerResult {
   messages: AIMessage[];
@@ -38,7 +35,9 @@ function replaceExpiredRetrievedResults(messages: AIMessage[]): void {
       continue;
     }
 
-    const hasLaterMessage = messages.slice(index + 1).some((candidate) => candidate.role !== "tool");
+    const hasLaterMessage = messages
+      .slice(index + 1)
+      .some((candidate) => candidate.role !== "tool");
     if (hasLaterMessage) {
       message.result = restored;
     }

@@ -261,7 +261,9 @@ describe("compressMessagesIfNeeded", () => {
     expect(result.messages).toHaveLength(11);
     expect(result.messages[0]).toEqual({
       role: "user",
-      content: [{ type: "text", text: `${STRUCTURED_SUMMARY_MESSAGE_PREFIX}\n## Goal\n要約された目標` }],
+      content: [
+        { type: "text", text: `${STRUCTURED_SUMMARY_MESSAGE_PREFIX}\n## Goal\n要約された目標` },
+      ],
     });
   });
 
@@ -271,7 +273,9 @@ describe("compressMessagesIfNeeded", () => {
     const messages: AIMessage[] = [
       {
         role: "user",
-        content: [{ type: "text", text: `${STRUCTURED_SUMMARY_MESSAGE_PREFIX}\n## Goal\n前回の要約` }],
+        content: [
+          { type: "text", text: `${STRUCTURED_SUMMARY_MESSAGE_PREFIX}\n## Goal\n前回の要約` },
+        ],
       },
       ...Array.from({ length: 15 }, (_, i) => createUserMessage(`${i}-${longText}`)),
     ];
@@ -282,7 +286,9 @@ describe("compressMessagesIfNeeded", () => {
     expect(result.compressed).toBe(true);
     expect(result.messages[0]).toEqual({
       role: "user",
-      content: [{ type: "text", text: `${STRUCTURED_SUMMARY_MESSAGE_PREFIX}\n## Goal\n更新後の要約` }],
+      content: [
+        { type: "text", text: `${STRUCTURED_SUMMARY_MESSAGE_PREFIX}\n## Goal\n更新後の要約` },
+      ],
     });
   });
 });

@@ -41,11 +41,18 @@ export async function compressIfNeeded(
   provider: ProviderId,
   options: { userConfirmed?: boolean } = {},
 ): Promise<CompressResult> {
-  const result = await compressMessagesIfNeeded(aiProvider, session.history, budget, model, provider, {
-    userConfirmed: options.userConfirmed,
-    existingSummary: session.summary?.text,
-    originalMessageCount: session.summary?.originalMessageCount,
-  });
+  const result = await compressMessagesIfNeeded(
+    aiProvider,
+    session.history,
+    budget,
+    model,
+    provider,
+    {
+      userConfirmed: options.userConfirmed,
+      existingSummary: session.summary?.text,
+      originalMessageCount: session.summary?.originalMessageCount,
+    },
+  );
 
   if (!result.compressed || !result.summary) {
     return { session, compressed: false };
@@ -67,7 +74,11 @@ export async function compressMessagesIfNeeded(
   budget: ContextBudget,
   model: string,
   provider: ProviderId,
-  options: { userConfirmed?: boolean; existingSummary?: string; originalMessageCount?: number } = {},
+  options: {
+    userConfirmed?: boolean;
+    existingSummary?: string;
+    originalMessageCount?: number;
+  } = {},
 ): Promise<CompressMessagesResult> {
   const tokenCount = estimateTokens(messages);
   if (tokenCount < budget.trimThreshold) {
@@ -119,7 +130,9 @@ export async function compressMessagesIfNeeded(
 }
 
 export function stripStructuredSummaryMessages(messages: AIMessage[]): AIMessage[] {
-  return messages.filter((message, index) => !(index === 0 && stripStructuredSummaryMessage(message)));
+  return messages.filter(
+    (message, index) => !(index === 0 && stripStructuredSummaryMessage(message)),
+  );
 }
 
 export function stripStructuredSummaryMessage(message: AIMessage | undefined): string | undefined {

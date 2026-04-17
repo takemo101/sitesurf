@@ -317,4 +317,39 @@ describe("persistence", () => {
 
     expect(result?.autoCompact).toBe(false);
   });
+
+  it("autoCompact 未設定の legacy 設定はデフォルトで false に解決する", async () => {
+    const storage = new InMemoryStorage();
+
+    await storage.set("sitesurf_settings", {
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      apiKey: "sk-test",
+      enableMcpServer: false,
+      enableBgFetch: false,
+      enableSecurityMiddleware: true,
+    });
+
+    const result = await loadSettings(storage);
+
+    expect(result?.autoCompact).toBe(false);
+  });
+
+  it("autoCompact=true は永続化されて復元される", async () => {
+    const storage = new InMemoryStorage();
+
+    await storage.set("sitesurf_settings", {
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      apiKey: "sk-test",
+      enableMcpServer: false,
+      enableBgFetch: false,
+      enableSecurityMiddleware: true,
+      autoCompact: true,
+    });
+
+    const result = await loadSettings(storage);
+
+    expect(result?.autoCompact).toBe(true);
+  });
 });

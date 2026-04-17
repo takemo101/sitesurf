@@ -30,6 +30,7 @@ export interface Settings {
   enableMcpServer: boolean;
   enableBgFetch: boolean;
   enableSecurityMiddleware: boolean;
+  autoCompact: boolean;
 }
 
 export interface SettingsSlice {
