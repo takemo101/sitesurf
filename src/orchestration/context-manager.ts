@@ -2,10 +2,11 @@ import type { AIMessage, AIProvider } from "@/ports/ai-provider";
 import type { ConversationSummary } from "@/ports/session-types";
 import type { ContextBudget } from "@/features/ai/context-budget";
 import type { ProviderId } from "@/shared/constants";
+import { estimateTokens } from "@/shared/token-utils";
+import { restoreRetrievedToolResultToSummary } from "@/features/tools/result-summarizer";
 
 import {
   compressMessagesIfNeeded,
-  estimateTokens,
   stripStructuredSummaryMessage,
 } from "./context-compressor";
 
@@ -13,6 +14,65 @@ export interface ContextManagerResult {
   messages: AIMessage[];
   summary?: ConversationSummary;
   compressed: boolean;
+}
+
+function truncateToolResult(result: string, maxChars: number): string {
+  if (result.includes("data:image/")) {
+    return "[screenshot captured]";
+  }
+  if (result.length <= maxChars) {
+    return result;
+  }
+  return `${result.slice(0, maxChars)}\n... (truncated)`;
+}
+
+function replaceExpiredRetrievedResults(messages: AIMessage[]): void {
+  for (let index = 0; index < messages.length; index++) {
+    const message = messages[index];
+    if (message?.role !== "tool" || typeof message.result !== "string") {
+      continue;
+    }
+
+    const restored = restoreRetrievedToolResultToSummary(message.result);
+    if (!restored) {
+      continue;
+    }
+
+    const hasLaterMessage = messages.slice(index + 1).some((candidate) => candidate.role !== "tool");
+    if (hasLaterMessage) {
+      message.result = restored;
+    }
+  }
+}
+
+function normalizeContextMessages(messages: AIMessage[], budget: ContextBudget): void {
+  for (let index = 0; index < messages.length; index++) {
+    const message = messages[index];
+    if (message.role !== "tool" || typeof message.result !== "string") {
+      continue;
+    }
+
+    messages[index] = {
+      ...message,
+      result: truncateToolResult(message.result, budget.maxToolResultChars),
+    };
+  }
+
+  replaceExpiredRetrievedResults(messages);
+}
+
+export function manageContextMessages(messages: AIMessage[], budget: ContextBudget): void {
+  normalizeContextMessages(messages, budget);
+
+  while (messages.length > 4 && estimateTokens(messages) > budget.trimThreshold) {
+    const oldest = messages.findIndex(
+      (message, index) => index > 0 && (message.role === "tool" || message.role === "assistant"),
+    );
+    if (oldest <= 0) {
+      break;
+    }
+    messages.splice(oldest, 1);
+  }
 }
 
 export async function prepareMessagesForTurn(input: {
@@ -24,11 +84,14 @@ export async function prepareMessagesForTurn(input: {
   autoCompact?: boolean;
   sessionSummary?: ConversationSummary;
 }): Promise<ContextManagerResult> {
-  const truncatedMessages = truncateToolResults(input.messages, input.budget);
+  const normalizedMessages = input.messages.map((message) =>
+    message.role === "tool" ? { ...message } : message,
+  );
+  normalizeContextMessages(normalizedMessages, input.budget);
 
-  if (estimateTokens(truncatedMessages) < input.budget.trimThreshold) {
+  if (estimateTokens(normalizedMessages) < input.budget.trimThreshold) {
     return {
-      messages: truncatedMessages,
+      messages: normalizedMessages,
       summary: input.sessionSummary,
       compressed: false,
     };
@@ -36,7 +99,7 @@ export async function prepareMessagesForTurn(input: {
 
   const compressionResult = await compressMessagesIfNeeded(
     input.aiProvider,
-    truncatedMessages,
+    normalizedMessages,
     input.budget,
     input.model,
     input.provider,
@@ -52,7 +115,7 @@ export async function prepareMessagesForTurn(input: {
   }
 
   return {
-    messages: trimMessagesToThreshold(truncatedMessages, input.budget.trimThreshold),
+    messages: trimMessagesToThreshold(normalizedMessages, input.budget.trimThreshold),
     summary: input.sessionSummary,
     compressed: false,
   };
@@ -78,23 +141,4 @@ export function trimMessagesToThreshold(messages: AIMessage[], threshold: number
   }
 
   return nextMessages;
-}
-
-function truncateToolResults(messages: AIMessage[], budget: ContextBudget): AIMessage[] {
-  return messages.map((message) => {
-    if (message.role !== "tool") return message;
-
-    if (message.result.includes("data:image/")) {
-      return { ...message, result: "[screenshot captured]" };
-    }
-
-    if (message.result.length <= budget.maxToolResultChars) {
-      return message;
-    }
-
-    return {
-      ...message,
-      result: `${message.result.substring(0, budget.maxToolResultChars)}\n... (truncated)`,
-    };
-  });
 }

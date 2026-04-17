@@ -4,6 +4,7 @@ import { useStore } from "@/store/index";
 import { isExcludedUrl, getLastKnownUrl } from "@/shared/utils";
 import { runAgentLoop } from "@/orchestration/agent-loop";
 import { getSystemPromptV2 } from "@/features/ai/system-prompt-v2";
+import { getContextBudget } from "@/features/ai/context-budget";
 import {
   getAgentToolDefs,
   createToolExecutorWithSkills,
@@ -148,11 +149,13 @@ export function useAgent() {
         (await skillRegistryRuntimeRef.current.waitForReady()) ??
         skillRegistryRef.current ??
         new SkillRegistry();
+      const budget = getContextBudget(settings.model, settings.maxTokens);
       const { currentTab } = useStore.getState();
       const matchedSkills = currentRegistry.getAvailableSkills(currentTab.url);
       const systemPrompt = getSystemPromptV2({
         includeSkills: matchedSkills.length > 0,
         skills: matchedSkills,
+        includeToolResultStore: budget.useToolResultStore,
       });
 
       runAgentLoop({
@@ -176,6 +179,7 @@ export function useAgent() {
           browserExecutor: deps.browserExecutor,
           authProvider,
           securityMiddleware: securityMiddlewareRef.current,
+          toolResultStore: deps.toolResultStore,
         },
         chatStore: {
           setStreaming: (v) => useStore.getState().setStreaming(v),
@@ -208,13 +212,17 @@ export function useAgent() {
           maxTokens: settings.maxTokens,
         },
         session,
-        tools: getAgentToolDefs({ enableBgFetch: settings.enableBgFetch }),
+        tools: getAgentToolDefs({
+          enableBgFetch: settings.enableBgFetch,
+          enableToolResultStore: budget.useToolResultStore,
+        }),
         systemPrompt,
         autoSaver: autoSaverRef.current,
         toolExecutor: createToolExecutorWithSkills(
           currentRegistry,
           deps.artifactStorage,
           deps.storage,
+          deps.toolResultStore,
         ),
         skillRegistry: currentRegistry,
         credentials,

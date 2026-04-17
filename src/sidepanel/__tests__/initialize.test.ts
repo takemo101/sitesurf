@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { initializeApp } from "../initialize";
 import { initStore, useStore } from "@/store";
-import { InMemoryArtifactStorage, InMemoryStorage } from "@/adapters/storage/in-memory-storage";
+import {
+  InMemoryArtifactStorage,
+  InMemoryStorage,
+  InMemoryToolResultStore,
+} from "@/adapters/storage/in-memory-storage";
 import type { AppDeps } from "@/shared/deps-context";
 import type { AIProvider, StreamTextParams } from "@/ports/ai-provider";
 import type { BrowserExecutor, TabInfo } from "@/ports/browser-executor";
@@ -101,6 +105,7 @@ function createDeps(storage: InMemoryStorage): AppDeps {
     storage,
     sessionStorage: new NoopSessionStorage(),
     artifactStorage: new InMemoryArtifactStorage(),
+    toolResultStore: new InMemoryToolResultStore(),
   };
 }
 

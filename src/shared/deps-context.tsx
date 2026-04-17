@@ -5,6 +5,7 @@ import type { AuthProvider } from "@/ports/auth-provider";
 import type { BrowserExecutor } from "@/ports/browser-executor";
 import type { StoragePort } from "@/ports/storage";
 import type { SessionStoragePort } from "@/ports/session-storage";
+import type { ToolResultStorePort } from "@/ports/tool-result-store";
 
 export interface AppDeps {
   createAIProvider: (config: ProviderConfig) => AIProvider;
@@ -13,6 +14,7 @@ export interface AppDeps {
   storage: StoragePort;
   sessionStorage: SessionStoragePort;
   artifactStorage: ArtifactStoragePort;
+  toolResultStore: ToolResultStorePort;
 }
 
 const DepsContext = createContext<AppDeps | null>(null);

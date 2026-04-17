@@ -17,7 +17,8 @@ import { createSecurityMiddleware, type SecurityMiddleware } from "@/features/se
 import { convertNavigationForAPI } from "./navigation-converter";
 import { calculateBackoff, isRetryable, RETRY_CONFIG } from "./retry";
 import { estimateTokens, stripStructuredSummaryMessage } from "./context-compressor";
-import { getContextBudget, type ContextBudget } from "@/features/ai/context-budget";
+import { getContextBudget } from "@/features/ai/context-budget";
+import type { ToolResultStorePort } from "@/ports/tool-result-store";
 import { generateVisitedUrlsSection, type VisitedUrlEntry } from "@/features/ai/system-prompt-v2";
 import { prepareMessagesForTurn, trimMessagesToThreshold } from "./context-manager";
 import type { SkillRegistry } from "@/shared/skill-registry";
@@ -28,6 +29,14 @@ import {
   defaultConsoleLogService,
   normalizeConsoleLogEntry,
 } from "@/features/chat/services/console-log";
+import {
+  createToolResultKey,
+  formatRetrievedToolResult,
+  formatStoredToolResultSummary,
+  shouldStore,
+  summarizeToolResult,
+} from "@/features/tools/result-summarizer";
+import type { GetToolResultValue } from "@/features/tools";
 
 const log = createLogger("agent-loop");
 const defaultSecurityMiddleware = createSecurityMiddleware();
@@ -37,6 +46,7 @@ export interface AgentLoopDeps {
   browserExecutor: BrowserExecutor;
   authProvider?: AuthProvider;
   securityMiddleware?: SecurityMiddleware;
+  toolResultStore: ToolResultStorePort;
 }
 
 export interface ChatActions {
@@ -336,14 +346,14 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
           }
         }
         pendingToolCalls.push({ id, name, args, providerOptions });
-        let resultStr = toolResult.ok
+        let fullResult = toolResult.ok
           ? JSON.stringify(toolResult.value)
           : `Error: ${toolResult.error.message}`;
 
         const securityEnabled = useStore.getState().settings.enableSecurityMiddleware;
 
-        if (securityEnabled && !resultStr.includes("data:image/")) {
-          const securityResult = await securityMiddleware.processToolOutput(resultStr, {
+        if (securityEnabled && !fullResult.includes("data:image/")) {
+          const securityResult = await securityMiddleware.processToolOutput(fullResult, {
             source: name,
             sessionId: session.id,
           });
@@ -360,7 +370,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
                 message: securityResult.alert.message,
               },
             };
-            resultStr = JSON.stringify(blockedPayload);
+            fullResult = JSON.stringify(blockedPayload);
             toolResult = toolResult.ok
               ? { ok: true, value: blockedPayload }
               : {
@@ -373,8 +383,8 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
           }
         }
 
-        if (resultStr.includes("data:image/")) {
-          resultStr = "[screenshot captured]";
+        if (fullResult.includes("data:image/")) {
+          fullResult = "[screenshot captured]";
         }
 
         // --- ツール別ポスト処理: 訪問追跡・SPA検出・スキル再構築 ---
@@ -387,14 +397,14 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
             const title = navResult.title || extractHostname(navResult.finalUrl);
             const warning = trackVisitedUrl(visitedUrls, navResult.finalUrl, title, "navigate");
             if (warning) {
-              resultStr += warning;
+              fullResult += warning;
               loopWarningEmitted = true;
             }
           }
         }
 
         if (name === "bg_fetch" && toolResult.ok) {
-          resultStr += trackSpaDomainsFromBgFetch(spaDetectedDomains, toolResult.value);
+          fullResult += trackSpaDomainsFromBgFetch(spaDetectedDomains, toolResult.value);
           const items = Array.isArray(toolResult.value) ? toolResult.value : [toolResult.value];
           for (const item of items) {
             const it = item as { url?: string };
@@ -415,7 +425,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
               const title = tab.title || extractHostname(newUrl);
               const warning = trackVisitedUrl(visitedUrls, newUrl, title, "navigate");
               if (warning) {
-                resultStr += warning;
+                fullResult += warning;
                 loopWarningEmitted = true;
               }
             }
@@ -441,10 +451,49 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
         }
 
         chatStore.updateToolCallResult(id, toolResult);
+
+        let resultForHistory = fullResult;
+        if (name === "get_tool_result" && toolResult.ok) {
+          resultForHistory = formatRetrievedToolResult(toolResult.value as GetToolResultValue);
+        } else {
+          const summary = summarizeToolResult({
+            toolName: name,
+            args,
+            fullResult,
+            rawValue: toolResult.ok ? toolResult.value : toolResult.error,
+            isError: !toolResult.ok,
+            currentUrl,
+            consoleTail:
+              name === "repl"
+                ? defaultConsoleLogService
+                    .get(id)
+                    .slice(-3)
+                    .map((entry) => entry.message)
+                : undefined,
+          });
+
+          if (
+            budget.useToolResultStore &&
+            shouldStore({ toolName: name, fullResult, summary, isError: !toolResult.ok })
+          ) {
+            const key = createToolResultKey();
+            await deps.toolResultStore.save(session.id, {
+              key,
+              toolName: name,
+              fullValue: fullResult,
+              summary,
+              turnIndex: turn,
+            });
+            resultForHistory = formatStoredToolResultSummary(name, summary, key);
+          } else {
+            resultForHistory = formatStoredToolResultSummary(name, summary);
+          }
+        }
+
         pendingToolResults.push({
           toolCallId: id,
           toolName: name,
-          result: resultStr,
+          result: resultForHistory,
           isError: !toolResult.ok,
         });
 
