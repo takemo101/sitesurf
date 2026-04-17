@@ -10,13 +10,18 @@ import {
 import { SkillRegistry, type SkillMatch } from "../skills";
 import type { BrowserExecutor, PageContent } from "@/ports/browser-executor";
 import { ok } from "@/shared/errors";
-import { InMemoryArtifactStorage, InMemoryStorage } from "@/adapters/storage/in-memory-storage";
+import {
+  InMemoryArtifactStorage,
+  InMemoryStorage,
+  InMemoryToolResultStore,
+} from "@/adapters/storage/in-memory-storage";
 
 function createToolExecutor(name: string, args: Record<string, unknown>, browser: BrowserExecutor) {
   return createToolExecutorWithSkills(
     new SkillRegistry(),
     new InMemoryArtifactStorage(),
     new InMemoryStorage(),
+    new InMemoryToolResultStore(),
   )(name, args, browser);
 }
 
@@ -172,6 +177,7 @@ describe("2段階抽出ワークフロー", () => {
     it("getAgentToolDefs: 引数なしで bg_fetch を除外する", () => {
       const names = getAgentToolDefs().map((t) => t.name);
       expect(names).not.toContain("bg_fetch");
+      expect(names).not.toContain("get_tool_result");
       expect(names).not.toContain("skill");
     });
 
@@ -183,7 +189,13 @@ describe("2段階抽出ワークフロー", () => {
     it("getAgentToolDefs: enableBgFetch=true で bg_fetch を含む", () => {
       const names = getAgentToolDefs({ enableBgFetch: true }).map((t) => t.name);
       expect(names).toContain("bg_fetch");
+      expect(names).not.toContain("get_tool_result");
       expect(names).not.toContain("skill");
+    });
+
+    it("getAgentToolDefs: enableToolResultStore=true で get_tool_result を含む", () => {
+      const names = getAgentToolDefs({ enableToolResultStore: true }).map((t) => t.name);
+      expect(names).toContain("get_tool_result");
     });
   });
 
@@ -229,6 +241,7 @@ describe("2段階抽出ワークフロー", () => {
         registry,
         new InMemoryArtifactStorage(),
         storage,
+        new InMemoryToolResultStore(),
       );
 
       const createResult = await executor(
@@ -274,6 +287,7 @@ describe("2段階抽出ワークフロー", () => {
         registry,
         new InMemoryArtifactStorage(),
         storage,
+        new InMemoryToolResultStore(),
       );
 
       const createResult = await executor(
