@@ -385,6 +385,7 @@ describe("AppStore", () => {
         enableMcpServer: false,
         enableBgFetch: false,
         enableSecurityMiddleware: true,
+        autoCompact: false,
       };
 
       useStore.getState().hydrateSettings(loadedSettings);

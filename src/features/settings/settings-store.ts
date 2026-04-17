@@ -29,6 +29,7 @@ export interface Settings {
   enableMcpServer: boolean;
   enableBgFetch: boolean;
   enableSecurityMiddleware: boolean;
+  autoCompact: boolean;
 }
 
 export interface SettingsSlice {
@@ -63,6 +64,7 @@ export const createSettingsSlice: StateCreator<AppStore, [], [], SettingsSlice> 
     enableMcpServer: false,
     enableBgFetch: false,
     enableSecurityMiddleware: true,
+    autoCompact: false,
   },
   setSettings: (partial) =>
     set((s) => {

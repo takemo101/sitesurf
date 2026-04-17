@@ -83,6 +83,7 @@ export async function loadSettings(storage: StoragePort): Promise<Settings | nul
     enableMcpServer: raw.enableMcpServer ?? false,
     enableBgFetch: raw.enableBgFetch ?? false,
     enableSecurityMiddleware: raw.enableSecurityMiddleware ?? true,
+    autoCompact: raw.autoCompact ?? false,
   };
 }
 

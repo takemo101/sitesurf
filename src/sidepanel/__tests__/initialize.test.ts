@@ -137,6 +137,7 @@ describe("initializeApp", () => {
       enableMcpServer: false,
       enableBgFetch: false,
       enableSecurityMiddleware: true,
+      autoCompact: false,
     };
     await storage.set("sitesurf_settings", loadedSettings);
 

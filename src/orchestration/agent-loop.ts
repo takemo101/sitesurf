@@ -17,9 +17,11 @@ import { createSecurityMiddleware, type SecurityMiddleware } from "@/features/se
 import { convertNavigationForAPI } from "./navigation-converter";
 import { calculateBackoff, isRetryable, RETRY_CONFIG } from "./retry";
 import { estimateTokens } from "./context-compressor";
+import { compressIfNeeded } from "./context-compressor";
 import { getContextBudget } from "@/features/ai/context-budget";
 import type { ToolResultStorePort } from "@/ports/tool-result-store";
 import { generateVisitedUrlsSection, type VisitedUrlEntry } from "@/features/ai/system-prompt-v2";
+import type { ProviderId } from "@/shared/constants";
 import type { SkillRegistry } from "@/shared/skill-registry";
 import { buildSkillDetectionMessage, isSkillDetectionMessage } from "./skill-detector";
 import { useStore } from "@/store/index";
@@ -39,6 +41,7 @@ import type { GetToolResultValue } from "@/features/tools";
 
 const log = createLogger("agent-loop");
 const defaultSecurityMiddleware = createSecurityMiddleware();
+const SESSION_SUMMARY_PREFIX = "[過去の会話の要約]\n";
 
 export interface AgentLoopDeps {
   createAIProvider: (settings: Settings) => AIProvider;
@@ -87,6 +90,7 @@ export interface Settings {
   oauthToken?: string;
   reasoningLevel?: string;
   maxTokens?: number;
+  autoCompact?: boolean;
 }
 
 export interface AgentLoopParams {
@@ -197,6 +201,34 @@ function isContextOverflowError(error: AppError): boolean {
   );
 }
 
+function isLeadingSessionSummaryMessage(
+  message: AIMessage | undefined,
+  summaryText?: string,
+): boolean {
+  if (!message || !summaryText || message.role !== "user") return false;
+  if (!Array.isArray(message.content) || message.content.length !== 1) return false;
+
+  const [part] = message.content;
+  return part.type === "text" && part.text === `${SESSION_SUMMARY_PREFIX}${summaryText}`;
+}
+
+function stripLeadingSessionSummaryMessage(
+  messages: AIMessage[],
+  summaryText?: string,
+): AIMessage[] {
+  if (!isLeadingSessionSummaryMessage(messages[0], summaryText)) {
+    return messages;
+  }
+  return messages.slice(1);
+}
+
+function toPersistedHistory(messages: AIMessage[], summaryText?: string): AIMessage[] {
+  return stripLeadingSessionSummaryMessage(
+    messages.filter((message) => !isSkillDetectionMessage(message)),
+    summaryText,
+  );
+}
+
 export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
   const {
     deps,
@@ -241,11 +273,20 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
   // 後の navigate のフラグが意図せずクリアされるのを防ぐ。
   let navFlagTimer: ReturnType<typeof setTimeout> | null = null;
 
+  let currentSession = session;
+  const currentUserMessageCount = chatStore
+    .getMessages()
+    .filter((message) => message.role === "user" || message.role === "navigation").length;
+  const persistedUserMessageCount = session.history.filter(
+    (message) => message.role === "user",
+  ).length;
+  let rebuiltHistoryUserCount = persistedUserMessageCount;
   let messages: AIMessage[] = buildMessagesForAPI(
-    session,
+    currentSession,
     chatStore.getMessages(),
     currentUrl,
     skillRegistry,
+    { historyUserCount: persistedUserMessageCount },
   );
 
   try {
@@ -430,10 +471,11 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
             if (newUrl && newUrl !== currentUrl) {
               currentUrl = newUrl;
               messages = buildMessagesForAPI(
-                session,
+                currentSession,
                 chatStore.getMessages(),
                 currentUrl,
                 skillRegistry,
+                { historyUserCount: rebuiltHistoryUserCount },
               );
             }
           } catch {
@@ -639,15 +681,39 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
                 );
                 chatStore.clearLastAssistantMessage();
 
-                while (
-                  messages.length > 4 &&
-                  estimateTokens(messages) > budget.compressionThreshold
-                ) {
-                  const idx = messages.findIndex(
-                    (m, i) => i > 0 && (m.role === "tool" || m.role === "assistant"),
+                const compressed = await compressIfNeeded(
+                  aiProvider,
+                  {
+                    ...currentSession,
+                    history: toPersistedHistory(messages, currentSession.summary?.text),
+                  },
+                  budget,
+                  settings.model,
+                  settings.provider as ProviderId,
+                  { userConfirmed: settings.autoCompact },
+                );
+
+                if (compressed.compressed) {
+                  currentSession = compressed.session;
+                  rebuiltHistoryUserCount = currentUserMessageCount;
+                  messages = buildMessagesForAPI(
+                    currentSession,
+                    chatStore.getMessages(),
+                    currentUrl,
+                    skillRegistry,
+                    { historyUserCount: rebuiltHistoryUserCount },
                   );
-                  if (idx > 0) messages.splice(idx, 1);
-                  else break;
+                } else {
+                  while (
+                    messages.length > 4 &&
+                    estimateTokens(messages) > budget.compressionThreshold
+                  ) {
+                    const idx = messages.findIndex(
+                      (m, i) => i > 0 && (m.role === "tool" || m.role === "assistant"),
+                    );
+                    if (idx > 0) messages.splice(idx, 1);
+                    else break;
+                  }
                 }
 
                 retryCount++;
@@ -694,7 +760,13 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
     }
   } finally {
     log.info("streamText 終了");
-    chatStore.syncHistory(messages.filter((message) => !isSkillDetectionMessage(message)));
+    if (currentSession.summary) {
+      const { activeSessionSnapshot, setActiveSession } = useStore.getState();
+      if (activeSessionSnapshot?.id === currentSession.id) {
+        setActiveSession({ ...activeSessionSnapshot, summary: currentSession.summary });
+      }
+    }
+    chatStore.syncHistory(toPersistedHistory(messages, currentSession.summary?.text));
     chatStore.setStreaming(false);
     autoSaver.saveImmediately();
   }
@@ -772,15 +844,19 @@ function buildMessagesForAPI(
   chatMessages: ChatMessage[],
   currentUrl: string,
   skillRegistry: SkillRegistry,
+  options: { historyUserCount?: number } = {},
 ): AIMessage[] {
   const messages: AIMessage[] = [];
-  const persistedHistory = session.history.filter((message) => !isSkillDetectionMessage(message));
+  const persistedHistory = stripLeadingSessionSummaryMessage(
+    session.history.filter((message) => !isSkillDetectionMessage(message)),
+    session.summary?.text,
+  );
 
   // 1. Session summary (if exists)
   if (session.summary) {
     messages.push({
       role: "user",
-      content: [{ type: "text", text: `[過去の会話の要約]\n${session.summary.text}` }],
+      content: [{ type: "text", text: `${SESSION_SUMMARY_PREFIX}${session.summary.text}` }],
     });
   }
 
@@ -797,7 +873,8 @@ function buildMessagesForAPI(
   }
 
   // 4. Add new user messages (including navigation messages)
-  const historyUserCount = persistedHistory.filter((m) => m.role === "user").length;
+  const historyUserCount =
+    options.historyUserCount ?? persistedHistory.filter((m) => m.role === "user").length;
   const userMessages = chatMessages.filter((m) => m.role === "user" || m.role === "navigation");
   const newMessages = userMessages.slice(historyUserCount);
 

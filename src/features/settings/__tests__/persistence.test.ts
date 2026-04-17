@@ -34,6 +34,7 @@ describe("persistence", () => {
       enableMcpServer: false,
       enableBgFetch: false,
       enableSecurityMiddleware: true,
+      autoCompact: false,
     };
 
     await saveSettings(storage, data);
@@ -64,6 +65,7 @@ describe("persistence", () => {
       enableMcpServer: false,
       enableBgFetch: false,
       enableSecurityMiddleware: true,
+      autoCompact: false,
     };
     const data2: Settings = {
       provider: "openai",
@@ -85,6 +87,7 @@ describe("persistence", () => {
       enableMcpServer: false,
       enableBgFetch: false,
       enableSecurityMiddleware: true,
+      autoCompact: false,
     };
 
     await saveSettings(storage, data1);
@@ -289,5 +292,40 @@ describe("persistence", () => {
     const result = await loadSettings(storage);
 
     expect(result?.enableSecurityMiddleware).toBe(false);
+  });
+
+  it("autoCompact 未設定の legacy 設定はデフォルトで false に解決する", async () => {
+    const storage = new InMemoryStorage();
+
+    await storage.set("sitesurf_settings", {
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      apiKey: "sk-test",
+      enableMcpServer: false,
+      enableBgFetch: false,
+      enableSecurityMiddleware: true,
+    });
+
+    const result = await loadSettings(storage);
+
+    expect(result?.autoCompact).toBe(false);
+  });
+
+  it("autoCompact=true は永続化されて復元される", async () => {
+    const storage = new InMemoryStorage();
+
+    await storage.set("sitesurf_settings", {
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      apiKey: "sk-test",
+      enableMcpServer: false,
+      enableBgFetch: false,
+      enableSecurityMiddleware: true,
+      autoCompact: true,
+    });
+
+    const result = await loadSettings(storage);
+
+    expect(result?.autoCompact).toBe(true);
   });
 });

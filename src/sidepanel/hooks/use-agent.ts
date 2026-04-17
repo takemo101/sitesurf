@@ -210,6 +210,7 @@ export function useAgent() {
           oauthToken: credentials?.accessToken,
           reasoningLevel: settings.reasoningLevel,
           maxTokens: settings.maxTokens,
+          autoCompact: settings.autoCompact,
         },
         session,
         tools: getAgentToolDefs({

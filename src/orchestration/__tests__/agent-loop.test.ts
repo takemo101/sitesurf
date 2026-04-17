@@ -45,6 +45,8 @@ const defaultStoreState = () => ({
   artifacts: [],
   setArtifactPanelOpen: vi.fn(),
   settings: { enableSecurityMiddleware: true },
+  activeSessionSnapshot: null,
+  setActiveSession: vi.fn(),
 });
 
 vi.mock("@/store/index", () => ({
@@ -54,6 +56,8 @@ vi.mock("@/store/index", () => ({
       artifacts: [],
       setArtifactPanelOpen: vi.fn(),
       settings: { enableSecurityMiddleware: true },
+      activeSessionSnapshot: null,
+      setActiveSession: vi.fn(),
     })),
   },
   initStore: vi.fn(),
@@ -332,6 +336,54 @@ describe("runAgentLoop", () => {
         },
       ],
     });
+  });
+
+  it("session summary prompt is not persisted into synced history", async () => {
+    const session = createMockSession({
+      summary: {
+        text: "Previous conversation about web scraping",
+        compressedAt: Date.now(),
+        originalMessageCount: 50,
+      },
+    });
+
+    const params = createParams({ session });
+    await runAgentLoop(params);
+
+    const syncedHistory = vi.mocked(params.chatStore.syncHistory).mock.calls.at(-1)?.[0] ?? [];
+    expect(syncedHistory).not.toContainEqual({
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: "[過去の会話の要約]\nPrevious conversation about web scraping",
+        },
+      ],
+    });
+  });
+
+  it("先頭以外のユーザーメッセージで summary prefix を含んでも履歴から落とさない", async () => {
+    const prefixedUserMessage = {
+      role: "user" as const,
+      content: [{ type: "text" as const, text: "[過去の会話の要約]\nこれはユーザー入力" }],
+    };
+
+    const params = createParams({
+      session: createMockSession({
+        history: [
+          {
+            role: "assistant",
+            content: [{ type: "text", text: "assistant context" }],
+          },
+          prefixedUserMessage,
+        ],
+      }),
+    });
+
+    await runAgentLoop(params);
+
+    const syncedHistory = vi.mocked(params.chatStore.syncHistory).mock.calls.at(-1)?.[0] ?? [];
+    expect(syncedHistory).toContainEqual(prefixedUserMessage);
   });
 
   it("calls finally cleanup even on error path", async () => {
