@@ -1,24 +1,11 @@
-import type { AIMessage, AIProvider, UserMessage, AssistantMessage } from "@/ports/ai-provider";
+import type { AIMessage, AIProvider, UserMessage } from "@/ports/ai-provider";
 import type { Session, ConversationSummary } from "@/ports/session-types";
+import type { ContextBudget } from "@/features/ai/context-budget";
 import type { ProviderId } from "@/shared/constants";
 import { createLogger } from "@/shared/logger";
 import { estimateTokens } from "@/shared/token-utils";
 
 export { estimateTokens } from "@/shared/token-utils";
-
-export const COMPRESS_THRESHOLDS: Record<ProviderId, number> = {
-  anthropic: 150_000,
-  openai: 90_000,
-  "openai-codex": 90_000,
-  google: 700_000,
-  copilot: 90_000,
-  kimi: 90_000,
-  "kimi-coding": 90_000,
-  zai: 90_000,
-  "zai-coding": 90_000,
-  ollama: 5_000,
-  local: 5_000,
-};
 
 const KEEP_RECENT = 10;
 const log = createLogger("compressor");
@@ -45,15 +32,19 @@ export interface CompressResult {
 export async function compressIfNeeded(
   aiProvider: AIProvider,
   session: Session,
+  budget: ContextBudget,
   model: string,
   provider: ProviderId,
   options: { userConfirmed?: boolean } = {},
 ): Promise<CompressResult> {
-  const threshold = COMPRESS_THRESHOLDS[provider];
   const tokenCount = estimateTokens(session.history);
-  if (tokenCount < threshold) return { session, compressed: false };
+  if (tokenCount < budget.trimThreshold) return { session, compressed: false };
 
-  log.info("コンテキスト圧縮開始", { tokenCount, threshold, provider });
+  log.info("コンテキスト圧縮開始", {
+    tokenCount,
+    trimThreshold: budget.trimThreshold,
+    provider,
+  });
 
   if (provider !== "local" && provider !== "ollama" && !options.userConfirmed) {
     return { session, compressed: false };
@@ -87,25 +78,6 @@ export async function compressIfNeeded(
     log.error("コンテキスト圧縮失敗", e);
     return { session, compressed: false };
   }
-}
-
-export function buildMessagesForAPI(session: Session): AIMessage[] {
-  const messages: AIMessage[] = [];
-  if (session.summary) {
-    const summaryUser: UserMessage = {
-      role: "user",
-      content: [{ type: "text", text: `[以前の会話の要約]\n${session.summary.text}` }],
-    };
-    const summaryAssistant: AssistantMessage = {
-      role: "assistant",
-      content: [
-        { type: "text", text: "理解しました。要約の内容を踏まえて引き続きお手伝いします。" },
-      ],
-    };
-    messages.push(summaryUser, summaryAssistant);
-  }
-  messages.push(...session.history);
-  return messages;
 }
 
 async function summarizeMessages(

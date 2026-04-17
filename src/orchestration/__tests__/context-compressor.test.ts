@@ -1,13 +1,8 @@
 import { describe, expect, it } from "vitest";
-import {
-  compressIfNeeded,
-  buildMessagesForAPI,
-  estimateTokens,
-  COMPRESS_THRESHOLDS,
-} from "../context-compressor";
+import { compressIfNeeded, estimateTokens } from "../context-compressor";
 import type { AIProvider, AIMessage, StreamEvent } from "@/ports/ai-provider";
 import type { Session } from "@/ports/session-types";
-import type { ProviderId } from "@/shared/constants";
+import type { ContextBudget } from "@/features/ai/context-budget";
 
 function createMockAIProvider(summaryText: string): AIProvider {
   return {
@@ -49,31 +44,18 @@ function createSession(overrides: Partial<Session> = {}): Session {
   };
 }
 
-describe("COMPRESS_THRESHOLDS", () => {
-  it("全プロバイダーの閾値が定義されている", () => {
-    const providerIds: ProviderId[] = [
-      "anthropic",
-      "openai",
-      "google",
-      "copilot",
-      "kimi",
-      "kimi-coding",
-      "zai",
-      "zai-coding",
-      "local",
-    ];
-    for (const id of providerIds) {
-      expect(COMPRESS_THRESHOLDS[id]).toBeGreaterThan(0);
-    }
-  });
-
-  it("ローカルLLMの閾値が最も低い", () => {
-    expect(COMPRESS_THRESHOLDS.local).toBeLessThan(COMPRESS_THRESHOLDS.anthropic);
-    expect(COMPRESS_THRESHOLDS.local).toBeLessThan(COMPRESS_THRESHOLDS.openai);
-    expect(COMPRESS_THRESHOLDS.local).toBeLessThan(COMPRESS_THRESHOLDS.google);
-    expect(COMPRESS_THRESHOLDS.local).toBeLessThan(COMPRESS_THRESHOLDS.copilot);
-  });
-});
+function createBudget(overrides: Partial<ContextBudget> = {}): ContextBudget {
+  return {
+    windowTokens: 32_768,
+    outputReserve: 16_384,
+    inputBudget: 16_384,
+    maxToolResultChars: 1_000,
+    compressionThreshold: 9_830,
+    trimThreshold: 13_926,
+    useToolResultStore: true,
+    ...overrides,
+  };
+}
 
 describe("estimateTokens", () => {
   it("空メッセージ配列で 0 を返す", () => {
@@ -124,60 +106,12 @@ describe("estimateTokens", () => {
   });
 });
 
-describe("buildMessagesForAPI", () => {
-  it("summary なしの場合 history をそのまま返す", () => {
-    const history: AIMessage[] = [createUserMessage("hello"), createAssistantMessage("hi")];
-    const session = createSession({ history });
-    const result = buildMessagesForAPI(session);
-    expect(result).toEqual(history);
-  });
-
-  it("summary ありの場合 user/assistant ペアを先頭に挿入する", () => {
-    const history: AIMessage[] = [createUserMessage("次の質問")];
-    const session = createSession({
-      history,
-      summary: { text: "以前の会話の内容", compressedAt: Date.now(), originalMessageCount: 20 },
-    });
-    const result = buildMessagesForAPI(session);
-
-    expect(result).toHaveLength(3);
-    expect(result[0]).toEqual({
-      role: "user",
-      content: [{ type: "text", text: "[以前の会話の要約]\n以前の会話の内容" }],
-    });
-    expect(result[1]).toEqual({
-      role: "assistant",
-      content: [
-        { type: "text", text: "理解しました。要約の内容を踏まえて引き続きお手伝いします。" },
-      ],
-    });
-    expect(result[2]).toEqual(createUserMessage("次の質問"));
-  });
-
-  it("summary ありでも history の順序を維持する", () => {
-    const history: AIMessage[] = [
-      createUserMessage("Q1"),
-      createAssistantMessage("A1"),
-      createUserMessage("Q2"),
-    ];
-    const session = createSession({
-      history,
-      summary: { text: "要約", compressedAt: Date.now(), originalMessageCount: 10 },
-    });
-    const result = buildMessagesForAPI(session);
-
-    expect(result).toHaveLength(5);
-    expect(result[2]).toEqual(createUserMessage("Q1"));
-    expect(result[3]).toEqual(createAssistantMessage("A1"));
-    expect(result[4]).toEqual(createUserMessage("Q2"));
-  });
-});
-
 describe("compressIfNeeded", () => {
-  it("閾値未満の場合は圧縮しない", async () => {
+  it("budget.trimThreshold 未満の場合は圧縮しない", async () => {
     const provider = createMockAIProvider("summary");
     const session = createSession({ history: [createUserMessage("short")] });
-    const result = await compressIfNeeded(provider, session, "test-model", "anthropic");
+    const budget = createBudget({ trimThreshold: 100 });
+    const result = await compressIfNeeded(provider, session, budget, "test-model", "anthropic");
 
     expect(result.compressed).toBe(false);
     expect(result.session).toBe(session);
@@ -188,8 +122,9 @@ describe("compressIfNeeded", () => {
     const longText = "x".repeat(200_000);
     const history: AIMessage[] = Array.from({ length: 15 }, () => createUserMessage(longText));
     const session = createSession({ history });
+    const budget = createBudget({ trimThreshold: 100 });
 
-    const result = await compressIfNeeded(provider, session, "test-model", "anthropic");
+    const result = await compressIfNeeded(provider, session, budget, "test-model", "anthropic");
     expect(result.compressed).toBe(false);
   });
 
@@ -198,8 +133,9 @@ describe("compressIfNeeded", () => {
     const longText = "x".repeat(200_000);
     const history: AIMessage[] = Array.from({ length: 15 }, () => createUserMessage(longText));
     const session = createSession({ history });
+    const budget = createBudget({ trimThreshold: 100 });
 
-    const result = await compressIfNeeded(provider, session, "test-model", "anthropic", {
+    const result = await compressIfNeeded(provider, session, budget, "test-model", "anthropic", {
       userConfirmed: true,
     });
     expect(result.compressed).toBe(true);
@@ -212,8 +148,9 @@ describe("compressIfNeeded", () => {
     const longText = "x".repeat(10_000);
     const history: AIMessage[] = Array.from({ length: 15 }, () => createUserMessage(longText));
     const session = createSession({ history });
+    const budget = createBudget({ trimThreshold: 100 });
 
-    const result = await compressIfNeeded(provider, session, "llama3.2", "local");
+    const result = await compressIfNeeded(provider, session, budget, "llama3.2", "local");
     expect(result.compressed).toBe(true);
     expect(result.session.summary?.text).toBe("ローカル要約");
   });
@@ -229,8 +166,9 @@ describe("compressIfNeeded", () => {
       ...history.slice(-5),
     ];
     const session = createSession({ history: longHistory });
+    const budget = createBudget({ trimThreshold: 100 });
 
-    const result = await compressIfNeeded(provider, session, "llama3.2", "local");
+    const result = await compressIfNeeded(provider, session, budget, "llama3.2", "local");
     expect(result.compressed).toBe(true);
     expect(result.session.history).toHaveLength(10);
   });
@@ -240,8 +178,9 @@ describe("compressIfNeeded", () => {
     const longText = "x".repeat(1_000);
     const history: AIMessage[] = Array.from({ length: 10 }, () => createUserMessage(longText));
     const session = createSession({ history });
+    const budget = createBudget({ trimThreshold: 100 });
 
-    const result = await compressIfNeeded(provider, session, "llama3.2", "local");
+    const result = await compressIfNeeded(provider, session, budget, "llama3.2", "local");
     expect(result.compressed).toBe(false);
   });
 
@@ -250,8 +189,9 @@ describe("compressIfNeeded", () => {
     const longText = "x".repeat(10_000);
     const history: AIMessage[] = Array.from({ length: 15 }, () => createUserMessage(longText));
     const session = createSession({ history });
+    const budget = createBudget({ trimThreshold: 100 });
 
-    const result = await compressIfNeeded(provider, session, "llama3.2", "local");
+    const result = await compressIfNeeded(provider, session, budget, "llama3.2", "local");
     expect(result.compressed).toBe(false);
     expect(result.session).toBe(session);
   });
@@ -264,8 +204,9 @@ describe("compressIfNeeded", () => {
       history,
       summary: { text: "前回の要約", compressedAt: Date.now() - 60_000, originalMessageCount: 30 },
     });
+    const budget = createBudget({ trimThreshold: 100 });
 
-    const result = await compressIfNeeded(provider, session, "llama3.2", "local");
+    const result = await compressIfNeeded(provider, session, budget, "llama3.2", "local");
     expect(result.compressed).toBe(true);
     expect(result.session.summary?.originalMessageCount).toBe(35);
     expect(result.session.summary?.text).toBe("再要約結果");
@@ -277,8 +218,9 @@ describe("compressIfNeeded", () => {
     const history: AIMessage[] = Array.from({ length: 15 }, () => createUserMessage(longText));
     const session = createSession({ history });
     const before = Date.now();
+    const budget = createBudget({ trimThreshold: 100 });
 
-    const result = await compressIfNeeded(provider, session, "llama3.2", "local");
+    const result = await compressIfNeeded(provider, session, budget, "llama3.2", "local");
     const after = Date.now();
 
     expect(result.session.summary?.compressedAt).toBeGreaterThanOrEqual(before);
@@ -291,8 +233,9 @@ describe("compressIfNeeded", () => {
     const history: AIMessage[] = Array.from({ length: 15 }, () => createUserMessage(longText));
     const messages = [{ id: "1", role: "user" as const, content: "hello", timestamp: Date.now() }];
     const session = createSession({ history, messages });
+    const budget = createBudget({ trimThreshold: 100 });
 
-    const result = await compressIfNeeded(provider, session, "llama3.2", "local");
+    const result = await compressIfNeeded(provider, session, budget, "llama3.2", "local");
     expect(result.session.messages).toBe(messages);
   });
 });

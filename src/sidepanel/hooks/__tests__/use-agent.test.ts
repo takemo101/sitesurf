@@ -182,7 +182,8 @@ describe("useAgent", () => {
     });
 
     expect(runAgentLoopMock).toHaveBeenCalledTimes(1);
-    expect(runAgentLoopMock.mock.calls[0]?.[0]).toMatchObject({
+    const [firstCall] = runAgentLoopMock.mock.calls;
+    expect(firstCall?.[0]).toMatchObject({
       settings: {
         provider: "openai",
         model: "gpt-4.1",
