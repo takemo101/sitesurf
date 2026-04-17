@@ -19,6 +19,7 @@ import { calculateBackoff, isRetryable, RETRY_CONFIG } from "./retry";
 import { estimateTokens } from "./context-compressor";
 import { getContextBudget } from "@/features/ai/context-budget";
 import type { ToolResultStorePort } from "@/ports/tool-result-store";
+import { generateVisitedUrlsSection, type VisitedUrlEntry } from "@/features/ai/system-prompt-v2";
 import type { SkillRegistry } from "@/shared/skill-registry";
 import { buildSkillDetectionMessage, isSkillDetectionMessage } from "./skill-detector";
 import { useStore } from "@/store/index";
@@ -106,21 +107,58 @@ export type { ToolExecutor } from "@/ports/tool-executor";
 
 const MAX_TURNS = 25;
 const URL_REVISIT_THRESHOLD = 6;
+const MAX_VISITED_URLS = 20;
 
 /** 末尾スラッシュを除去してURLを正規化する */
 function normalizeUrl(url: string): string {
   return url.replace(/\/$/, "");
 }
 
+/** URLからホスト名を抽出する（パース失敗時はURLをそのまま返す） */
+function extractHostname(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+}
+
 /** 訪問済みURLの再訪問警告メッセージを生成する（再訪問でなければ null） */
-function trackVisitedUrl(visitedUrls: Map<string, number>, url: string): string | null {
+export function trackVisitedUrl(
+  visitedUrls: Map<string, VisitedUrlEntry>,
+  url: string,
+  title: string,
+  method: VisitedUrlEntry["lastMethod"],
+): string | null {
   const normalized = normalizeUrl(url);
-  const count = (visitedUrls.get(normalized) ?? 0) + 1;
-  visitedUrls.set(normalized, count);
-  if (count >= URL_REVISIT_THRESHOLD) {
-    return `\n\n⚠️ WARNING: This URL has already been visited ${count} time(s) in this session. Do NOT navigate to it again. Use the information you already collected from previous visits. If you have enough information, proceed to analysis/response instead of collecting more pages.`;
+  const existing = visitedUrls.get(normalized);
+  const entry: VisitedUrlEntry = {
+    url,
+    title,
+    visitedAt: Date.now(),
+    visitCount: (existing?.visitCount ?? 0) + 1,
+    lastMethod: method,
+  };
+  visitedUrls.set(normalized, entry);
+  pruneVisitedUrls(visitedUrls);
+  if (entry.visitCount >= URL_REVISIT_THRESHOLD) {
+    return `\n\n⚠️ WARNING: This URL has already been visited ${entry.visitCount} time(s) in this session. Do NOT navigate to it again. Use the information you already collected from previous visits. If you have enough information, proceed to analysis/response instead of collecting more pages.`;
   }
   return null;
+}
+
+/** MAX_VISITED_URLS を超えたとき、訪問回数が少なく古いエントリを削除する */
+export function pruneVisitedUrls(visitedUrls: Map<string, VisitedUrlEntry>): void {
+  if (visitedUrls.size <= MAX_VISITED_URLS) return;
+  const entries = [...visitedUrls.entries()];
+  entries.sort(([, a], [, b]) => {
+    if (a.visitCount !== b.visitCount) return a.visitCount - b.visitCount;
+    return a.visitedAt - b.visitedAt;
+  });
+  const toRemove = entries.length - MAX_VISITED_URLS;
+  for (let i = 0; i < toRemove; i++) {
+    visitedUrls.delete(entries[i][0]);
+  }
 }
 
 /** bg_fetch 結果から SPA ドメインを検出・追跡し、警告メッセージを返す */
@@ -196,7 +234,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
   }
 
   // 訪問済みURL追跡: 同一URLへの繰り返しナビゲーションを検出・警告する
-  const visitedUrls = new Map<string, number>(); // URL → 訪問回数
+  const visitedUrls = new Map<string, VisitedUrlEntry>();
   // SPA と判定されたドメインの追跡: bg_fetch で SPA 警告が出たドメインを記録
   const spaDetectedDomains = new Set<string>();
   // setToolNavigating(false) の遅延タイマー。連続 navigate 時に前のタイマーをキャンセルし、
@@ -352,9 +390,10 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
         let loopWarningEmitted = false;
 
         if (name === "navigate" && toolResult.ok) {
-          const navResult = toolResult.value as { finalUrl?: string };
+          const navResult = toolResult.value as { finalUrl?: string; title?: string };
           if (navResult.finalUrl) {
-            const warning = trackVisitedUrl(visitedUrls, navResult.finalUrl);
+            const title = navResult.title || extractHostname(navResult.finalUrl);
+            const warning = trackVisitedUrl(visitedUrls, navResult.finalUrl, title, "navigate");
             if (warning) {
               fullResult += warning;
               loopWarningEmitted = true;
@@ -364,6 +403,13 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
 
         if (name === "bg_fetch" && toolResult.ok) {
           fullResult += trackSpaDomainsFromBgFetch(spaDetectedDomains, toolResult.value);
+          const items = Array.isArray(toolResult.value) ? toolResult.value : [toolResult.value];
+          for (const item of items) {
+            const it = item as { url?: string };
+            if (it.url) {
+              trackVisitedUrl(visitedUrls, it.url, extractHostname(it.url), "bg_fetch");
+            }
+          }
         }
 
         // navigate/repl 後のURL変化検出: スキル再構築 + repl 訪問追跡
@@ -374,7 +420,8 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
             // repl 経由のナビゲーションは currentUrl と同じでも追跡する。
             // navigate ツール直接呼び出しは上で追跡済みなのでここでは repl のみ。
             if (name === "repl" && newUrl) {
-              const warning = trackVisitedUrl(visitedUrls, newUrl);
+              const title = tab.title || extractHostname(newUrl);
+              const warning = trackVisitedUrl(visitedUrls, newUrl, title, "navigate");
               if (warning) {
                 fullResult += warning;
                 loopWarningEmitted = true;
@@ -464,6 +511,11 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
         }
       };
 
+      const visitedSection = generateVisitedUrlsSection([...visitedUrls.values()]);
+      const effectiveSystemPrompt = visitedSection
+        ? `${systemPrompt}\n\n${visitedSection}`
+        : systemPrompt;
+
       while (retryCount <= RETRY_CONFIG.maxRetries) {
         let hasError = false;
         manageContextMessages(messages, budget);
@@ -471,7 +523,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
 
         for await (const event of aiProvider.streamText({
           model: settings.model,
-          systemPrompt,
+          systemPrompt: effectiveSystemPrompt,
           messages,
           tools,
           maxTokens: settings.maxTokens,

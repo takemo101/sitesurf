@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { getSystemPromptV2 } from "../system-prompt-v2";
+import { getSystemPromptV2, generateVisitedUrlsSection } from "../system-prompt-v2";
+import type { VisitedUrlEntry } from "../system-prompt-v2";
 import type { SkillMatch } from "@/shared/skill-types";
 
 const mockSkillMatch: SkillMatch = {
@@ -110,5 +111,36 @@ describe("getSystemPromptV2", () => {
     expect(prompt).toContain("Stored Tool Results");
     expect(prompt).toContain("get_tool_result");
     expect(prompt).toContain("after 1 turn");
+  });
+});
+
+describe("generateVisitedUrlsSection", () => {
+  function makeEntry(url: string, title: string, visitCount: number): VisitedUrlEntry {
+    return { url, title, visitedAt: Date.now(), visitCount, lastMethod: "navigate" };
+  }
+
+  it("returns empty string for empty entries", () => {
+    expect(generateVisitedUrlsSection([])).toBe("");
+  });
+
+  it("returns section header and URL lines for non-empty entries", () => {
+    const section = generateVisitedUrlsSection([makeEntry("https://example.com", "Example", 2)]);
+    expect(section).toContain("## Current Session: Visited URLs");
+    expect(section).toContain("https://example.com");
+    expect(section).toContain("Example");
+    expect(section).toContain("[2x, via navigate]");
+  });
+
+  it("omits section from getSystemPromptV2 when visitedUrls is empty", () => {
+    const prompt = getSystemPromptV2({ visitedUrls: [] });
+    expect(prompt).not.toContain("## Current Session: Visited URLs");
+  });
+
+  it("injects section into getSystemPromptV2 when visitedUrls provided", () => {
+    const prompt = getSystemPromptV2({
+      visitedUrls: [makeEntry("https://example.com", "Example", 1)],
+    });
+    expect(prompt).toContain("## Current Session: Visited URLs");
+    expect(prompt).toContain("https://example.com");
   });
 });

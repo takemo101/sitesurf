@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { runAgentLoop } from "../agent-loop";
+import { runAgentLoop, trackVisitedUrl, pruneVisitedUrls } from "../agent-loop";
 import type { AgentLoopParams, ChatActions } from "../agent-loop";
+import type { VisitedUrlEntry } from "@/features/ai/system-prompt-v2";
 import type { Session } from "@/ports/session-types";
 import type { AIProvider, StreamEvent } from "@/ports/ai-provider";
 import type { AuthProvider, AuthCredentials } from "@/ports/auth-provider";
@@ -986,5 +987,152 @@ describe("context budget integration", () => {
     expect(params.chatStore.addSystemMessage).toHaveBeenCalledWith(
       "📝 コンテキストが大きすぎるため、古いメッセージを圧縮して再試行します...",
     );
+  });
+});
+
+describe("trackVisitedUrl", () => {
+  function makeMap(): Map<string, VisitedUrlEntry> {
+    return new Map<string, VisitedUrlEntry>();
+  }
+
+  it("increments visitCount when same URL is visited multiple times", () => {
+    const map = makeMap();
+    trackVisitedUrl(map, "https://example.com/", "Example", "navigate");
+    trackVisitedUrl(map, "https://example.com/", "Example", "navigate");
+    const entry = map.get("https://example.com");
+    expect(entry?.visitCount).toBe(2);
+  });
+
+  it("normalizes trailing slash when tracking", () => {
+    const map = makeMap();
+    trackVisitedUrl(map, "https://example.com/", "Example", "navigate");
+    trackVisitedUrl(map, "https://example.com", "Example", "navigate");
+    expect(map.size).toBe(1);
+    expect(map.get("https://example.com")?.visitCount).toBe(2);
+  });
+
+  it("returns null for first visits below threshold", () => {
+    const map = makeMap();
+    const result = trackVisitedUrl(map, "https://example.com", "Example", "navigate");
+    expect(result).toBeNull();
+  });
+
+  it("returns warning string at revisit threshold", () => {
+    const map = makeMap();
+    for (let i = 0; i < 5; i++) {
+      trackVisitedUrl(map, "https://example.com", "Example", "navigate");
+    }
+    const warning = trackVisitedUrl(map, "https://example.com", "Example", "navigate");
+    expect(warning).toContain("WARNING");
+    expect(warning).toContain("6 time(s)");
+  });
+});
+
+describe("pruneVisitedUrls", () => {
+  function makeEntry(visitCount: number, visitedAt: number): VisitedUrlEntry {
+    return {
+      url: "https://example.com",
+      title: "Example",
+      visitedAt,
+      visitCount,
+      lastMethod: "navigate",
+    };
+  }
+
+  it("does nothing when at or below MAX_VISITED_URLS", () => {
+    const map = new Map<string, VisitedUrlEntry>();
+    for (let i = 0; i < 20; i++) {
+      map.set(`url-${i}`, makeEntry(1, i));
+    }
+    pruneVisitedUrls(map);
+    expect(map.size).toBe(20);
+  });
+
+  it("removes oldest entry when 21st URL is added", () => {
+    const map = new Map<string, VisitedUrlEntry>();
+    for (let i = 0; i < 20; i++) {
+      map.set(`url-${i}`, makeEntry(2, i));
+    }
+    map.set("url-20", makeEntry(2, 20));
+    pruneVisitedUrls(map);
+    expect(map.size).toBe(20);
+    expect(map.has("url-0")).toBe(false);
+  });
+
+  it("removes entry with lowest visitCount when visit counts differ", () => {
+    const map = new Map<string, VisitedUrlEntry>();
+    for (let i = 0; i < 20; i++) {
+      map.set(`url-${i}`, makeEntry(3, i));
+    }
+    map.set("url-low", makeEntry(1, 999));
+    pruneVisitedUrls(map);
+    expect(map.size).toBe(20);
+    expect(map.has("url-low")).toBe(false);
+  });
+});
+
+describe("visited URLs in system prompt", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    streamTextCalls = [];
+    initStore(mockArtifactStorage);
+  });
+
+  it("includes visited URLs section in system prompt after navigation", async () => {
+    setStreamEvents(
+      [
+        {
+          type: "tool-call",
+          id: "nav-1",
+          name: "navigate",
+          args: { url: "https://example.com" },
+        },
+        { type: "finish", finishReason: "tool-calls" },
+      ],
+      [
+        { type: "text-delta", text: "Done" },
+        { type: "finish", finishReason: "stop" },
+      ],
+    );
+
+    const toolExecutor = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { finalUrl: "https://example.com", title: "Example Page", tabId: 1 },
+    });
+    const browserExecutor = {
+      getActiveTab: vi.fn().mockResolvedValue({
+        id: 1,
+        url: "https://example.com",
+        title: "Example Page",
+      }),
+    } as unknown as BrowserExecutor;
+
+    const params = createParams({
+      toolExecutor,
+      deps: {
+        createAIProvider: () => createMockAIProvider(),
+        browserExecutor,
+        toolResultStore: mockToolResultStore,
+      },
+    });
+    await runAgentLoop(params);
+
+    const secondCall = streamTextCalls[1] as { systemPrompt: string };
+    expect(secondCall.systemPrompt).toContain("## Current Session: Visited URLs");
+    expect(secondCall.systemPrompt).toContain("https://example.com");
+    expect(secondCall.systemPrompt).toContain("Example Page");
+  });
+
+  it("does not include visited URLs section in system prompt when no URLs visited", async () => {
+    setStreamEvents([
+      { type: "text-delta", text: "Hello" },
+      { type: "finish", finishReason: "stop" },
+    ]);
+
+    const params = createParams();
+    await runAgentLoop(params);
+
+    const firstCall = streamTextCalls[0] as { systemPrompt: string };
+    expect(firstCall.systemPrompt).not.toContain("## Current Session: Visited URLs");
   });
 });
