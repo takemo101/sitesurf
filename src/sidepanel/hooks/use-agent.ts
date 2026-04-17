@@ -201,6 +201,7 @@ export function useAgent() {
           enterpriseDomain: settings.enterpriseDomain,
           oauthToken: credentials?.accessToken,
           reasoningLevel: settings.reasoningLevel,
+          maxTokens: settings.maxTokens,
         },
         session,
         tools: AGENT_TOOL_DEFS,

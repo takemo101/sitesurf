@@ -23,9 +23,12 @@ describe("persistence", () => {
       enterpriseDomain: "",
       credentials: null,
       credentialsByProvider: {},
-      apiKeyByProvider: {},
-      baseUrlByProvider: {},
-      apiModeByProvider: {},
+      apiKeyByProvider: { anthropic: "sk-ant-test" },
+      baseUrlByProvider: { anthropic: "" },
+      apiModeByProvider: { anthropic: "auto" },
+      modelByProvider: { anthropic: "claude-sonnet-4-20250514" },
+      reasoningLevelByProvider: { anthropic: "medium" },
+      maxTokensByProvider: { anthropic: 8192 },
       reasoningLevel: "medium",
       maxTokens: 8192,
       enableMcpServer: false,
@@ -48,9 +51,12 @@ describe("persistence", () => {
       enterpriseDomain: "",
       credentials: null,
       credentialsByProvider: {},
-      apiKeyByProvider: {},
-      baseUrlByProvider: {},
-      apiModeByProvider: {},
+      apiKeyByProvider: { anthropic: "key1" },
+      baseUrlByProvider: { anthropic: "" },
+      apiModeByProvider: { anthropic: "auto" },
+      modelByProvider: { anthropic: "claude-sonnet-4-20250514" },
+      reasoningLevelByProvider: { anthropic: "medium" },
+      maxTokensByProvider: { anthropic: 8192 },
       reasoningLevel: "medium",
       maxTokens: 8192,
       enableMcpServer: false,
@@ -64,9 +70,12 @@ describe("persistence", () => {
       enterpriseDomain: "",
       credentials: null,
       credentialsByProvider: {},
-      apiKeyByProvider: {},
-      baseUrlByProvider: {},
-      apiModeByProvider: {},
+      apiKeyByProvider: { openai: "key2" },
+      baseUrlByProvider: { openai: "" },
+      apiModeByProvider: { openai: "auto" },
+      modelByProvider: { openai: "gpt-4o" },
+      reasoningLevelByProvider: { openai: "high" },
+      maxTokensByProvider: { openai: 8192 },
       reasoningLevel: "high",
       maxTokens: 8192,
       enableMcpServer: false,
@@ -77,5 +86,164 @@ describe("persistence", () => {
     const result = await loadSettings(storage);
 
     expect(result).toEqual(data2);
+  });
+
+  it("旧形式の単一値を現在の provider の map に移行する", async () => {
+    const storage = new InMemoryStorage();
+
+    await storage.set("sitesurf_settings", {
+      provider: "openai",
+      model: "gpt-4.1",
+      apiKey: "sk-test",
+      baseUrl: "",
+      apiMode: "auto",
+      enterpriseDomain: "",
+      credentials: null,
+      credentialsByProvider: {},
+      apiKeyByProvider: {},
+      baseUrlByProvider: {},
+      apiModeByProvider: {},
+      reasoningLevel: "high",
+      maxTokens: 32768,
+      enableMcpServer: false,
+    });
+
+    const result = await loadSettings(storage);
+
+    expect(result).toMatchObject({
+      provider: "openai",
+      model: "gpt-4.1",
+      credentials: null,
+      credentialsByProvider: {},
+      reasoningLevel: "high",
+      maxTokens: 32768,
+      modelByProvider: { openai: "gpt-4.1" },
+      reasoningLevelByProvider: { openai: "high" },
+      maxTokensByProvider: { openai: 32768 },
+    });
+  });
+
+  it("疎な legacy settings の credentials を現在 provider に移行する", async () => {
+    const storage = new InMemoryStorage();
+    const credentials = {
+      providerId: "openai",
+      accessToken: "token",
+      refreshToken: "refresh",
+      expiresAt: 123,
+      metadata: {},
+    };
+
+    await storage.set("sitesurf_settings", {
+      provider: "openai",
+      model: "gpt-4.1",
+      apiKey: "sk-test",
+      credentials,
+      reasoningLevel: "high",
+      maxTokens: 32768,
+      enableMcpServer: false,
+    });
+
+    const result = await loadSettings(storage);
+
+    expect(result).toMatchObject({
+      provider: "openai",
+      credentials,
+      credentialsByProvider: { openai: credentials },
+    });
+  });
+
+  it("現在 provider と一致しない credentials は restore しない", async () => {
+    const storage = new InMemoryStorage();
+    const credentials = {
+      providerId: "copilot",
+      accessToken: "token",
+      refreshToken: "refresh",
+      expiresAt: 123,
+      metadata: {},
+    };
+
+    await storage.set("sitesurf_settings", {
+      provider: "openai",
+      model: "gpt-4.1",
+      credentials,
+      credentialsByProvider: { openai: credentials },
+      enableMcpServer: false,
+    });
+
+    const result = await loadSettings(storage);
+
+    expect(result).toMatchObject({
+      provider: "openai",
+      credentials: null,
+      credentialsByProvider: {},
+    });
+  });
+
+  it("新旧形式が混在していても map の値を優先する", async () => {
+    const storage = new InMemoryStorage();
+
+    await storage.set("sitesurf_settings", {
+      provider: "openai",
+      model: "legacy-model",
+      apiKey: "sk-test",
+      baseUrl: "",
+      apiMode: "auto",
+      enterpriseDomain: "",
+      credentials: null,
+      credentialsByProvider: {},
+      apiKeyByProvider: {},
+      baseUrlByProvider: {},
+      apiModeByProvider: {},
+      modelByProvider: { openai: "gpt-4.1" },
+      reasoningLevelByProvider: { openai: "low" },
+      maxTokensByProvider: { openai: 4096 },
+      reasoningLevel: "high",
+      maxTokens: 32768,
+      enableMcpServer: false,
+    });
+
+    const result = await loadSettings(storage);
+
+    expect(result).toMatchObject({
+      provider: "openai",
+      model: "gpt-4.1",
+      reasoningLevel: "low",
+      maxTokens: 4096,
+      modelByProvider: { openai: "gpt-4.1" },
+      reasoningLevelByProvider: { openai: "low" },
+      maxTokensByProvider: { openai: 4096 },
+    });
+  });
+
+  it("provider map の model が空文字なら default model にフォールバックする", async () => {
+    const storage = new InMemoryStorage();
+
+    await storage.set("sitesurf_settings", {
+      provider: "anthropic",
+      model: "claude-opus-4-1",
+      apiKey: "sk-test",
+      baseUrl: "",
+      apiMode: "auto",
+      enterpriseDomain: "",
+      credentials: null,
+      credentialsByProvider: {},
+      apiKeyByProvider: {},
+      baseUrlByProvider: {},
+      apiModeByProvider: {},
+      modelByProvider: { anthropic: "" },
+      reasoningLevelByProvider: { anthropic: "medium" },
+      maxTokensByProvider: { anthropic: 8192 },
+      reasoningLevel: "medium",
+      maxTokens: 8192,
+      enableMcpServer: false,
+    });
+
+    const result = await loadSettings(storage);
+
+    expect(result).toMatchObject({
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      modelByProvider: { anthropic: "" },
+    });
   });
 });

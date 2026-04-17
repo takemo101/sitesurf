@@ -1,6 +1,6 @@
 {
   "name": "sitesurf",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "AIと一緒にWebページを操作するChrome拡張機能",
   "license": "MIT",
   "bin": {

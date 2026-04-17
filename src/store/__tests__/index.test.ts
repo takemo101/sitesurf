@@ -4,6 +4,7 @@ import type { AIMessage } from "@/ports/ai-provider";
 import { ok, err } from "@/shared/errors";
 import type { ToolError } from "@/shared/errors";
 import type { ArtifactStoragePort } from "@/ports/artifact-storage";
+import { DEFAULT_MAX_TOKENS } from "@/shared/token-constants";
 
 const mockArtifactStorage: ArtifactStoragePort & { setSessionId(id: string | null): void } = {
   createOrUpdate: async () => {},
@@ -262,6 +263,131 @@ describe("AppStore", () => {
       });
       useStore.getState().setCredentials(null);
       expect(useStore.getState().settings.credentials).toBeNull();
+    });
+
+    it("model・reasoningLevel・maxTokens を現在 provider の map に保存する", () => {
+      useStore.getState().setSettings({
+        model: "claude-opus-4-1",
+        reasoningLevel: "high",
+        maxTokens: 32768,
+      });
+
+      const s = useStore.getState().settings;
+      expect(s.model).toBe("claude-opus-4-1");
+      expect(s.reasoningLevel).toBe("high");
+      expect(s.maxTokens).toBe(32768);
+      expect(s.modelByProvider).toEqual({ anthropic: "claude-opus-4-1" });
+      expect(s.reasoningLevelByProvider).toEqual({ anthropic: "high" });
+      expect(s.maxTokensByProvider).toEqual({ anthropic: 32768 });
+    });
+
+    it("provider 切替時に保存済みの provider 別設定を復元する", () => {
+      useStore.getState().setSettings({
+        provider: "openai",
+        model: "gpt-4o",
+        reasoningLevel: "low",
+        maxTokens: 4096,
+      });
+      useStore
+        .getState()
+        .setSettings({ model: "gpt-4.1", reasoningLevel: "high", maxTokens: 8192 });
+
+      useStore.getState().setSettings({
+        provider: "anthropic",
+        model: "claude-sonnet-4-6",
+        reasoningLevel: "medium",
+        maxTokens: 16384,
+      });
+      useStore.getState().setSettings({
+        model: "claude-opus-4-1",
+        reasoningLevel: "none",
+        maxTokens: 32768,
+      });
+
+      useStore.getState().setSettings({ provider: "openai", model: "gpt-5.4" });
+
+      const s = useStore.getState().settings;
+      expect(s.provider).toBe("openai");
+      expect(s.model).toBe("gpt-4.1");
+      expect(s.reasoningLevel).toBe("high");
+      expect(s.maxTokens).toBe(8192);
+    });
+
+    it("未設定の provider に切り替えたときは標準の既定値にフォールバックする", () => {
+      useStore.getState().setSettings({
+        model: "claude-opus-4-1",
+        reasoningLevel: "high",
+        maxTokens: 32768,
+      });
+
+      useStore.getState().setSettings({ provider: "google" });
+
+      const s = useStore.getState().settings;
+      expect(s.provider).toBe("google");
+      expect(s.model).toBe("gemini-2.5-flash");
+      expect(s.reasoningLevel).toBe("medium");
+      expect(s.maxTokens).toBe(DEFAULT_MAX_TOKENS);
+    });
+
+    it("空文字 model を保存した provider へ戻っても default model を使う", () => {
+      useStore.getState().setSettings({ provider: "openai", model: "gpt-4.1" });
+      useStore.getState().setSettings({ provider: "anthropic" });
+
+      const s = useStore.getState().settings;
+      expect(s.provider).toBe("anthropic");
+      expect(s.model).toBe("claude-sonnet-4-6");
+    });
+
+    it("同一 provider で model を空文字にしても runtime snapshot は default model を使う", () => {
+      useStore.getState().setSettings({ model: "" });
+
+      const s = useStore.getState().settings;
+      expect(s.provider).toBe("anthropic");
+      expect(s.model).toBe("claude-sonnet-4-6");
+    });
+
+    it("provider 切替と同時に渡した auth 系 partial を切替先に反映する", () => {
+      useStore.getState().setSettings({
+        provider: "openai",
+        apiKey: "sk-test",
+        baseUrl: "https://example.com/v1",
+        apiMode: "responses",
+      });
+
+      const s = useStore.getState().settings;
+      expect(s.provider).toBe("openai");
+      expect(s.apiKey).toBe("sk-test");
+      expect(s.baseUrl).toBe("https://example.com/v1");
+      expect(s.apiMode).toBe("responses");
+      expect(s.apiKeyByProvider).toEqual({ anthropic: "", openai: "sk-test" });
+      expect(s.baseUrlByProvider).toEqual({ anthropic: "", openai: "https://example.com/v1" });
+      expect(s.apiModeByProvider).toEqual({ anthropic: "auto", openai: "responses" });
+    });
+
+    it("hydrateSettings は読み込んだ settings を副作用なしでそのまま復元する", () => {
+      const loadedSettings = {
+        provider: "openai" as const,
+        model: "gpt-4.1",
+        apiKey: "sk-test",
+        baseUrl: "",
+        apiMode: "auto" as const,
+        enterpriseDomain: "",
+        credentials: null,
+        credentialsByProvider: {},
+        apiKeyByProvider: { openai: "sk-test" },
+        baseUrlByProvider: {},
+        apiModeByProvider: {},
+        modelByProvider: { openai: "gpt-4.1" },
+        reasoningLevelByProvider: { openai: "high" as const },
+        maxTokensByProvider: { openai: 8192 },
+        reasoningLevel: "high" as const,
+        maxTokens: 8192,
+        enableMcpServer: false,
+      };
+
+      useStore.getState().hydrateSettings(loadedSettings);
+
+      expect(useStore.getState().settings).toEqual(loadedSettings);
     });
   });
 
