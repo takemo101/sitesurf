@@ -284,7 +284,7 @@ export function ScrollableResult({
     const observer = new ResizeObserver(check);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [children]);
+  }, []);
 
   // Hide fade when scrolled to bottom
   const handleScroll = () => {
