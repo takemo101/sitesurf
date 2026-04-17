@@ -4,7 +4,7 @@ import { ChevronDown, ChevronUp, FileCode, Globe, Image as ImageIcon, Terminal }
 import type { ToolCallInfo } from "@/ports/session-types";
 import { defaultConsoleLogService } from "./services/console-log";
 import { defaultToolRendererRegistry } from "./tool-renderers";
-import { ImageLightbox, ToolMessageContainer } from "./tool-renderers/components";
+import { ImageLightbox, ScrollableResult, ToolMessageContainer } from "./tool-renderers/components";
 import type { ToolRendererContext } from "./tool-renderers/types";
 
 export function formatArgs(args: Record<string, unknown> | unknown): string | null {
@@ -157,7 +157,9 @@ function GenericToolResult({ toolCall }: { toolCall: ToolCallInfo }) {
           <Text size="xs" fw={700} mb={6}>
             Result
           </Text>
-          <JsonValueNode value={parsedJson} />
+          <ScrollableResult>
+            <JsonValueNode value={parsedJson} />
+          </ScrollableResult>
         </Paper>
       ) : (
         <Text
