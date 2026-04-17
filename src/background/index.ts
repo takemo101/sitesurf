@@ -1,15 +1,11 @@
 import { createLogger } from "@/shared/logger";
 import type { SidepanelMessage, LockResultMessage, LockedSessionsMessage } from "@/shared/port";
-import { ChromeBrowserExecutor } from "@/adapters/chrome/chrome-browser-executor";
 import { acquireLock, releaseLocksForWindow } from "./handlers/session-lock";
 import { addOpenPanel, removeOpenPanel } from "./handlers/panel-tracker";
-import { initWire, sendPing } from "./handlers/wire";
 import "./handlers/native-input";
 import "./handlers/bg-fetch";
 
 const log = createLogger("background");
-const browserExecutor = new ChromeBrowserExecutor();
-const initWireWithBrowser = () => initWire(browserExecutor);
 
 chrome.runtime.onConnect.addListener((port) => {
   const match = /^sidepanel:(\d+)$/.exec(port.name);
@@ -59,14 +55,4 @@ chrome.commands.onCommand.addListener((command, tab) => {
 
 chrome.windows.onRemoved.addListener((windowId) => {
   releaseLocksForWindow(windowId);
-});
-
-// MCP Server接続の初期化（設定を読み込んで接続）
-initWireWithBrowser();
-chrome.runtime.onStartup.addListener(initWireWithBrowser);
-chrome.runtime.onInstalled.addListener(initWireWithBrowser);
-
-chrome.alarms.create("wire-keep-alive", { periodInMinutes: 25 / 60 });
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === "wire-keep-alive") sendPing();
 });

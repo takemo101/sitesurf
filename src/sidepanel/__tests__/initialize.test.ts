@@ -135,7 +135,6 @@ describe("initializeApp", () => {
       reasoningLevel: "high" as const,
       maxTokens: 8192,
       autoCompact: false,
-      enableMcpServer: false,
       enableBgFetch: false,
       enableSecurityMiddleware: true,
     };

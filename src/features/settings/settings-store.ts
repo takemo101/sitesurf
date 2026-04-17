@@ -27,7 +27,6 @@ export interface Settings {
   reasoningLevel: ReasoningLevel;
   maxTokens: number;
   autoCompact: boolean;
-  enableMcpServer: boolean;
   enableBgFetch: boolean;
   enableSecurityMiddleware: boolean;
   autoCompact: boolean;
@@ -63,7 +62,6 @@ export const createSettingsSlice: StateCreator<AppStore, [], [], SettingsSlice> 
     reasoningLevel: "medium",
     maxTokens: DEFAULT_MAX_TOKENS,
     autoCompact: false,
-    enableMcpServer: false,
     enableBgFetch: false,
     enableSecurityMiddleware: true,
   },

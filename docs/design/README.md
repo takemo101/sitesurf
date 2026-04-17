@@ -53,7 +53,6 @@
 | [extract-image-tool.md](./extract-image-tool.md)                   | ✅   | 画像抽出ツール、セレクタ必須、maxWidthオプション |
 | [native-input-events.md](./native-input-events.md)                 | ✅   | 12種のネイティブ入力関数、debugger API           |
 | [bg-fetch.md](./bg-fetch.md)                                       | ✅   | bg_fetchツール、CORS回避、Readability本文抽出    |
-| [wire-mode.md](./wire-mode.md)                                     | ✅   | WebSocketブリッジ、外部AIエージェント連携        |
 | [abort-signal-support.md](./abort-signal-support.md)               | ✅   | REPL中止、chrome.userScripts.terminate()         |
 
 ### データ・状態
