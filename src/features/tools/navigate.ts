@@ -51,6 +51,8 @@ Actions:
 3. List all tabs: { "listTabs": true }
 4. Switch to tab: { "switchToTab": 12345 }
 
+IMPORTANT: Do NOT navigate to a URL you have already visited in this session. Use read_page to re-read content if needed. Collect all necessary pages first, then proceed to analysis — do not loop between pages.
+
 When switching tabs, use the tab ID from listTabs.
 Tab IDs are temporary and may change when the browser restarts.`,
   parameters: {

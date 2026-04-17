@@ -60,6 +60,16 @@ interface BgFetchResultItem {
   redirected?: boolean;
   redirectUrl?: string;
   error?: string;
+  spaWarning?: string;
+}
+
+/** readability 結果の content が極端に短い場合、SPA/CSR の可能性が高い */
+const SPA_CONTENT_THRESHOLD = 200;
+
+function isSpaLikelyReadability(body: unknown): boolean {
+  if (typeof body !== "object" || body === null || !("content" in body)) return false;
+  const rb = body as { content: string };
+  return typeof rb.content === "string" && rb.content.trim().length < SPA_CONTENT_THRESHOLD;
 }
 
 function truncateBody(body: string | object): string | object {
@@ -135,7 +145,18 @@ export async function executeBgFetch(
         };
       }
 
-      return { ...result.data, url, body: truncateBody(result.data.body) };
+      const item: BgFetchResultItem = { ...result.data, url, body: truncateBody(result.data.body) };
+
+      // readability モードで本文がほぼ空 → SPA/CSR の可能性が高い
+      if (responseType === "readability" && isSpaLikelyReadability(result.data.body)) {
+        item.spaWarning =
+          "⚠️ This page returned very little content via bg_fetch. " +
+          "It is likely a SPA/CSR site where content is rendered by JavaScript. " +
+          "Do NOT use bg_fetch for other pages on this same domain. " +
+          "Instead, use navigate() to load the page, then read_page or browserjs() to extract content.";
+      }
+
+      return item;
     } catch (e: unknown) {
       return {
         url,

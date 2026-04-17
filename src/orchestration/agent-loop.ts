@@ -57,6 +57,7 @@ export interface ChatActions {
   syncHistory(messages: AIMessage[]): void;
   getMessages(): ChatMessage[];
   addNavigationMessage?(nav: { url: string; title: string; favicon?: string }): void;
+  setToolNavigating?(v: boolean): void;
 }
 
 export interface AutoSaver {
@@ -94,6 +95,53 @@ export type { ToolExecutor } from "@/ports/tool-executor";
 const MAX_TURNS = 25;
 const MAX_TOOL_RESULT_CHARS = 30_000;
 const CONTEXT_TOKEN_LIMIT = 100_000;
+
+/** 末尾スラッシュを除去してURLを正規化する */
+function normalizeUrl(url: string): string {
+  return url.replace(/\/$/, "");
+}
+
+/** 訪問済みURLの再訪問警告メッセージを生成する（再訪問でなければ null） */
+function trackVisitedUrl(
+  visitedUrls: Map<string, number>,
+  url: string,
+): string | null {
+  const normalized = normalizeUrl(url);
+  const count = (visitedUrls.get(normalized) ?? 0) + 1;
+  visitedUrls.set(normalized, count);
+  if (count >= 2) {
+    return `\n\n⚠️ WARNING: This URL has already been visited ${count} time(s) in this session. Do NOT navigate to it again. Use the information you already collected from previous visits. If you have enough information, proceed to analysis/response instead of collecting more pages.`;
+  }
+  return null;
+}
+
+/** bg_fetch 結果から SPA ドメインを検出・追跡し、警告メッセージを返す */
+function trackSpaDomainsFromBgFetch(
+  spaDetectedDomains: Set<string>,
+  toolValue: unknown,
+): string {
+  let warning = "";
+  try {
+    const items = Array.isArray(toolValue) ? toolValue : [toolValue];
+    for (const item of items) {
+      const it = item as { url?: string; spaWarning?: string };
+      if (!it.url) continue;
+      // spaWarning があればドメインを登録
+      if (it.spaWarning) {
+        spaDetectedDomains.add(new URL(it.url).hostname);
+      } else {
+        // spaWarning がなくても既知 SPA ドメインなら警告
+        const host = new URL(it.url).hostname;
+        if (spaDetectedDomains.has(host)) {
+          warning += `\n\n⚠️ WARNING: The domain "${host}" was previously detected as a SPA/CSR site. bg_fetch cannot retrieve JS-rendered content from this domain. Use navigate() + read_page/browserjs() instead.`;
+        }
+      }
+    }
+  } catch {
+    // Ignore
+  }
+  return warning;
+}
 
 function trimMessagesForContext(messages: AIMessage[]): void {
   for (const msg of messages) {
@@ -155,6 +203,14 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
     // Ignore error, continue with empty URL
   }
 
+  // 訪問済みURL追跡: 同一URLへの繰り返しナビゲーションを検出・警告する
+  const visitedUrls = new Map<string, number>(); // URL → 訪問回数
+  // SPA と判定されたドメインの追跡: bg_fetch で SPA 警告が出たドメインを記録
+  const spaDetectedDomains = new Set<string>();
+  // setToolNavigating(false) の遅延タイマー。連続 navigate 時に前のタイマーをキャンセルし、
+  // 後の navigate のフラグが意図せずクリアされるのを防ぐ。
+  let navFlagTimer: ReturnType<typeof setTimeout> | null = null;
+
   let messages: AIMessage[] = buildMessagesForAPI(
     session,
     chatStore.getMessages(),
@@ -201,6 +257,15 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
           chatStore.updateToolCallArgs(id, args);
         }
 
+        const isNavTool = name === "navigate" || name === "repl";
+        if (isNavTool) {
+          if (navFlagTimer !== null) {
+            clearTimeout(navFlagTimer);
+            navFlagTimer = null;
+          }
+          chatStore.setToolNavigating?.(true);
+        }
+
         let toolResult: Result<unknown, AppError>;
         try {
           toolResult = await toolExecutor(name, args, deps.browserExecutor, undefined, {
@@ -230,6 +295,18 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
               message: e instanceof Error ? e.message : String(e),
             },
           };
+        } finally {
+          if (isNavTool) {
+            // SPA の初期ルーティング完了を待ってからフラグをクリアする。
+            // DOMContentLoaded 直後に SPA がクライアントサイドリダイレクトを行い、
+            // onTabUpdated が遅延発火するケースでの抑制漏れを防ぐ。
+            // 連続 navigate 時は新しい setToolNavigating(true) で前のタイマーを
+            // キャンセル済みなので、後の navigate のフラグが意図せずクリアされない。
+            navFlagTimer = setTimeout(() => {
+              navFlagTimer = null;
+              chatStore.setToolNavigating?.(false);
+            }, 500);
+          }
         }
         pendingToolCalls.push({ id, name, args, providerOptions });
         let resultStr = toolResult.ok
@@ -270,22 +347,42 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
         if (resultStr.includes("data:image/")) {
           resultStr = "[screenshot captured]";
         }
-        chatStore.updateToolCallResult(id, toolResult);
-        pendingToolResults.push({
-          toolCallId: id,
-          toolName: name,
-          result: resultStr,
-          isError: !toolResult.ok,
-        });
 
-        // Check for navigation during tool execution and update skills if needed
+        // --- ツール別ポスト処理: 訪問追跡・SPA検出・スキル再構築 ---
+
+        let loopWarningEmitted = false;
+
+        if (name === "navigate" && toolResult.ok) {
+          const navResult = toolResult.value as { finalUrl?: string };
+          if (navResult.finalUrl) {
+            const warning = trackVisitedUrl(visitedUrls, navResult.finalUrl);
+            if (warning) {
+              resultStr += warning;
+              loopWarningEmitted = true;
+            }
+          }
+        }
+
+        if (name === "bg_fetch" && toolResult.ok) {
+          resultStr += trackSpaDomainsFromBgFetch(spaDetectedDomains, toolResult.value);
+        }
+
+        // navigate/repl 後のURL変化検出: スキル再構築 + repl 訪問追跡
         if (name === "navigate" || name === "repl") {
           try {
             const tab = await deps.browserExecutor.getActiveTab();
             const newUrl = tab.url || "";
+            // repl 経由のナビゲーションは currentUrl と同じでも追跡する。
+            // navigate ツール直接呼び出しは上で追跡済みなのでここでは repl のみ。
+            if (name === "repl" && newUrl) {
+              const warning = trackVisitedUrl(visitedUrls, newUrl);
+              if (warning) {
+                resultStr += warning;
+                loopWarningEmitted = true;
+              }
+            }
             if (newUrl && newUrl !== currentUrl) {
               currentUrl = newUrl;
-              // Rebuild messages with new skills
               messages = buildMessagesForAPI(
                 session,
                 chatStore.getMessages(),
@@ -297,6 +394,21 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
             // Ignore error
           }
         }
+
+        // ループ警告が出た場合、ユーザーにもシステムメッセージで通知
+        if (loopWarningEmitted) {
+          chatStore.addSystemMessage(
+            "⚠️ 同じページへの繰り返しアクセスを検出しました。AIに収集を終えて分析に移るよう指示しています。",
+          );
+        }
+
+        chatStore.updateToolCallResult(id, toolResult);
+        pendingToolResults.push({
+          toolCallId: id,
+          toolName: name,
+          result: resultStr,
+          isError: !toolResult.ok,
+        });
 
         if (name === "repl" && toolResult.ok) {
           const prevNames = new Set(useStore.getState().artifacts.map((a) => a.name));
