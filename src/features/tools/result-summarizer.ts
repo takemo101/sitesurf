@@ -34,9 +34,25 @@ function getString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+function getNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function getReadPageMethod(record: Record<string, unknown> | null): string | null {
+  const method = getString(record?.method);
+  if (method) return method;
+
+  const simplifiedDom = getString(record?.simplifiedDom);
+  if (!simplifiedDom) return null;
+
+  const match = simplifiedDom.match(/^\[Extraction: ([^\]]+)\]/);
+  return match?.[1]?.trim() || null;
+}
+
 function summarizeReadPage(input: SummarizeToolResultInput): string {
   const record = getRecord(input.rawValue);
   const text = getString(record?.text) ?? input.fullResult;
+  const method = getReadPageMethod(record);
   const firstLine = text
     .split("\n")
     .map((line) => line.trim())
@@ -45,6 +61,7 @@ function summarizeReadPage(input: SummarizeToolResultInput): string {
   const parts = [
     firstLine ? `H1: ${truncate(firstLine, 80)}` : null,
     input.currentUrl ? `URL: ${input.currentUrl}` : null,
+    method ? `method: ${method}` : null,
     `Body preview: ${previewText(text)}`,
   ].filter(Boolean);
 
@@ -86,14 +103,16 @@ function summarizeRepl(input: SummarizeToolResultInput): string {
 function summarizeNavigate(input: SummarizeToolResultInput): string {
   const record = getRecord(input.rawValue);
   const finalUrl = getString(record?.finalUrl) ?? input.currentUrl ?? "unknown";
-  return `→ ${finalUrl}`;
+  const status = getNumber(record?.status);
+  return status === null ? `→ ${finalUrl}` : `→ ${finalUrl} (status: ${status})`;
 }
 
 function summarizeArtifacts(input: SummarizeToolResultInput): string {
   const command = getString(input.args.command) ?? "unknown";
   const filename = getString(input.args.filename) ?? "unknown";
   if (command === "get") {
-    return `${filename} retrieved`;
+    const sizeBytes = new TextEncoder().encode(input.fullResult).length;
+    return `${filename} (${sizeBytes} bytes)`;
   }
   return `${command}: ${filename}`;
 }
