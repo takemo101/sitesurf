@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ActionIcon,
   Box,
@@ -266,6 +266,42 @@ async function downloadImageResource(imageUrl: string, filename: string): Promis
   document.body.removeChild(anchor);
 }
 
+export function ScrollableResult({ children }: { children: ReactNode }) {
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [hasOverflow, setHasOverflow] = useState(false);
+
+  useEffect(() => {
+    const el = innerRef.current;
+    if (!el) return;
+    const check = () => setHasOverflow(el.scrollHeight > el.clientHeight + 4);
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [children]);
+
+  // Hide fade when scrolled to bottom
+  const handleScroll = () => {
+    const el = innerRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 8;
+    setHasOverflow(!atBottom && el.scrollHeight > el.clientHeight + 4);
+  };
+
+  return (
+    <div className="scrollable-result">
+      <div
+        ref={innerRef}
+        className={`scrollable-result-inner${hasOverflow ? " has-overflow" : ""}`}
+        onScroll={handleScroll}
+      >
+        {children}
+      </div>
+      <div className="scrollable-result-fade" />
+    </div>
+  );
+}
+
 function extractStreamingContent(inputDelta?: string): string {
   if (!inputDelta) return "";
 
@@ -459,15 +495,17 @@ function ReplRendererView({ toolCall, consoleLogService }: ToolRendererContext) 
           <Text size="xs" fw={700} mb={6}>
             Console / Output
           </Text>
-          {logEntries.map((entry) => (
-            <Text
-              key={entry.id}
-              size="xs"
-              style={{ whiteSpace: "pre-wrap", fontFamily: "monospace" }}
-            >
-              {entry.message}
-            </Text>
-          ))}
+          <ScrollableResult>
+            {logEntries.map((entry) => (
+              <Text
+                key={entry.id}
+                size="xs"
+                style={{ whiteSpace: "pre-wrap", fontFamily: "monospace" }}
+              >
+                {entry.message}
+              </Text>
+            ))}
+          </ScrollableResult>
         </Paper>
       )}
 
@@ -476,7 +514,9 @@ function ReplRendererView({ toolCall, consoleLogService }: ToolRendererContext) 
           <Text size="xs" fw={700} mb={6}>
             Return Value
           </Text>
-          <JsonValue value={parsed.returnValue} />
+          <ScrollableResult>
+            <JsonValue value={parsed.returnValue} />
+          </ScrollableResult>
         </Paper>
       )}
 

@@ -254,6 +254,38 @@ body,
   }
 }
 
+/* Scrollable result container with bottom fade hint */
+.scrollable-result {
+  position: relative;
+}
+
+.scrollable-result-inner {
+  max-height: 200px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.scrollable-result-fade {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--mantine-color-body)
+  );
+  border-radius: 0 0 var(--mantine-radius-md) var(--mantine-radius-md);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.scrollable-result-inner.has-overflow ~ .scrollable-result-fade {
+  opacity: 1;
+}
+
 /* Tool running pulse animation */
 .tool-running {
   animation: toolPulse 1.5s ease-in-out infinite;
