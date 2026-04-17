@@ -24,6 +24,7 @@ function useSessionStoreDeps(): SessionStoreDeps {
   const windowId = useStore((s) => s.windowId);
   return {
     sessionStorage: deps.sessionStorage,
+    toolResultStore: deps.toolResultStore,
     acquireLock: async (sessionId: string) => {
       try {
         const r = await port.sendMessage({ type: "acquireLock", sessionId, windowId }, 2000);

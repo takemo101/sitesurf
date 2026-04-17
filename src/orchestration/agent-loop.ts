@@ -517,14 +517,24 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
             shouldStore({ toolName: name, fullResult, summary, isError: !toolResult.ok })
           ) {
             const key = createToolResultKey();
-            await deps.toolResultStore.save(session.id, {
-              key,
-              toolName: name,
-              fullValue: fullResult,
-              summary,
-              turnIndex: turn,
-            });
-            resultForHistory = formatStoredToolResultSummary(name, summary, key);
+            try {
+              await deps.toolResultStore.save(session.id, {
+                key,
+                toolName: name,
+                fullValue: fullResult,
+                summary,
+                turnIndex: turn,
+              });
+              resultForHistory = formatStoredToolResultSummary(name, summary, key);
+            } catch (error) {
+              log.warn("tool result save failed; falling back to summary-only", {
+                sessionId: session.id,
+                toolName: name,
+                key,
+                error,
+              });
+              resultForHistory = formatStoredToolResultSummary(name, summary);
+            }
           } else {
             resultForHistory = formatStoredToolResultSummary(name, summary);
           }

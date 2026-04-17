@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import type { SessionStoragePort } from "@/ports/session-storage";
+import type { ToolResultStorePort } from "@/ports/tool-result-store";
 import type { Session, SessionMeta } from "@/ports/session-types";
 
 import type { SessionStoreDeps } from "../types";
@@ -50,9 +51,19 @@ function makeMockStorage(): SessionStoragePort {
   };
 }
 
+function makeMockToolResultStore(): ToolResultStorePort {
+  return {
+    save: vi.fn().mockResolvedValue(undefined),
+    get: vi.fn().mockResolvedValue(null),
+    list: vi.fn().mockResolvedValue([]),
+    deleteSession: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
 function makeDeps(overrides: Partial<SessionStoreDeps> = {}): SessionStoreDeps {
   return {
     sessionStorage: makeMockStorage(),
+    toolResultStore: makeMockToolResultStore(),
     acquireLock: vi.fn().mockResolvedValue({ success: true }),
     releaseLock: vi.fn().mockResolvedValue(undefined),
     getSessionLocks: vi.fn().mockResolvedValue({}),
@@ -71,6 +82,10 @@ function makeStore() {
 }
 
 describe("session-store", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
   describe("loadSessionList", () => {
     it("sessionStorage からメタ一覧を読み込み store に設定する", async () => {
       const metaList = [makeMeta()];
@@ -167,11 +182,27 @@ describe("session-store", () => {
   });
 
   describe("deleteSession", () => {
-    it("セッションを削除して一覧を更新する", async () => {
+    it("セッションを削除してツール結果も cleanup し一覧を更新する", async () => {
       const deps = makeDeps();
       const store = makeStore();
 
       await deleteSession(deps, store, "sess-2", "sess-1");
+
+      expect(deps.sessionStorage.deleteSession).toHaveBeenCalledWith("sess-2");
+      expect(deps.toolResultStore.deleteSession).toHaveBeenCalledWith("sess-2");
+      expect(deps.sessionStorage.listSessions).toHaveBeenCalled();
+    });
+
+    it("ツール結果 cleanup が失敗してもセッション削除は継続する", async () => {
+      const deps = makeDeps({
+        toolResultStore: {
+          ...makeMockToolResultStore(),
+          deleteSession: vi.fn().mockRejectedValue(new Error("IndexedDB offline")),
+        },
+      });
+      const store = makeStore();
+
+      await expect(deleteSession(deps, store, "sess-2", "sess-1")).resolves.toBeUndefined();
 
       expect(deps.sessionStorage.deleteSession).toHaveBeenCalledWith("sess-2");
       expect(deps.sessionStorage.listSessions).toHaveBeenCalled();
