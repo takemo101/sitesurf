@@ -17,7 +17,7 @@ import { createSecurityMiddleware, type SecurityMiddleware } from "@/features/se
 import { convertNavigationForAPI } from "./navigation-converter";
 import { calculateBackoff, isRetryable, RETRY_CONFIG } from "./retry";
 import { estimateTokens } from "./context-compressor";
-import { getContextBudget } from "@/features/ai/context-budget";
+import { getContextBudget, type ContextBudget } from "@/features/ai/context-budget";
 import type { SkillRegistry } from "@/shared/skill-registry";
 import { buildSkillDetectionMessage, isSkillDetectionMessage } from "./skill-detector";
 import { useStore } from "@/store/index";
@@ -94,8 +94,6 @@ export interface AgentLoopParams {
 export type { ToolExecutor } from "@/ports/tool-executor";
 
 const MAX_TURNS = 25;
-const MAX_TOOL_RESULT_CHARS = 30_000;
-const CONTEXT_TOKEN_LIMIT = 100_000;
 const URL_REVISIT_THRESHOLD = 6;
 
 /** 末尾スラッシュを除去してURLを正規化する */
@@ -139,18 +137,18 @@ function trackSpaDomainsFromBgFetch(spaDetectedDomains: Set<string>, toolValue: 
   return warning;
 }
 
-function trimMessagesForContext(messages: AIMessage[]): void {
+function trimMessagesForContext(messages: AIMessage[], budget: ContextBudget): void {
   for (const msg of messages) {
     if (msg.role === "tool" && typeof msg.result === "string") {
       if (msg.result.includes("data:image/")) {
         msg.result = "[screenshot captured]";
-      } else if (msg.result.length > MAX_TOOL_RESULT_CHARS) {
-        msg.result = msg.result.substring(0, MAX_TOOL_RESULT_CHARS) + "\n... (truncated)";
+      } else if (msg.result.length > budget.maxToolResultChars) {
+        msg.result = msg.result.substring(0, budget.maxToolResultChars) + "\n... (truncated)";
       }
     }
   }
 
-  while (messages.length > 4 && estimateTokens(messages) > CONTEXT_TOKEN_LIMIT) {
+  while (messages.length > 4 && estimateTokens(messages) > budget.trimThreshold) {
     const oldest = messages.findIndex(
       (m, i) => i > 0 && (m.role === "tool" || m.role === "assistant"),
     );
@@ -441,7 +439,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
 
       while (retryCount <= RETRY_CONFIG.maxRetries) {
         let hasError = false;
-        trimMessagesForContext(messages);
+        trimMessagesForContext(messages, budget);
         chatStore.startNewAssistantMessage();
 
         for await (const event of aiProvider.streamText({
@@ -564,7 +562,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
 
                 while (
                   messages.length > 4 &&
-                  estimateTokens(messages) > CONTEXT_TOKEN_LIMIT * 0.7
+                  estimateTokens(messages) > budget.compressionThreshold
                 ) {
                   const idx = messages.findIndex(
                     (m, i) => i > 0 && (m.role === "tool" || m.role === "assistant"),
