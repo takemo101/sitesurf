@@ -20,7 +20,7 @@ import type {
 } from "@/ports/browser-executor";
 import type { SessionStoragePort } from "@/ports/session-storage";
 
-const runAgentLoopMock = vi.fn(async (_params: unknown) => Promise.resolve());
+const runAgentLoopMock = vi.fn<(params: unknown) => Promise<void>>(() => Promise.resolve());
 
 vi.mock("@/orchestration/agent-loop", () => ({
   runAgentLoop: (params: unknown) => runAgentLoopMock(params),
