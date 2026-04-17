@@ -145,6 +145,16 @@ export function trackVisitedUrl(
   };
   visitedUrls.set(normalized, entry);
   pruneVisitedUrls(visitedUrls);
+
+  if (entry.visitCount > 1) {
+    log.info("visitedUrl revisit count", {
+      url: normalized,
+      title,
+      method,
+      visitCount: entry.visitCount,
+    });
+  }
+
   if (entry.visitCount >= URL_REVISIT_THRESHOLD) {
     return `\n\n⚠️ WARNING: This URL has already been visited ${entry.visitCount} time(s) in this session. Do NOT navigate to it again. Use the information you already collected from previous visits. If you have enough information, proceed to analysis/response instead of collecting more pages.`;
   }
@@ -280,6 +290,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
   const persistedUserMessageCount = session.history.filter(
     (message) => message.role === "user",
   ).length;
+  const currentSessionTurnCount = persistedUserMessageCount + currentUserMessageCount;
   let rebuiltHistoryUserCount = persistedUserMessageCount;
   let messages: AIMessage[] = buildMessagesForAPI(
     currentSession,
@@ -297,6 +308,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
         turn,
         estimateTokens: estimateTokens(messages),
         messagesCount: messages.length,
+        currentSessionTurnCount,
       });
       let hasToolCall = false;
       let assistantText = "";
@@ -700,6 +712,12 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
               }
 
               if (isContextOverflowError(event.error)) {
+                log.info("contextOverflowError", {
+                  model: settings.model,
+                  provider: settings.provider,
+                  errorCode: event.error.code,
+                  message: event.error.message,
+                });
                 log.info("コンテキスト超過 — メッセージを圧縮してリトライ");
                 chatStore.addSystemMessage(
                   "📝 コンテキストが大きすぎるため、古いメッセージを圧縮して再試行します...",

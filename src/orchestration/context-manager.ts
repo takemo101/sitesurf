@@ -2,10 +2,13 @@ import type { AIMessage, AIProvider } from "@/ports/ai-provider";
 import type { ConversationSummary } from "@/ports/session-types";
 import type { ContextBudget } from "@/features/ai/context-budget";
 import type { ProviderId } from "@/shared/constants";
+import { createLogger } from "@/shared/logger";
 import { estimateTokens } from "@/shared/token-utils";
 import { restoreRetrievedToolResultToSummary } from "@/features/tools/result-summarizer";
 
 import { compressMessagesIfNeeded, stripStructuredSummaryMessage } from "./context-compressor";
+
+const log = createLogger("context-manager");
 
 export interface ContextManagerResult {
   messages: AIMessage[];
@@ -87,14 +90,21 @@ export async function prepareMessagesForTurn(input: {
     message.role === "tool" ? { ...message } : message,
   );
   normalizeContextMessages(normalizedMessages, input.budget);
+  const estimatedTokens = estimateTokens(normalizedMessages);
 
-  if (estimateTokens(normalizedMessages) < input.budget.trimThreshold) {
+  if (estimatedTokens < input.budget.trimThreshold) {
     return {
       messages: normalizedMessages,
       summary: input.sessionSummary,
       compressed: false,
     };
   }
+
+  log.info("trimThreshold reached", {
+    estimatedTokens,
+    trimThreshold: input.budget.trimThreshold,
+    messagesCount: normalizedMessages.length,
+  });
 
   const compressionResult = await compressMessagesIfNeeded(
     input.aiProvider,
@@ -122,21 +132,44 @@ export async function prepareMessagesForTurn(input: {
 
 export function trimMessagesToThreshold(messages: AIMessage[], threshold: number): AIMessage[] {
   const nextMessages = [...messages];
+  const initialEstimatedTokens = estimateTokens(nextMessages);
+
+  if (initialEstimatedTokens > threshold) {
+    log.info("trimThreshold reached", {
+      estimatedTokens: initialEstimatedTokens,
+      trimThreshold: threshold,
+      messagesCount: nextMessages.length,
+    });
+  }
+
+  let splicedMessageCount = 0;
+
   while (nextMessages.length > 4 && estimateTokens(nextMessages) > threshold) {
     const oldest = nextMessages.findIndex(
       (message, index) => index > 0 && (message.role === "tool" || message.role === "assistant"),
     );
     if (oldest > 0) {
       nextMessages.splice(oldest, 1);
+      splicedMessageCount += 1;
       continue;
     }
 
     if (nextMessages[0] && stripStructuredSummaryMessage(nextMessages[0])) {
       nextMessages.shift();
+      splicedMessageCount += 1;
       continue;
     }
 
     break;
+  }
+
+  if (splicedMessageCount > 0) {
+    log.info("splicedMessageCount", {
+      splicedMessageCount,
+      remainingMessagesCount: nextMessages.length,
+      estimatedTokens: estimateTokens(nextMessages),
+      trimThreshold: threshold,
+    });
   }
 
   return nextMessages;

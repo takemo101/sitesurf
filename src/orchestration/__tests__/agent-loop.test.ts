@@ -16,6 +16,8 @@ import type { ArtifactStoragePort } from "@/ports/artifact-storage";
 import type { ToolResultStorePort } from "@/ports/tool-result-store";
 import { estimateTokens } from "@/shared/token-utils";
 
+let consoleInfoSpy: ReturnType<typeof vi.spyOn>;
+
 const mockArtifactStorage: ArtifactStoragePort & { setSessionId(id: string | null): void } = {
   createOrUpdate: async () => {},
   get: async () => null,
@@ -164,6 +166,7 @@ function createParams(overrides?: Partial<AgentLoopParams>): AgentLoopParams {
 describe("runAgentLoop", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    consoleInfoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
     streamTextCalls = [];
     initStore(mockArtifactStorage);
     setStreamEvents([
@@ -951,6 +954,7 @@ describe("tool execution error", () => {
 describe("context budget integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    consoleInfoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
     streamTextCalls = [];
     initStore(mockArtifactStorage);
   });
@@ -1039,6 +1043,15 @@ describe("context budget integration", () => {
     expect(params.chatStore.addSystemMessage).toHaveBeenCalledWith(
       "📝 コンテキストが大きすぎるため、古いメッセージを圧縮して再試行します...",
     );
+    expect(consoleInfoSpy).toHaveBeenCalledWith(
+      "[SiteSurf:agent-loop]",
+      "contextOverflowError",
+      expect.objectContaining({
+        model: "gpt-4",
+        provider: "openai",
+        errorCode: "ai_unknown",
+      }),
+    );
   });
 
   it("autoCompact=true のクラウド設定ではターン開始前に構造化圧縮を実行する", async () => {
@@ -1082,6 +1095,29 @@ describe("context budget integration", () => {
       content: [{ type: "text", text: "[構造化要約]\n## Goal\n圧縮済みの要約" }],
     });
   });
+
+  it("logs currentSessionTurnCount at turn start", async () => {
+    const params = createParams({
+      session: createMockSession({
+        history: [{ role: "user", content: [{ type: "text", text: "old" }] }],
+      }),
+      chatStore: createMockChatStore({
+        getMessages: vi.fn(() => [
+          { id: "u-1", role: "user", content: "new user message", createdAt: Date.now() },
+        ]),
+      }),
+    });
+
+    await runAgentLoop(params);
+
+    expect(consoleInfoSpy).toHaveBeenCalledWith(
+      "[SiteSurf:agent-loop]",
+      "turn start",
+      expect.objectContaining({
+        currentSessionTurnCount: 2,
+      }),
+    );
+  });
 });
 
 describe("trackVisitedUrl", () => {
@@ -1119,6 +1155,25 @@ describe("trackVisitedUrl", () => {
     const warning = trackVisitedUrl(map, "https://example.com", "Example", "navigate");
     expect(warning).toContain("WARNING");
     expect(warning).toContain("6 time(s)");
+  });
+
+  it("logs visitedUrl revisit count when revisiting a URL", () => {
+    trackVisitedUrl(makeMap(), "https://warmup.example", "Warmup", "navigate");
+    consoleInfoSpy.mockClear();
+
+    const map = makeMap();
+    trackVisitedUrl(map, "https://example.com", "Example", "navigate");
+    trackVisitedUrl(map, "https://example.com", "Example", "navigate");
+
+    expect(consoleInfoSpy).toHaveBeenCalledWith(
+      "[SiteSurf:agent-loop]",
+      "visitedUrl revisit count",
+      expect.objectContaining({
+        url: "https://example.com",
+        visitCount: 2,
+        method: "navigate",
+      }),
+    );
   });
 });
 
@@ -1168,6 +1223,7 @@ describe("pruneVisitedUrls", () => {
 describe("visited URLs in system prompt", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    consoleInfoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
     streamTextCalls = [];
     initStore(mockArtifactStorage);
   });
