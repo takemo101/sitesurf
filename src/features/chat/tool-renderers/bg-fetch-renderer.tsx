@@ -15,6 +15,7 @@ import {
   ExternalLink,
   XCircle,
 } from "lucide-react";
+import { ScrollableResult } from "./components";
 import type { ToolRenderer, ToolRendererContext } from "./types";
 
 interface FetchResultItem {
@@ -164,22 +165,22 @@ function FetchResultCard({ item }: { item: FetchResultItem }) {
               radius="sm"
               style={{
                 background: "var(--mantine-color-default-hover)",
-                maxHeight: 200,
-                overflow: "auto",
               }}
             >
-              <Text
-                size="xs"
-                style={{
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                  fontFamily: "monospace",
-                }}
-              >
-                {typeof item.body === "string"
-                  ? item.body.substring(0, 2000)
-                  : JSON.stringify(item.body, null, 2).substring(0, 2000)}
-              </Text>
+              <ScrollableResult maxHeight={200}>
+                <Text
+                  size="xs"
+                  style={{
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                    fontFamily: "monospace",
+                  }}
+                >
+                  {typeof item.body === "string"
+                    ? item.body.substring(0, 2000)
+                    : JSON.stringify(item.body, null, 2).substring(0, 2000)}
+                </Text>
+              </ScrollableResult>
             </Paper>
           )}
 

@@ -260,7 +260,6 @@ body,
 }
 
 .scrollable-result-inner {
-  max-height: 200px;
   overflow-y: auto;
   scrollbar-width: thin;
 }

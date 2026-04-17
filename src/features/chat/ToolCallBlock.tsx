@@ -237,9 +237,11 @@ export function ToolCallBlock({ tc }: { tc: ToolCallInfo }) {
       ) : (
         <>
           {argsStr && (
-            <Code block style={{ fontSize: 13, maxHeight: 150, overflow: "auto", marginBottom: 8 }}>
-              {argsStr}
-            </Code>
+            <ScrollableResult maxHeight={150}>
+              <Code block style={{ fontSize: 13 }}>
+                {argsStr}
+              </Code>
+            </ScrollableResult>
           )}
           {(tc.result || tc.isRunning) && <GenericToolResult toolCall={tc} />}
         </>

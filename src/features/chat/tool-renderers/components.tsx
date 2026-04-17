@@ -266,7 +266,13 @@ async function downloadImageResource(imageUrl: string, filename: string): Promis
   document.body.removeChild(anchor);
 }
 
-export function ScrollableResult({ children }: { children: ReactNode }) {
+export function ScrollableResult({
+  children,
+  maxHeight = 200,
+}: {
+  children: ReactNode;
+  maxHeight?: number;
+}) {
   const innerRef = useRef<HTMLDivElement>(null);
   const [hasOverflow, setHasOverflow] = useState(false);
 
@@ -293,6 +299,7 @@ export function ScrollableResult({ children }: { children: ReactNode }) {
       <div
         ref={innerRef}
         className={`scrollable-result-inner${hasOverflow ? " has-overflow" : ""}`}
+        style={{ maxHeight }}
         onScroll={handleScroll}
       >
         {children}
