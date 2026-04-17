@@ -29,7 +29,6 @@ export interface Settings {
   autoCompact: boolean;
   enableBgFetch: boolean;
   enableSecurityMiddleware: boolean;
-  autoCompact: boolean;
 }
 
 export interface SettingsSlice {
