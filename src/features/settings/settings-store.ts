@@ -26,6 +26,7 @@ export interface Settings {
   maxTokensByProvider: Partial<Record<ProviderId, number>>;
   reasoningLevel: ReasoningLevel;
   maxTokens: number;
+  autoCompact: boolean;
   enableMcpServer: boolean;
   enableBgFetch: boolean;
   enableSecurityMiddleware: boolean;
@@ -60,6 +61,7 @@ export const createSettingsSlice: StateCreator<AppStore, [], [], SettingsSlice> 
     maxTokensByProvider: {},
     reasoningLevel: "medium",
     maxTokens: DEFAULT_MAX_TOKENS,
+    autoCompact: false,
     enableMcpServer: false,
     enableBgFetch: false,
     enableSecurityMiddleware: true,
