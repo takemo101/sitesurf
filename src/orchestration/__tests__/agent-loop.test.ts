@@ -278,6 +278,65 @@ describe("runAgentLoop", () => {
     );
   });
 
+  it("falls back to summary-only when tool result store save fails", async () => {
+    setStreamEvents(
+      [
+        { type: "tool-call", id: "tc-store-fail", name: "read_page", args: {} },
+        { type: "finish", finishReason: "tool-calls" },
+      ],
+      [
+        { type: "text-delta", text: "done" },
+        { type: "finish", finishReason: "stop" },
+      ],
+    );
+
+    const save = vi.fn(async () => {
+      throw new Error("IndexedDB quota exceeded");
+    });
+    const syncHistory = vi.fn();
+    const params = createParams({
+      settings: {
+        provider: "openai",
+        model: "gpt-4",
+        apiKey: "sk-test",
+        baseUrl: "",
+        enterpriseDomain: "",
+      },
+      deps: {
+        createAIProvider: () => createMockAIProvider(),
+        browserExecutor: {
+          getActiveTab: vi.fn().mockResolvedValue({ url: "https://example.com", title: "Example" }),
+        } as unknown as BrowserExecutor,
+        toolResultStore: { ...mockToolResultStore, save },
+      },
+      chatStore: createMockChatStore({ syncHistory }),
+      toolExecutor: vi.fn().mockResolvedValue({
+        ok: true,
+        value: { text: "A".repeat(1200), simplifiedDom: "" },
+      }),
+    });
+
+    await expect(runAgentLoop(params)).resolves.toBeUndefined();
+
+    const [messages] = syncHistory.mock.calls.at(-1) ?? [];
+    expect(messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: "tool",
+          result: expect.stringContaining("[read_page]"),
+        }),
+      ]),
+    );
+    expect(messages).toEqual(
+      expect.not.arrayContaining([
+        expect.objectContaining({
+          role: "tool",
+          result: expect.stringContaining("Stored: tool_result://"),
+        }),
+      ]),
+    );
+  });
+
   it("repl 実行時は console log callback を渡して realtime log service に反映できる", async () => {
     defaultConsoleLogService.clear("tc-live");
     setStreamEvents([

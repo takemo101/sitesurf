@@ -1,6 +1,9 @@
 import type { ToolDefinition } from "@/ports/ai-provider";
 import type { ToolResultStorePort } from "@/ports/tool-result-store";
 import { err, ok, type Result, type ToolError } from "@/shared/errors";
+import { createLogger } from "@/shared/logger";
+
+const log = createLogger("get-tool-result");
 
 export interface GetToolResultArgs {
   key: string;
@@ -40,18 +43,30 @@ export async function executeGetToolResult(
     return err({ code: "tool_script_error", message: "key is required" });
   }
 
-  const result = await store.get(sessionId, args.key);
-  if (!result) {
+  try {
+    const result = await store.get(sessionId, args.key);
+    if (!result) {
+      return err({
+        code: "tool_script_error",
+        message: `Stored tool result not found for key: ${args.key}`,
+      });
+    }
+
+    return ok({
+      key: result.key,
+      toolName: result.toolName,
+      fullValue: result.fullValue,
+      summary: result.summary,
+    });
+  } catch (error) {
+    log.warn("tool result load failed; returning tool error", {
+      sessionId,
+      key: args.key,
+      error,
+    });
     return err({
       code: "tool_script_error",
-      message: `Stored tool result not found for key: ${args.key}`,
+      message: `Stored tool result could not be loaded for key: ${args.key}`,
     });
   }
-
-  return ok({
-    key: result.key,
-    toolName: result.toolName,
-    fullValue: result.fullValue,
-    summary: result.summary,
-  });
 }

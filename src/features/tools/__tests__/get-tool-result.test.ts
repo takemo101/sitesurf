@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { InMemoryToolResultStore } from "@/adapters/storage/in-memory-storage";
+import type { ToolResultStorePort } from "@/ports/tool-result-store";
 import { executeGetToolResult, getToolResultToolDef } from "../get-tool-result";
 
 describe("get_tool_result", () => {
@@ -22,6 +23,23 @@ describe("get_tool_result", () => {
         toolName: "read_page",
         fullValue: "FULL",
         summary: "SUMMARY",
+      },
+    });
+  });
+
+  it("returns tool error when store lookup throws", async () => {
+    const store: ToolResultStorePort = {
+      save: vi.fn(),
+      get: vi.fn().mockRejectedValue(new Error("IndexedDB offline")),
+      list: vi.fn(),
+      deleteSession: vi.fn(),
+    };
+
+    await expect(executeGetToolResult(store, "session-1", { key: "tc_key" })).resolves.toEqual({
+      ok: false,
+      error: {
+        code: "tool_script_error",
+        message: "Stored tool result could not be loaded for key: tc_key",
       },
     });
   });
