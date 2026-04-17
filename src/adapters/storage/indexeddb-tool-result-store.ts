@@ -1,51 +1,30 @@
 import type { StoredToolResult, ToolResultStorePort } from "@/ports/tool-result-store";
 import { createLogger } from "@/shared/logger";
+import {
+  DEFAULT_DB_NAME,
+  TOOL_RESULTS_SESSION_CREATED_INDEX,
+  TOOL_RESULTS_SESSION_INDEX,
+  TOOL_RESULTS_STORE,
+  openTandemwebDatabase,
+} from "./indexeddb-database";
 
 const log = createLogger("indexeddb-tool-result-store");
-
-const DB_NAME = "tandemweb";
-const DB_VERSION = 2;
-const STORE_NAME = "tool-results";
-const SESSION_INDEX = "sessionId";
-const SESSION_CREATED_INDEX = "sessionId_createdAt";
 
 export class IndexedDBToolResultStore implements ToolResultStorePort {
   private db: IDBDatabase | null = null;
 
+  constructor(private readonly dbName = DEFAULT_DB_NAME) {}
+
   private async getDB(): Promise<IDBDatabase> {
     if (this.db) return this.db;
-
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, DB_VERSION);
-
-      req.onupgradeneeded = () => {
-        const db = req.result;
-
-        if (!db.objectStoreNames.contains("sessions")) {
-          db.createObjectStore("sessions", { keyPath: "id" });
-        }
-
-        if (!db.objectStoreNames.contains("sessions-metadata")) {
-          const meta = db.createObjectStore("sessions-metadata", { keyPath: "id" });
-          meta.createIndex("lastModified", "lastModified");
-        }
-
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          const store = db.createObjectStore(STORE_NAME, { keyPath: "key" });
-          store.createIndex(SESSION_INDEX, "sessionId", { unique: false });
-          store.createIndex(SESSION_CREATED_INDEX, ["sessionId", "createdAt"], { unique: false });
-        }
-      };
-
-      req.onsuccess = () => {
-        this.db = req.result;
-        resolve(this.db);
-      };
-
-      req.onerror = () => {
-        log.error("IndexedDB open error", req.error);
-        reject(req.error);
-      };
+    return openTandemwebDatabase({
+      dbName: this.dbName,
+      onSuccess: (db) => {
+        this.db = db;
+      },
+      onError: (error) => {
+        log.error("IndexedDB open error", error);
+      },
     });
   }
 
@@ -61,8 +40,8 @@ export class IndexedDBToolResultStore implements ToolResultStorePort {
     };
 
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, "readwrite");
-      tx.objectStore(STORE_NAME).put(record);
+      const tx = db.transaction(TOOL_RESULTS_STORE, "readwrite");
+      tx.objectStore(TOOL_RESULTS_STORE).put(record);
       tx.oncomplete = () => resolve();
       tx.onerror = () => {
         log.error("save tool result error", tx.error);
@@ -75,7 +54,10 @@ export class IndexedDBToolResultStore implements ToolResultStorePort {
     const db = await this.getDB();
 
     return new Promise((resolve, reject) => {
-      const req = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(key);
+      const req = db
+        .transaction(TOOL_RESULTS_STORE, "readonly")
+        .objectStore(TOOL_RESULTS_STORE)
+        .get(key);
       req.onsuccess = () => {
         const value = (req.result as StoredToolResult | undefined) ?? null;
         if (value?.sessionId !== sessionId) {
@@ -92,8 +74,8 @@ export class IndexedDBToolResultStore implements ToolResultStorePort {
     const db = await this.getDB();
 
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, "readonly");
-      const index = tx.objectStore(STORE_NAME).index(SESSION_CREATED_INDEX);
+      const tx = db.transaction(TOOL_RESULTS_STORE, "readonly");
+      const index = tx.objectStore(TOOL_RESULTS_STORE).index(TOOL_RESULTS_SESSION_CREATED_INDEX);
       const range = IDBKeyRange.bound([sessionId, 0], [sessionId, Number.MAX_SAFE_INTEGER]);
       const req = index.openCursor(range, "prev");
       const results: StoredToolResult[] = [];
@@ -115,14 +97,14 @@ export class IndexedDBToolResultStore implements ToolResultStorePort {
     const db = await this.getDB();
 
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, "readwrite");
-      const index = tx.objectStore(STORE_NAME).index(SESSION_INDEX);
+      const tx = db.transaction(TOOL_RESULTS_STORE, "readwrite");
+      const index = tx.objectStore(TOOL_RESULTS_STORE).index(TOOL_RESULTS_SESSION_INDEX);
       const req = index.openKeyCursor(IDBKeyRange.only(sessionId));
 
       req.onsuccess = () => {
         const cursor = req.result;
         if (cursor) {
-          tx.objectStore(STORE_NAME).delete(cursor.primaryKey);
+          tx.objectStore(TOOL_RESULTS_STORE).delete(cursor.primaryKey);
           cursor.continue();
         }
       };

@@ -1,38 +1,31 @@
 import type { SessionStoragePort } from "@/ports/session-storage";
 import type { Session, SessionMeta } from "@/ports/session-types";
 import { createLogger } from "@/shared/logger";
+import {
+  DEFAULT_DB_NAME,
+  LAST_MODIFIED_INDEX,
+  METADATA_STORE,
+  SESSIONS_STORE,
+  openTandemwebDatabase,
+} from "./indexeddb-database";
 
 const log = createLogger("indexeddb-storage");
-
-const DB_NAME = "tandemweb";
-const DB_VERSION = 1;
-const SESSIONS_STORE = "sessions";
-const METADATA_STORE = "sessions-metadata";
 
 export class IndexedDBSessionStorage implements SessionStoragePort {
   private db: IDBDatabase | null = null;
 
+  constructor(private readonly dbName = DEFAULT_DB_NAME) {}
+
   private async getDB(): Promise<IDBDatabase> {
     if (this.db) return this.db;
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, DB_VERSION);
-      req.onupgradeneeded = () => {
-        const db = req.result;
-        if (!db.objectStoreNames.contains(SESSIONS_STORE))
-          db.createObjectStore(SESSIONS_STORE, { keyPath: "id" });
-        if (!db.objectStoreNames.contains(METADATA_STORE)) {
-          const meta = db.createObjectStore(METADATA_STORE, { keyPath: "id" });
-          meta.createIndex("lastModified", "lastModified");
-        }
-      };
-      req.onsuccess = () => {
-        this.db = req.result;
-        resolve(this.db);
-      };
-      req.onerror = () => {
-        log.error("IndexedDB open エラー", req.error);
-        reject(req.error);
-      };
+    return openTandemwebDatabase({
+      dbName: this.dbName,
+      onSuccess: (db) => {
+        this.db = db;
+      },
+      onError: (error) => {
+        log.error("IndexedDB open エラー", error);
+      },
     });
   }
 
@@ -40,7 +33,7 @@ export class IndexedDBSessionStorage implements SessionStoragePort {
     const db = await this.getDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(METADATA_STORE, "readonly");
-      const index = tx.objectStore(METADATA_STORE).index("lastModified");
+      const index = tx.objectStore(METADATA_STORE).index(LAST_MODIFIED_INDEX);
       const req = index.openCursor(null, "prev");
       const results: SessionMeta[] = [];
       req.onsuccess = () => {
