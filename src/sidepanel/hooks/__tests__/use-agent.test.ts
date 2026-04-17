@@ -20,7 +20,7 @@ import type {
 } from "@/ports/browser-executor";
 import type { SessionStoragePort } from "@/ports/session-storage";
 
-const runAgentLoopMock = vi.fn(() => Promise.resolve());
+const runAgentLoopMock = vi.fn(async (_params: unknown) => Promise.resolve());
 
 vi.mock("@/orchestration/agent-loop", () => ({
   runAgentLoop: (params: unknown) => runAgentLoopMock(params),
@@ -182,7 +182,8 @@ describe("useAgent", () => {
     });
 
     expect(runAgentLoopMock).toHaveBeenCalledTimes(1);
-    expect(runAgentLoopMock.mock.calls[0]?.[0]).toMatchObject({
+    const [firstCall] = runAgentLoopMock.mock.calls;
+    expect(firstCall?.[0]).toMatchObject({
       settings: {
         provider: "openai",
         model: "gpt-4.1",
