@@ -271,11 +271,7 @@ body,
   right: 0;
   height: 28px;
   pointer-events: none;
-  background: linear-gradient(
-    to bottom,
-    transparent,
-    var(--mantine-color-body)
-  );
+  background: linear-gradient(to bottom, transparent, var(--mantine-color-body));
   border-radius: 0 0 var(--mantine-radius-md) var(--mantine-radius-md);
   opacity: 0;
   transition: opacity 0.15s ease;

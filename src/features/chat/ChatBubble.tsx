@@ -12,16 +12,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { motion } from "framer-motion";
-import {
-  Bot,
-  Brain,
-  Check,
-  ChevronDown,
-  ChevronRight,
-  Copy,
-  Wrench,
-  User,
-} from "lucide-react";
+import { Bot, Brain, Check, ChevronDown, ChevronRight, Copy, Wrench, User } from "lucide-react";
 import type { ChatMessage, ToolCallInfo } from "@/ports/session-types";
 import { useStore } from "@/store/index";
 import { messageStyles, type StyledRole } from "./theme";
@@ -178,9 +169,7 @@ export function ChatBubble({ msg, isLast }: { msg: ChatMessage; isLast?: boolean
           </Paper>
         )}
 
-        {msg.toolCalls && msg.toolCalls.length > 0 && (
-          <ToolCallGroup toolCalls={msg.toolCalls} />
-        )}
+        {msg.toolCalls && msg.toolCalls.length > 0 && <ToolCallGroup toolCalls={msg.toolCalls} />}
       </Paper>
     </motion.div>
   );

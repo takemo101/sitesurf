@@ -176,7 +176,10 @@ export function createToolExecutorWithSkills(
         if (!bgFetchEnabled) {
           return {
             ok: false as const,
-            error: { code: "tool_script_error" as const, message: "bg_fetch is disabled in settings" },
+            error: {
+              code: "tool_script_error" as const,
+              message: "bg_fetch is disabled in settings",
+            },
           };
         }
         return executeBgFetch(args);
