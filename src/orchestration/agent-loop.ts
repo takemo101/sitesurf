@@ -95,6 +95,7 @@ export type { ToolExecutor } from "@/ports/tool-executor";
 const MAX_TURNS = 25;
 const MAX_TOOL_RESULT_CHARS = 30_000;
 const CONTEXT_TOKEN_LIMIT = 100_000;
+const URL_REVISIT_THRESHOLD = 6;
 
 /** 末尾スラッシュを除去してURLを正規化する */
 function normalizeUrl(url: string): string {
@@ -109,7 +110,7 @@ function trackVisitedUrl(
   const normalized = normalizeUrl(url);
   const count = (visitedUrls.get(normalized) ?? 0) + 1;
   visitedUrls.set(normalized, count);
-  if (count >= 2) {
+  if (count >= URL_REVISIT_THRESHOLD) {
     return `\n\n⚠️ WARNING: This URL has already been visited ${count} time(s) in this session. Do NOT navigate to it again. Use the information you already collected from previous visits. If you have enough information, proceed to analysis/response instead of collecting more pages.`;
   }
   return null;
