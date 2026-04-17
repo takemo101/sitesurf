@@ -17,7 +17,7 @@ import {
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { Bot, Cog, Puzzle, X } from "lucide-react";
+import { Bot, Cog, Puzzle, ShieldCheck, X } from "lucide-react";
 
 import { PROVIDERS } from "@/shared/constants";
 import { useDeps } from "@/shared/deps-context";
@@ -185,6 +185,9 @@ export function SettingsPanel() {
               </Tabs.Tab>
               <Tabs.Tab value="system" leftSection={<Cog size={14} />}>
                 システム
+              </Tabs.Tab>
+              <Tabs.Tab value="security" aria-label="セキュリティ">
+                <ShieldCheck size={14} />
               </Tabs.Tab>
             </Tabs.List>
             <ActionIcon size="sm" variant="subtle" onClick={handleClose} aria-label="閉じる">
@@ -367,9 +370,15 @@ export function SettingsPanel() {
                   </Text>
                 </div>
 
-                <SecurityAuditSettingsSection entries={auditEntries} loading={auditLoading} />
-
                 <SaveButton onClick={handleSave} />
+              </Stack>
+            </Box>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="security" pt="xs" style={{ flex: 1, minHeight: 0 }}>
+            <Box style={PANEL_SCROLL_STYLE}>
+              <Stack gap="md" pb="sm">
+                <SecurityAuditSettingsSection entries={auditEntries} loading={auditLoading} />
               </Stack>
             </Box>
           </Tabs.Panel>
