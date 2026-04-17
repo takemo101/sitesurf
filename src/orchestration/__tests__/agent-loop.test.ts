@@ -7,10 +7,12 @@ import type { AuthProvider, AuthCredentials } from "@/ports/auth-provider";
 import type { BrowserExecutor } from "@/ports/browser-executor";
 import { SkillRegistry } from "@/features/tools/skills";
 import { createSecurityMiddleware } from "@/features/security/middleware";
+import { getContextBudget } from "@/features/ai/context-budget";
 import { ok, err } from "@/shared/errors";
 import { initStore, useStore } from "@/store/index";
 import { defaultConsoleLogService } from "@/features/chat/services/console-log";
 import type { ArtifactStoragePort } from "@/ports/artifact-storage";
+import { estimateTokens } from "@/shared/token-utils";
 
 const mockArtifactStorage: ArtifactStoragePort & { setSessionId(id: string | null): void } = {
   createOrUpdate: async () => {},
@@ -821,6 +823,104 @@ describe("tool execution error", () => {
         sessionId: "session-1",
         confidence: "high",
       }),
+    );
+  });
+});
+
+describe("context budget integration", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    streamTextCalls = [];
+    initStore(mockArtifactStorage);
+  });
+
+  it("truncates tool results using budget.maxToolResultChars", async () => {
+    setStreamEvents(
+      [
+        { type: "tool-call", id: "tc-budget", name: "read_page", args: {} },
+        { type: "finish", finishReason: "tool-calls" },
+      ],
+      [{ type: "finish", finishReason: "stop" }],
+    );
+
+    const params = createParams({
+      settings: {
+        provider: "openai",
+        model: "gpt-4",
+        apiKey: "sk-test",
+        baseUrl: "",
+        enterpriseDomain: "",
+      },
+      toolExecutor: vi.fn().mockResolvedValue({ ok: true, value: { text: "x".repeat(1200) } }),
+    });
+
+    await runAgentLoop(params);
+
+    const secondCall = streamTextCalls[1] as {
+      messages: Array<{ role: string; result?: string; toolName?: string }>;
+    };
+    const toolMessage = secondCall.messages.find((message) => message.role === "tool");
+    const budget = getContextBudget("gpt-4");
+
+    expect(toolMessage?.toolName).toBe("read_page");
+    expect(toolMessage?.result).toMatch(/^\{"text":"/);
+    expect(toolMessage?.result).toMatch(/\n\.\.\. \(truncated\)$/);
+    expect(toolMessage?.result).toHaveLength(
+      budget.maxToolResultChars + "\n... (truncated)".length,
+    );
+  });
+
+  it("retries context overflow after trimming down to budget.compressionThreshold", async () => {
+    setStreamEvents(
+      [{ type: "error", error: { code: "ai_unknown", message: "token limit exceeded" } }],
+      [{ type: "finish", finishReason: "stop" }],
+    );
+
+    const session = createMockSession({
+      history: [
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "a".repeat(600) }],
+        },
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "b".repeat(600) }],
+        },
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "c".repeat(600) }],
+        },
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "d".repeat(600) }],
+        },
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "e".repeat(600) }],
+        },
+      ],
+    });
+
+    const params = createParams({
+      session,
+      settings: {
+        provider: "openai",
+        model: "gpt-4",
+        apiKey: "sk-test",
+        baseUrl: "",
+        enterpriseDomain: "",
+      },
+    });
+
+    await runAgentLoop(params);
+
+    const retriedCall = streamTextCalls[1] as { messages: Parameters<typeof estimateTokens>[0] };
+    const budget = getContextBudget("gpt-4");
+
+    expect(estimateTokens(retriedCall.messages)).toBeLessThanOrEqual(budget.compressionThreshold);
+    expect(retriedCall.messages).toHaveLength(4);
+    expect(params.chatStore.addSystemMessage).toHaveBeenCalledWith(
+      "📝 コンテキストが大きすぎるため、古いメッセージを圧縮して再試行します...",
     );
   });
 });
