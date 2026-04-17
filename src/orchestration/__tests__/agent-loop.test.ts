@@ -1040,6 +1040,48 @@ describe("context budget integration", () => {
       "📝 コンテキストが大きすぎるため、古いメッセージを圧縮して再試行します...",
     );
   });
+
+  it("autoCompact=true のクラウド設定ではターン開始前に構造化圧縮を実行する", async () => {
+    const session = createMockSession({
+      history: Array.from({ length: 15 }, (_, i) => ({
+        role: "user" as const,
+        content: [{ type: "text" as const, text: `${i}-` + "x".repeat(20_000) }],
+      })),
+    });
+
+    setStreamEvents(
+      [
+        { type: "text-delta", text: "## Goal\n圧縮済みの要約" },
+        { type: "finish", finishReason: "stop" },
+      ],
+      [{ type: "finish", finishReason: "stop" }],
+    );
+
+    const params = createParams({
+      session,
+      settings: {
+        provider: "anthropic",
+        model: "claude-sonnet-4-6",
+        apiKey: "sk-test",
+        baseUrl: "",
+        enterpriseDomain: "",
+        autoCompact: true,
+      },
+    });
+
+    await runAgentLoop(params);
+
+    const summaryCall = streamTextCalls[0] as { systemPrompt: string };
+    const mainCall = streamTextCalls[1] as {
+      messages: Array<{ role: string; content?: Array<{ text?: string }> }>;
+    };
+
+    expect(summaryCall.systemPrompt).toContain("Goal");
+    expect(mainCall.messages[0]).toEqual({
+      role: "user",
+      content: [{ type: "text", text: "[構造化要約]\n## Goal\n圧縮済みの要約" }],
+    });
+  });
 });
 
 describe("trackVisitedUrl", () => {

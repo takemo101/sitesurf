@@ -382,10 +382,10 @@ describe("AppStore", () => {
         maxTokensByProvider: { openai: 8192 },
         reasoningLevel: "high" as const,
         maxTokens: 8192,
+        autoCompact: false,
         enableMcpServer: false,
         enableBgFetch: false,
         enableSecurityMiddleware: true,
-        autoCompact: false,
       };
 
       useStore.getState().hydrateSettings(loadedSettings);

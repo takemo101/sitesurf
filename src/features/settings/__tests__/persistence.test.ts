@@ -31,10 +31,10 @@ describe("persistence", () => {
       maxTokensByProvider: { anthropic: 8192 },
       reasoningLevel: "medium",
       maxTokens: 8192,
+      autoCompact: false,
       enableMcpServer: false,
       enableBgFetch: false,
       enableSecurityMiddleware: true,
-      autoCompact: false,
     };
 
     await saveSettings(storage, data);
@@ -62,10 +62,10 @@ describe("persistence", () => {
       maxTokensByProvider: { anthropic: 8192 },
       reasoningLevel: "medium",
       maxTokens: 8192,
+      autoCompact: false,
       enableMcpServer: false,
       enableBgFetch: false,
       enableSecurityMiddleware: true,
-      autoCompact: false,
     };
     const data2: Settings = {
       provider: "openai",
@@ -84,10 +84,10 @@ describe("persistence", () => {
       maxTokensByProvider: { openai: 8192 },
       reasoningLevel: "high",
       maxTokens: 8192,
+      autoCompact: false,
       enableMcpServer: false,
       enableBgFetch: false,
       enableSecurityMiddleware: true,
-      autoCompact: false,
     };
 
     await saveSettings(storage, data1);
@@ -114,6 +114,7 @@ describe("persistence", () => {
       apiModeByProvider: {},
       reasoningLevel: "high",
       maxTokens: 32768,
+      autoCompact: false,
       enableMcpServer: false,
       enableBgFetch: false,
     });
@@ -150,6 +151,7 @@ describe("persistence", () => {
       credentials,
       reasoningLevel: "high",
       maxTokens: 32768,
+      autoCompact: false,
       enableMcpServer: false,
       enableBgFetch: false,
     });
@@ -180,6 +182,7 @@ describe("persistence", () => {
       credentialsByProvider: { openai: credentials },
       enableMcpServer: false,
       enableBgFetch: false,
+      autoCompact: false,
     });
 
     const result = await loadSettings(storage);
@@ -213,6 +216,7 @@ describe("persistence", () => {
       maxTokens: 32768,
       enableMcpServer: false,
       enableBgFetch: false,
+      autoCompact: false,
     });
 
     const result = await loadSettings(storage);
@@ -248,6 +252,7 @@ describe("persistence", () => {
       maxTokensByProvider: { anthropic: 8192 },
       reasoningLevel: "medium",
       maxTokens: 8192,
+      autoCompact: false,
       enableMcpServer: false,
       enableBgFetch: false,
     });
@@ -270,6 +275,7 @@ describe("persistence", () => {
       apiKey: "sk-test",
       enableMcpServer: false,
       enableBgFetch: false,
+      autoCompact: false,
     });
 
     const result = await loadSettings(storage);
@@ -287,11 +293,29 @@ describe("persistence", () => {
       enableMcpServer: false,
       enableBgFetch: false,
       enableSecurityMiddleware: false,
+      autoCompact: true,
     });
 
     const result = await loadSettings(storage);
 
     expect(result?.enableSecurityMiddleware).toBe(false);
+    expect(result?.autoCompact).toBe(true);
+  });
+
+  it("autoCompact 未設定の legacy 設定はデフォルトで false に解決する", async () => {
+    const storage = new InMemoryStorage();
+
+    await storage.set("sitesurf_settings", {
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      apiKey: "sk-test",
+      enableMcpServer: false,
+      enableBgFetch: false,
+    });
+
+    const result = await loadSettings(storage);
+
+    expect(result?.autoCompact).toBe(false);
   });
 
   it("autoCompact 未設定の legacy 設定はデフォルトで false に解決する", async () => {

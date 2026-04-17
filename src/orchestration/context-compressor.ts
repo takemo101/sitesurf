@@ -4,21 +4,25 @@ import type { ContextBudget } from "@/features/ai/context-budget";
 import type { ProviderId } from "@/shared/constants";
 import { createLogger } from "@/shared/logger";
 import { estimateTokens } from "@/shared/token-utils";
+import {
+  buildStructuredSummaryPromptInput,
+  STRUCTURED_SUMMARY_SYSTEM_PROMPT,
+} from "@/features/ai/structured-summary-prompt";
 
 export { estimateTokens } from "@/shared/token-utils";
 
 const KEEP_RECENT = 10;
 const log = createLogger("compressor");
-
-const SUMMARIZE_SYSTEM_PROMPT = [
-  "あなたは会話要約の専門家です。",
-  "以下の会話履歴を簡潔に要約してください。",
-  "重要な情報（ユーザーの意図、AIの回答のポイント、ツール実行の結果）を漏らさず含めてください。",
-  "要約は日本語で、箇条書きではなく自然な文章で記述してください。",
-].join("\n");
+export const STRUCTURED_SUMMARY_MESSAGE_PREFIX = "[構造化要約]";
 
 export interface CompressResult {
   session: Session;
+  compressed: boolean;
+}
+
+export interface CompressMessagesResult {
+  messages: AIMessage[];
+  summary?: ConversationSummary;
   compressed: boolean;
 }
 
@@ -37,8 +41,49 @@ export async function compressIfNeeded(
   provider: ProviderId,
   options: { userConfirmed?: boolean } = {},
 ): Promise<CompressResult> {
-  const tokenCount = estimateTokens(session.history);
-  if (tokenCount < budget.trimThreshold) return { session, compressed: false };
+  const result = await compressMessagesIfNeeded(
+    aiProvider,
+    session.history,
+    budget,
+    model,
+    provider,
+    {
+      userConfirmed: options.userConfirmed,
+      existingSummary: session.summary?.text,
+      originalMessageCount: session.summary?.originalMessageCount,
+    },
+  );
+
+  if (!result.compressed || !result.summary) {
+    return { session, compressed: false };
+  }
+
+  return {
+    session: {
+      ...session,
+      summary: result.summary,
+      history: result.messages.slice(1),
+    },
+    compressed: true,
+  };
+}
+
+export async function compressMessagesIfNeeded(
+  aiProvider: AIProvider,
+  messages: AIMessage[],
+  budget: ContextBudget,
+  model: string,
+  provider: ProviderId,
+  options: {
+    userConfirmed?: boolean;
+    existingSummary?: string;
+    originalMessageCount?: number;
+  } = {},
+): Promise<CompressMessagesResult> {
+  const tokenCount = estimateTokens(messages);
+  if (tokenCount < budget.trimThreshold) {
+    return { messages, compressed: false };
+  }
 
   log.info("コンテキスト圧縮開始", {
     tokenCount,
@@ -47,77 +92,77 @@ export async function compressIfNeeded(
   });
 
   if (provider !== "local" && provider !== "ollama" && !options.userConfirmed) {
-    return { session, compressed: false };
+    return { messages, compressed: false };
   }
 
-  const toCompress = session.history.slice(0, -KEEP_RECENT);
-  const toKeep = session.history.slice(-KEEP_RECENT);
+  const currentSummary = options.existingSummary ?? extractStructuredSummary(messages)?.text;
+  const sourceMessages = stripStructuredSummaryMessages(messages);
+  const toCompress = sourceMessages.slice(0, -KEEP_RECENT);
+  const toKeep = sourceMessages.slice(-KEEP_RECENT);
 
-  if (toCompress.length === 0) return { session, compressed: false };
+  if (toCompress.length === 0) {
+    return { messages, compressed: false };
+  }
 
   try {
-    const summaryText = await summarizeMessages(aiProvider, model, session.summary, toCompress);
+    const summaryText = await summarizeMessages(aiProvider, model, currentSummary, toCompress);
+    const summary: ConversationSummary = {
+      text: summaryText,
+      compressedAt: Date.now(),
+      originalMessageCount: (options.originalMessageCount ?? 0) + toCompress.length,
+    };
+    const summaryMessage = createStructuredSummaryMessage(summary.text);
+
     log.info("コンテキスト圧縮完了", {
       compressedCount: toCompress.length,
       keptCount: toKeep.length,
     });
-    const summary: ConversationSummary = {
-      text: summaryText,
-      compressedAt: Date.now(),
-      originalMessageCount: (session.summary?.originalMessageCount ?? 0) + toCompress.length,
-    };
+
     return {
-      session: {
-        ...session,
-        summary,
-        history: toKeep,
-      },
+      messages: [summaryMessage, ...toKeep],
+      summary,
       compressed: true,
     };
   } catch (e) {
     log.error("コンテキスト圧縮失敗", e);
-    return { session, compressed: false };
+    return { messages, compressed: false };
   }
+}
+
+export function stripStructuredSummaryMessages(messages: AIMessage[]): AIMessage[] {
+  return messages.filter(
+    (message, index) => !(index === 0 && stripStructuredSummaryMessage(message)),
+  );
+}
+
+export function stripStructuredSummaryMessage(message: AIMessage | undefined): string | undefined {
+  const text = getSingleTextContent(message);
+  if (!text?.startsWith(`${STRUCTURED_SUMMARY_MESSAGE_PREFIX}\n`)) {
+    return undefined;
+  }
+  return text.slice(`${STRUCTURED_SUMMARY_MESSAGE_PREFIX}\n`.length);
 }
 
 async function summarizeMessages(
   aiProvider: AIProvider,
   model: string,
-  existingSummary: ConversationSummary | undefined,
+  existingSummary: string | undefined,
   messages: AIMessage[],
 ): Promise<string> {
-  const parts: string[] = [];
-
-  if (existingSummary) {
-    parts.push(`[既存の要約]\n${existingSummary.text}\n`);
-  }
-
-  parts.push("[要約対象の会話履歴]");
-  for (const msg of messages) {
-    const role =
-      msg.role === "user" ? "ユーザー" : msg.role === "assistant" ? "アシスタント" : "ツール";
-    if ("content" in msg && Array.isArray(msg.content)) {
-      const texts = msg.content.filter(
-        (c): c is { type: "text"; text: string } => "text" in c && c.text !== undefined,
-      );
-      if (texts.length > 0) {
-        parts.push(`${role}: ${texts.map((t) => t.text).join(" ")}`);
-      }
-    }
-    if (msg.role === "tool") {
-      parts.push(`${role} (${msg.toolName}): ${msg.result}`);
-    }
-  }
-
   const userMessage: UserMessage = {
     role: "user",
-    content: [{ type: "text", text: parts.join("\n") }],
+    content: [
+      {
+        type: "text",
+        text: buildStructuredSummaryPromptInput({ existingSummary, messages }),
+      },
+    ],
   };
 
   let result = "";
   const stream = aiProvider.streamText({
     model,
-    systemPrompt: SUMMARIZE_SYSTEM_PROMPT,
+    systemPrompt: STRUCTURED_SUMMARY_SYSTEM_PROMPT,
     messages: [userMessage],
     tools: [],
   });
@@ -131,5 +176,29 @@ async function summarizeMessages(
     }
   }
 
-  return result;
+  return result.trim();
+}
+
+function createStructuredSummaryMessage(summaryText: string): UserMessage {
+  return {
+    role: "user",
+    content: [{ type: "text", text: `${STRUCTURED_SUMMARY_MESSAGE_PREFIX}\n${summaryText}` }],
+  };
+}
+
+function extractStructuredSummary(messages: AIMessage[]): ConversationSummary | undefined {
+  const text = stripStructuredSummaryMessage(messages[0]);
+  if (!text) return undefined;
+  return {
+    text,
+    compressedAt: Date.now(),
+    originalMessageCount: 0,
+  };
+}
+
+function getSingleTextContent(message: AIMessage | undefined): string | undefined {
+  if (!message || message.role !== "user") return undefined;
+  if (message.content.length !== 1) return undefined;
+  const [part] = message.content;
+  return part.type === "text" ? part.text : undefined;
 }

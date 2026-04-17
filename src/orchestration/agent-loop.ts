@@ -21,10 +21,11 @@ import { compressIfNeeded } from "./context-compressor";
 import { getContextBudget } from "@/features/ai/context-budget";
 import type { ToolResultStorePort } from "@/ports/tool-result-store";
 import { generateVisitedUrlsSection, type VisitedUrlEntry } from "@/features/ai/system-prompt-v2";
-import type { ProviderId } from "@/shared/constants";
+import { prepareMessagesForTurn, trimMessagesToThreshold } from "./context-manager";
 import type { SkillRegistry } from "@/shared/skill-registry";
 import { buildSkillDetectionMessage, isSkillDetectionMessage } from "./skill-detector";
 import { useStore } from "@/store/index";
+import type { ProviderId } from "@/shared/constants";
 import {
   defaultConsoleLogService,
   normalizeConsoleLogEntry,
@@ -36,7 +37,6 @@ import {
   shouldStore,
   summarizeToolResult,
 } from "@/features/tools/result-summarizer";
-import { manageContextMessages } from "./context-manager";
 import type { GetToolResultValue } from "@/features/tools";
 
 const log = createLogger("agent-loop");
@@ -560,7 +560,32 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
 
       while (retryCount <= RETRY_CONFIG.maxRetries) {
         let hasError = false;
-        manageContextMessages(messages, budget);
+        const contextResult = await prepareMessagesForTurn({
+          aiProvider,
+          messages,
+          budget,
+          model: settings.model,
+          provider: settings.provider as ProviderId,
+          autoCompact: settings.autoCompact,
+          sessionSummary: session.summary,
+        });
+        messages = contextResult.messages;
+        if (contextResult.summary) {
+          session.summary = contextResult.summary;
+          const storeState = useStore.getState() as {
+            activeSessionSnapshot?: Session | null;
+            setActiveSession?: (nextSession: Session) => void;
+          };
+          if (
+            storeState.activeSessionSnapshot?.id === session.id &&
+            typeof storeState.setActiveSession === "function"
+          ) {
+            storeState.setActiveSession({
+              ...storeState.activeSessionSnapshot,
+              summary: contextResult.summary,
+            });
+          }
+        }
         chatStore.startNewAssistantMessage();
 
         for await (const event of aiProvider.streamText({
@@ -704,16 +729,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
                     { historyUserCount: rebuiltHistoryUserCount },
                   );
                 } else {
-                  while (
-                    messages.length > 4 &&
-                    estimateTokens(messages) > budget.compressionThreshold
-                  ) {
-                    const idx = messages.findIndex(
-                      (m, i) => i > 0 && (m.role === "tool" || m.role === "assistant"),
-                    );
-                    if (idx > 0) messages.splice(idx, 1);
-                    else break;
-                  }
+                  messages = trimMessagesToThreshold(messages, budget.compressionThreshold);
                 }
 
                 retryCount++;

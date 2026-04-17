@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { compressIfNeeded, estimateTokens } from "../context-compressor";
+import {
+  compressIfNeeded,
+  compressMessagesIfNeeded,
+  estimateTokens,
+  STRUCTURED_SUMMARY_MESSAGE_PREFIX,
+} from "../context-compressor";
 import type { AIProvider, AIMessage, StreamEvent } from "@/ports/ai-provider";
 import type { Session } from "@/ports/session-types";
 import type { ContextBudget } from "@/features/ai/context-budget";
@@ -237,5 +242,53 @@ describe("compressIfNeeded", () => {
 
     const result = await compressIfNeeded(provider, session, budget, "llama3.2", "local");
     expect(result.session.messages).toBe(messages);
+  });
+});
+
+describe("compressMessagesIfNeeded", () => {
+  it("圧縮時は先頭に構造化要約メッセージを追加して最近のメッセージを残す", async () => {
+    const provider = createMockAIProvider("## Goal\n要約された目標");
+    const longText = "x".repeat(10_000);
+    const messages: AIMessage[] = Array.from({ length: 15 }, (_, i) =>
+      createUserMessage(`${i}-${longText}`),
+    );
+    const budget = createBudget({ trimThreshold: 100 });
+
+    const result = await compressMessagesIfNeeded(provider, messages, budget, "llama3.2", "local");
+
+    expect(result.compressed).toBe(true);
+    expect(result.summary?.text).toBe("## Goal\n要約された目標");
+    expect(result.messages).toHaveLength(11);
+    expect(result.messages[0]).toEqual({
+      role: "user",
+      content: [
+        { type: "text", text: `${STRUCTURED_SUMMARY_MESSAGE_PREFIX}\n## Goal\n要約された目標` },
+      ],
+    });
+  });
+
+  it("既存の構造化要約メッセージをローリング入力として更新する", async () => {
+    const provider = createMockAIProvider("## Goal\n更新後の要約");
+    const longText = "x".repeat(10_000);
+    const messages: AIMessage[] = [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: `${STRUCTURED_SUMMARY_MESSAGE_PREFIX}\n## Goal\n前回の要約` },
+        ],
+      },
+      ...Array.from({ length: 15 }, (_, i) => createUserMessage(`${i}-${longText}`)),
+    ];
+    const budget = createBudget({ trimThreshold: 100 });
+
+    const result = await compressMessagesIfNeeded(provider, messages, budget, "llama3.2", "local");
+
+    expect(result.compressed).toBe(true);
+    expect(result.messages[0]).toEqual({
+      role: "user",
+      content: [
+        { type: "text", text: `${STRUCTURED_SUMMARY_MESSAGE_PREFIX}\n## Goal\n更新後の要約` },
+      ],
+    });
   });
 });
