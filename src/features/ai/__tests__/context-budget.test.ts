@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getContextBudget } from "../context-budget";
 import { DEFAULT_MAX_TOKENS } from "@/shared/token-constants";
 
@@ -8,6 +8,10 @@ const MODEL_32K = "gpt-4-32k";
 const MODEL_200K = "claude-sonnet-4-6";
 
 describe("getContextBudget", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("32k model × default maxTokens: outputReserve = DEFAULT_MAX_TOKENS", () => {
     // floor(32768 * 0.5) = 16384 === DEFAULT_MAX_TOKENS → no clamp
     const budget = getContextBudget(MODEL_32K);
@@ -17,10 +21,21 @@ describe("getContextBudget", () => {
   });
 
   it("32k model × maxTokens=32000: clamp occurs, outputReserve = floor(32768*0.5)", () => {
+    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+
     // requestedOutput=32000 > floor(32768*0.5)=16384 → clamp
     const budget = getContextBudget(MODEL_32K, 32000);
     expect(budget.outputReserve).toBe(16384);
     expect(budget.inputBudget).toBe(32768 - 16384);
+    expect(infoSpy).toHaveBeenCalledWith(
+      "[SiteSurf:context-budget]",
+      "maxTokens clamped",
+      expect.objectContaining({
+        requested: 32000,
+        effective: 16384,
+        windowTokens: 32768,
+      }),
+    );
   });
 
   it("200k model × default: maxToolResultChars = 20000, useToolResultStore = false", () => {

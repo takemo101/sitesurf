@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { manageContextMessages } from "../context-manager";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { manageContextMessages, trimMessagesToThreshold } from "../context-manager";
 import { formatRetrievedToolResult } from "@/features/tools/result-summarizer";
 import type { ContextBudget } from "@/features/ai/context-budget";
 import type { AIMessage } from "@/ports/ai-provider";
@@ -15,6 +15,10 @@ const budget: ContextBudget = {
 };
 
 describe("context-manager", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("replaces old get_tool_result full content with the stored summary form", () => {
     const messages: AIMessage[] = [
       {
@@ -59,5 +63,36 @@ describe("context-manager", () => {
     manageContextMessages(messages, budget);
 
     expect((messages[0] as Extract<AIMessage, { role: "tool" }>).result).toContain("FULL CONTENT");
+  });
+
+  it("logs when trimThreshold is reached and reports splicedMessageCount", () => {
+    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+    const messages: AIMessage[] = [
+      { role: "user", content: [{ type: "text", text: "u".repeat(7000) }] },
+      { role: "assistant", content: [{ type: "text", text: "a".repeat(7000) }] },
+      { role: "tool", toolCallId: "tool-1", toolName: "read_page", result: "t".repeat(7000) },
+      { role: "assistant", content: [{ type: "text", text: "b".repeat(7000) }] },
+      { role: "assistant", content: [{ type: "text", text: "c".repeat(7000) }] },
+    ];
+
+    const trimmed = trimMessagesToThreshold(messages, 20000);
+
+    expect(trimmed).toHaveLength(4);
+    expect(infoSpy).toHaveBeenCalledWith(
+      "[SiteSurf:context-manager]",
+      "trimThreshold reached",
+      expect.objectContaining({
+        estimatedTokens: 35000,
+        trimThreshold: 20000,
+      }),
+    );
+    expect(infoSpy).toHaveBeenCalledWith(
+      "[SiteSurf:context-manager]",
+      "splicedMessageCount",
+      expect.objectContaining({
+        splicedMessageCount: 1,
+        remainingMessagesCount: 4,
+      }),
+    );
   });
 });
