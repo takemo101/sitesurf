@@ -277,6 +277,11 @@ export function SettingsPanel() {
                     checked={settings.autoCompact}
                     onChange={(e) => setSettings({ autoCompact: e.currentTarget.checked })}
                   />
+                  {settings.provider !== "local" && settings.provider !== "ollama" && (
+                    <Text size="xs" c="dimmed" mt="xs">
+                      クラウドプロバイダ利用時は LLM コストが発生します
+                    </Text>
+                  )}
                 </div>
 
                 {visibility.showApiKey && (
@@ -330,22 +335,6 @@ export function SettingsPanel() {
                 )}
 
                 {visibility.showOAuth && <OAuthSection />}
-
-                <div>
-                  <Switch
-                    label="クラウドで自動圧縮を有効にする"
-                    description={
-                      settings.autoCompact
-                        ? "長い会話で構造化要約による自動圧縮を許可します。クラウドプロバイダ利用時は追加の LLM コストが発生します"
-                        : "クラウドプロバイダでは自動圧縮を行いません。必要になったら有効化してください（LLM コストが追加で発生します）"
-                    }
-                    checked={settings.autoCompact}
-                    onChange={(e) => setSettings({ autoCompact: e.currentTarget.checked })}
-                  />
-                  <Text size="xs" c="dimmed" mt="xs">
-                    クラウドプロバイダ利用時は LLM コストが発生します
-                  </Text>
-                </div>
 
                 <SaveButton onClick={handleSave} />
               </Stack>
