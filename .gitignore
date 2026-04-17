@@ -31,6 +31,9 @@ Thumbs.db
 # Pi agent
 .pi/
 
+# Claude Code
+.mcp.json
+
 # Worktrees (runtime)
 .worktrees/
 
