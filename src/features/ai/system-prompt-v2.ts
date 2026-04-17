@@ -2,10 +2,19 @@ import type { SkillMatch } from "@/shared/skill-types";
 import { assembleSections, type SectionKey } from "./sections";
 import { PromptCache, createPromptCacheKey } from "./prompt-cache";
 
+export interface VisitedUrlEntry {
+  url: string;
+  title: string;
+  visitedAt: number;
+  visitCount: number;
+  lastMethod: "navigate" | "read_page" | "bg_fetch";
+}
+
 export interface SystemPromptOptions {
   includeSkills?: boolean;
   skills?: SkillMatch[];
   locale?: string;
+  visitedUrls?: VisitedUrlEntry[];
 }
 
 const cache = new PromptCache();
@@ -85,22 +94,29 @@ function renderSkillEntries(skills: SkillMatch[]): string {
   return lines.join("\n");
 }
 
+export function generateVisitedUrlsSection(entries: VisitedUrlEntry[]): string {
+  if (entries.length === 0) return "";
+  const lines = entries.map(
+    (e) => `- ${e.url} (${e.title}) [${e.visitCount}x, via ${e.lastMethod}]`,
+  );
+  return `## Current Session: Visited URLs\n${lines.join("\n")}`;
+}
+
 export function getSystemPromptV2(options: SystemPromptOptions): string {
   const key = createPromptCacheKey(options);
   const cached = cache.get(key);
 
+  let base: string;
   if (cached !== null) {
-    return cached;
+    base = cached;
+  } else {
+    const baseSections = assembleSections(BASE_SECTIONS);
+    const skillsSection =
+      options.includeSkills && options.skills ? generateSkillsSection(options.skills) : "";
+    base = skillsSection ? `${baseSections}\n\n${skillsSection}` : baseSections;
+    cache.set(key, base);
   }
 
-  const base = assembleSections(BASE_SECTIONS);
-
-  const skillsSection =
-    options.includeSkills && options.skills ? generateSkillsSection(options.skills) : "";
-
-  const prompt = skillsSection ? `${base}\n\n${skillsSection}` : base;
-
-  cache.set(key, prompt);
-
-  return prompt;
+  const visitedSection = generateVisitedUrlsSection(options.visitedUrls ?? []);
+  return visitedSection ? `${base}\n\n${visitedSection}` : base;
 }
