@@ -64,6 +64,7 @@ export function SettingsPanel() {
   const { storage } = useDeps();
   const isNarrow = useMediaQuery("(max-width: 900px)");
   const baselineRef = useRef<string>("");
+  const [activeTab, setActiveTab] = useState<string>("ai");
   const [auditEntries, setAuditEntries] = useState<SecurityAuditLogEntry[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
 
@@ -77,7 +78,7 @@ export function SettingsPanel() {
   }, [settingsOpen]);
 
   useEffect(() => {
-    if (!settingsOpen) return;
+    if (!settingsOpen || activeTab !== "security") return;
 
     let cancelled = false;
     setAuditLoading(true);
@@ -105,7 +106,7 @@ export function SettingsPanel() {
     return () => {
       cancelled = true;
     };
-  }, [settingsOpen, storage]);
+  }, [settingsOpen, activeTab, storage]);
 
   const handleSave = async () => {
     try {
@@ -154,7 +155,10 @@ export function SettingsPanel() {
     >
       <Stack gap="xs" p="sm" style={{ flex: 1, minHeight: 0, height: "100%", overflow: "hidden" }}>
         <Tabs
-          defaultValue="ai"
+          value={activeTab}
+          onChange={(v) => {
+            if (v) setActiveTab(v);
+          }}
           style={{
             display: "flex",
             flexDirection: "column",
@@ -186,7 +190,7 @@ export function SettingsPanel() {
               <Tabs.Tab value="system" leftSection={<Cog size={14} />}>
                 システム
               </Tabs.Tab>
-              <Tabs.Tab value="security" aria-label="セキュリティ">
+              <Tabs.Tab value="security" aria-label="セキュリティ" title="セキュリティ">
                 <ShieldCheck size={14} />
               </Tabs.Tab>
             </Tabs.List>
@@ -196,7 +200,7 @@ export function SettingsPanel() {
           </Flex>
 
           <Text size="xs" c="dimmed" mt={2}>
-            AI設定/システムは「保存」で反映。スキルはスキルタブ内の保存を使用します。
+            AI設定/システムは「保存」で反映。スキルはスキルタブ内の保存を使用。セキュリティは閲覧のみ。
           </Text>
 
           <Tabs.Panel value="ai" pt="xs" style={{ flex: 1, minHeight: 0 }}>
