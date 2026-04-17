@@ -90,14 +90,14 @@ describe("estimateTokens", () => {
     expect(estimateTokens(messages)).toBe(5);
   });
 
-  it("tool メッセージはカウントしない", () => {
+  it("tool メッセージは result の文字数をカウントする", () => {
     const messages: AIMessage[] = [
       { role: "tool", toolCallId: "tc1", toolName: "read_page", result: "page content" },
     ];
-    expect(estimateTokens(messages)).toBe(0);
+    expect(estimateTokens(messages)).toBe("page content".length);
   });
 
-  it("image content はカウントしない", () => {
+  it("image content は 6000 chars 相当としてカウントする", () => {
     const messages: AIMessage[] = [
       {
         role: "user",
@@ -107,10 +107,10 @@ describe("estimateTokens", () => {
         ],
       },
     ];
-    expect(estimateTokens(messages)).toBe(4);
+    expect(estimateTokens(messages)).toBe(4 + 6000);
   });
 
-  it("tool-call content はカウントしない", () => {
+  it("tool-call content は args の文字数をカウントする", () => {
     const messages: AIMessage[] = [
       {
         role: "assistant",
@@ -120,7 +120,7 @@ describe("estimateTokens", () => {
         ],
       },
     ];
-    expect(estimateTokens(messages)).toBe(7);
+    expect(estimateTokens(messages)).toBe(7 + JSON.stringify({}).length);
   });
 });
 
