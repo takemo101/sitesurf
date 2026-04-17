@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ActionIcon, Code, Collapse, Group, Paper, Text, UnstyledButton } from "@mantine/core";
 import { ChevronDown, ChevronUp, MousePointer2, X } from "lucide-react";
+import { ScrollableResult } from "./tool-renderers/components";
 import type { ElementInfo } from "@/ports/browser-executor";
 
 export function ElementCard({
@@ -51,9 +52,11 @@ export function ElementCard({
             </Group>
           </UnstyledButton>
           <Collapse expanded={showDOM}>
-            <Code block style={{ fontSize: 12, maxHeight: 120, overflow: "auto" }} mt={4}>
-              {element.surroundingHTML}
-            </Code>
+            <ScrollableResult maxHeight={120}>
+              <Code block style={{ fontSize: 12 }} mt={4}>
+                {element.surroundingHTML}
+              </Code>
+            </ScrollableResult>
           </Collapse>
         </>
       )}

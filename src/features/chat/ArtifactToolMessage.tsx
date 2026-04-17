@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { Box, Group, Text, ActionIcon, Paper, Badge } from "@mantine/core";
 import { FileCode, ChevronDown, FileText, Trash, Edit, Plus, Eye } from "lucide-react";
 import { CodeView } from "../artifacts/CodeView";
+import { ScrollableResult } from "./tool-renderers/components";
 
 interface ArtifactToolMessageProps {
   command?: "create" | "update" | "rewrite" | "get" | "delete" | "logs";
@@ -150,15 +151,15 @@ export function ArtifactToolMessage({
           ref={contentRef}
           style={{
             borderTop: `1px solid ${colors.border}`,
-            maxHeight: 500,
-            overflow: "auto",
           }}
         >
-          {isDiff ? (
-            <DiffView oldStr={old_str || ""} newStr={new_str || ""} />
-          ) : (
-            <CodeView content={content || result?.content || ""} filename={filename} />
-          )}
+          <ScrollableResult maxHeight={500}>
+            {isDiff ? (
+              <DiffView oldStr={old_str || ""} newStr={new_str || ""} />
+            ) : (
+              <CodeView content={content || result?.content || ""} filename={filename} />
+            )}
+          </ScrollableResult>
 
           {isError && result?.content && (
             <Box p="sm" style={{ background: "var(--mantine-color-red-light)" }}>
