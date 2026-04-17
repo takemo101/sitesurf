@@ -203,9 +203,14 @@ export function App({ windowId }: { windowId: number }) {
 
     const unsubUpdate = browserExecutor.onTabUpdated(async (_tabId, url) => {
       await refreshTab();
-      if (useStore.getState().isStreaming && url && !isExcludedUrl(url)) {
-        const tab = useStore.getState().currentTab;
-        useStore.getState().addNavigationMessage({
+      // ストリーミング中のナビゲーションメッセージ:
+      // - AI が navigate/repl ツールで遷移した場合 (isToolNavigating=true) → 抑制
+      //   AI はツール結果から遷移先を既に把握しており、再通知するとループの原因になる
+      // - ユーザーが手動で遷移した場合 (isToolNavigating=false) → 通知する
+      const state = useStore.getState();
+      if (state.isStreaming && !state.isToolNavigating && url && !isExcludedUrl(url)) {
+        const tab = state.currentTab;
+        state.addNavigationMessage({
           url,
           title: tab.title || getHostname(url),
         });

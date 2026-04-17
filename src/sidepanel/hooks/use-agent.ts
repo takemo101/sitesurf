@@ -190,6 +190,7 @@ export function useAgent() {
           addErrorMessage: (e) => useStore.getState().addErrorMessage(e),
           syncHistory: (msgs) => useStore.getState().syncHistory(msgs),
           getMessages: () => useStore.getState().messages,
+          setToolNavigating: (v) => useStore.getState().setToolNavigating(v),
         },
         settings: {
           provider: settings.provider,
