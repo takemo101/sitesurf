@@ -1,0 +1,51 @@
+const CONTEXT_WINDOWS: Record<string, number> = {
+  // Anthropic
+  "claude-3-haiku-20240307": 200000,
+  "claude-3-sonnet-20240229": 200000,
+  "claude-3-opus-20240229": 200000,
+  "claude-3-5-haiku-20241022": 200000,
+  "claude-3-5-haiku-latest": 200000,
+  "claude-3-5-sonnet-20240620": 200000,
+  "claude-3-5-sonnet-20241022": 200000,
+  "claude-3-7-sonnet-20250219": 200000,
+  "claude-haiku-4-5": 200000,
+  "claude-haiku-4-5-20251001": 200000,
+  "claude-opus-4-0": 200000,
+  "claude-opus-4-1": 200000,
+  "claude-opus-4-1-20250805": 200000,
+  "claude-opus-4-20250514": 200000,
+  "claude-opus-4-5": 200000,
+  "claude-opus-4-5-20251101": 200000,
+  "claude-opus-4-6": 200000,
+  "claude-opus-4-7": 200000,
+  "claude-sonnet-4-0": 200000,
+  "claude-sonnet-4-20250514": 200000,
+  "claude-sonnet-4-5": 200000,
+  "claude-sonnet-4-5-20250929": 200000,
+  "claude-sonnet-4-6": 200000,
+  // OpenAI
+  "gpt-4": 8192,
+  "gpt-4-32k": 32768,
+  "gpt-4-turbo": 128000,
+  "gpt-4.1": 1047576,
+  "gpt-4.1-mini": 1047576,
+  "gpt-4.1-nano": 1047576,
+  "gpt-4o": 128000,
+  "gpt-4o-2024-05-13": 128000,
+  "gpt-4o-2024-08-06": 128000,
+  "gpt-5.4": 128000,
+  o1: 200000,
+  "o1-mini": 128000,
+  o3: 200000,
+  "o3-mini": 200000,
+  "o4-mini": 200000,
+  // Google
+  "gemini-2.0-flash": 1000000,
+  "gemini-2.5-flash": 1000000,
+  "gemini-2.5-pro": 1000000,
+  "gemini-2.5-flash-preview": 1000000,
+};
+
+export function lookupModelContextWindow(model: string): number {
+  return CONTEXT_WINDOWS[model] ?? 128_000;
+}
