@@ -96,7 +96,7 @@ export function useAgent() {
 
       if (state.currentTab.url && !isExcludedUrl(state.currentTab.url)) {
         const lastUrl = getLastKnownUrl(state.messages);
-        if (lastUrl !== null && lastUrl !== state.currentTab.url) {
+        if (lastUrl !== state.currentTab.url) {
           state.addNavigationMessage({
             url: state.currentTab.url,
             title: state.currentTab.title,
