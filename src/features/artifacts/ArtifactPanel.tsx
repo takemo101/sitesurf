@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { ActionIcon, Box, Group, ScrollArea, Text, Paper, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
@@ -49,8 +49,28 @@ export function ArtifactPanel() {
     Map<string, ArtifactData & { updatedAt: number }>
   >(new Map());
   const [loading, setLoading] = useState<Set<string>>(new Set());
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
   const tabListRef = useRef<HTMLDivElement>(null);
   const tabViewportRef = useRef<HTMLDivElement>(null);
+
+  const updateTabScrollEdges = useCallback(() => {
+    const viewport = tabViewportRef.current;
+    if (!viewport) return;
+    const { scrollLeft, scrollWidth, clientWidth } = viewport;
+    setCanScrollLeft(scrollLeft > 1);
+    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 1);
+  }, []);
+
+  useEffect(() => {
+    const viewport = tabViewportRef.current;
+    if (!viewport) return;
+    updateTabScrollEdges();
+    const observer = new ResizeObserver(updateTabScrollEdges);
+    observer.observe(viewport);
+    if (tabListRef.current) observer.observe(tabListRef.current);
+    return () => observer.disconnect();
+  }, [updateTabScrollEdges, artifacts.length]);
   const loadVersionRef = useRef(0);
   const artifactDataRef = useRef(artifactData);
   const loadingRef = useRef(loading);
@@ -279,12 +299,14 @@ export function ArtifactPanel() {
         style={{
           borderBottom: "1px solid var(--mantine-color-default-border)",
           flexShrink: 0,
+          position: "relative",
         }}
       >
         <ScrollArea
           scrollbarSize={8}
-          type="auto"
+          type="scroll"
           viewportRef={tabViewportRef}
+          onScrollPositionChange={updateTabScrollEdges}
           onWheel={(e) => {
             const viewport = tabViewportRef.current;
             if (!viewport || e.deltaY === 0) return;
@@ -355,6 +377,35 @@ export function ArtifactPanel() {
             })}
           </Group>
         </ScrollArea>
+        {/* Edge fade: スクロール可能な側だけ表示し、タブの続きがあることを示唆 */}
+        <Box
+          aria-hidden
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: 0,
+            width: 24,
+            pointerEvents: "none",
+            background: "linear-gradient(to right, var(--mantine-color-body), transparent)",
+            opacity: canScrollLeft ? 1 : 0,
+            transition: "opacity 0.15s ease",
+          }}
+        />
+        <Box
+          aria-hidden
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            right: 0,
+            width: 24,
+            pointerEvents: "none",
+            background: "linear-gradient(to left, var(--mantine-color-body), transparent)",
+            opacity: canScrollRight ? 1 : 0,
+            transition: "opacity 0.15s ease",
+          }}
+        />
       </Box>
 
       {/* Content Area */}
