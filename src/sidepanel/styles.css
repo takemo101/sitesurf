@@ -306,29 +306,4 @@ body,
   }
 }
 
-/* Markdown content styles */
-.markdown-content pre {
-  scrollbar-width: thin;
-  margin: 0;
-  border-radius: 6px;
-}
-.markdown-content code {
-  font-family: "SF Mono", "Fira Code", monospace;
-}
-.markdown-content img {
-  max-width: 100%;
-  border-radius: 6px;
-}
-
-/* Table scrollbar */
-.markdown-table-wrapper {
-  scrollbar-width: thin;
-}
-
-/* First child margin reset (prevent double spacing at top) */
-.markdown-content > :first-child {
-  margin-top: 0;
-}
-.markdown-content > :last-child {
-  margin-bottom: 0;
-}
+/* Markdown / table styles are in @/shared/markdown.css (shared with artifact-popup) */

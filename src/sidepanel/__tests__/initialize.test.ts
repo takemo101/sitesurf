@@ -130,6 +130,7 @@ describe("initializeApp", () => {
       reasoningLevel: "high" as const,
       maxTokens: 8192,
       enableMcpServer: false,
+      enableBgFetch: false,
     };
     await storage.set("sitesurf_settings", loadedSettings);
 

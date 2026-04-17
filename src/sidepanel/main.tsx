@@ -19,6 +19,7 @@ import { App } from "./App";
 
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
+import "@/shared/markdown.css";
 import "./styles.css";
 
 const VALID_SCHEMES = new Set<ColorScheme>(["auto", "light", "dark"]);
