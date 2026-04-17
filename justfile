@@ -15,23 +15,6 @@ build: deps
 dev:
     vp build --watch
 
-# MCP Server を起動
-mcp:
-    npx tsx mcp-server/cli.ts
-
-# ローカルにインストール (npm link)
-install: build
-    npm link
-    @echo ""
-    @echo "✅ sitesurf installed"
-    @echo "   MCP登録: sitesurf mcp add"
-    @echo "   Skills登録: sitesurf skills add"
-
-# アンインストール
-uninstall:
-    npm unlink -g sitesurf 2>/dev/null || true
-    @echo "✅ sitesurf uninstalled"
-
 # モデル一覧を更新
 generate-models:
     npx tsx scripts/generate-models.ts

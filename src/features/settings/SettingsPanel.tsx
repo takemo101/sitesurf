@@ -373,22 +373,6 @@ export function SettingsPanel() {
                   />
                 </div>
 
-                <div>
-                  <Switch
-                    label="MCP Server 接続を有効にする"
-                    description={
-                      settings.enableMcpServer
-                        ? "localhost:7331 へのWebSocket接続を試行します"
-                        : "外部ツールからの接続を無効化します"
-                    }
-                    checked={settings.enableMcpServer}
-                    onChange={(e) => setSettings({ enableMcpServer: e.currentTarget.checked })}
-                  />
-                  <Text size="xs" c="dimmed" mt="xs">
-                    変更は「保存」ボタンを押した後、拡張機能の再読み込みで反映されます
-                  </Text>
-                </div>
-
                 <SaveButton onClick={handleSave} />
               </Stack>
             </Box>

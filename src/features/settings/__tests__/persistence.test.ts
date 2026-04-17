@@ -32,7 +32,6 @@ describe("persistence", () => {
       reasoningLevel: "medium",
       maxTokens: 8192,
       autoCompact: false,
-      enableMcpServer: false,
       enableBgFetch: false,
       enableSecurityMiddleware: true,
     };
@@ -63,7 +62,6 @@ describe("persistence", () => {
       reasoningLevel: "medium",
       maxTokens: 8192,
       autoCompact: false,
-      enableMcpServer: false,
       enableBgFetch: false,
       enableSecurityMiddleware: true,
     };
@@ -85,7 +83,6 @@ describe("persistence", () => {
       reasoningLevel: "high",
       maxTokens: 8192,
       autoCompact: false,
-      enableMcpServer: false,
       enableBgFetch: false,
       enableSecurityMiddleware: true,
     };
@@ -115,7 +112,6 @@ describe("persistence", () => {
       reasoningLevel: "high",
       maxTokens: 32768,
       autoCompact: false,
-      enableMcpServer: false,
       enableBgFetch: false,
     });
 
@@ -152,7 +148,6 @@ describe("persistence", () => {
       reasoningLevel: "high",
       maxTokens: 32768,
       autoCompact: false,
-      enableMcpServer: false,
       enableBgFetch: false,
     });
 
@@ -180,7 +175,6 @@ describe("persistence", () => {
       model: "gpt-4.1",
       credentials,
       credentialsByProvider: { openai: credentials },
-      enableMcpServer: false,
       enableBgFetch: false,
       autoCompact: false,
     });
@@ -214,7 +208,6 @@ describe("persistence", () => {
       maxTokensByProvider: { openai: 4096 },
       reasoningLevel: "high",
       maxTokens: 32768,
-      enableMcpServer: false,
       enableBgFetch: false,
       autoCompact: false,
     });
@@ -253,7 +246,6 @@ describe("persistence", () => {
       reasoningLevel: "medium",
       maxTokens: 8192,
       autoCompact: false,
-      enableMcpServer: false,
       enableBgFetch: false,
     });
 
@@ -273,7 +265,6 @@ describe("persistence", () => {
       provider: "anthropic",
       model: "claude-sonnet-4-6",
       apiKey: "sk-test",
-      enableMcpServer: false,
       enableBgFetch: false,
       autoCompact: false,
     });
@@ -290,7 +281,6 @@ describe("persistence", () => {
       provider: "anthropic",
       model: "claude-sonnet-4-6",
       apiKey: "sk-test",
-      enableMcpServer: false,
       enableBgFetch: false,
       enableSecurityMiddleware: false,
       autoCompact: true,
@@ -309,7 +299,6 @@ describe("persistence", () => {
       provider: "anthropic",
       model: "claude-sonnet-4-6",
       apiKey: "sk-test",
-      enableMcpServer: false,
       enableBgFetch: false,
     });
 

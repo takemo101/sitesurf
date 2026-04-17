@@ -13,7 +13,6 @@ features/tools/*  →  ports/browser-executor  →  adapters/chrome/chrome-brows
                                                   ▼
                                                 background/index.ts (ルーター)
                                                   │
-                                                  ├─ wire.ts          (WebSocket: ws://localhost:7331)
                                                   ├─ native-input.ts  (Chrome Debugger API)
                                                   └─ その他ハンドラ
                                                        │
@@ -119,17 +118,13 @@ export class ChromeBrowserExecutor implements BrowserExecutor {
 
 `src/background/handlers/` に以下のハンドラが存在する。
 
-| ファイル           | 役割                                                                  |
-| ------------------ | --------------------------------------------------------------------- |
-| `session-lock.ts`  | セッションロック管理（複数ウィンドウ間の排他制御）                    |
-| `panel-tracker.ts` | サイドパネルの開閉状態を追跡                                          |
-| `wire.ts`          | 外部 AI エージェントからの WebSocket ブリッジ (`ws://localhost:7331`) |
-| `native-input.ts`  | Chrome Debugger API 経由のネイティブ入力イベント生成                  |
+| ファイル           | 役割                                                 |
+| ------------------ | ---------------------------------------------------- |
+| `session-lock.ts`  | セッションロック管理（複数ウィンドウ間の排他制御）   |
+| `panel-tracker.ts` | サイドパネルの開閉状態を追跡                         |
+| `native-input.ts`  | Chrome Debugger API 経由のネイティブ入力イベント生成 |
 
-`wire.ts` と `native-input.ts` は `chrome.runtime.onMessage` ルーターを経由せず、それぞれ独立した通信チャネルを持つ。
-
-- **wire.ts**: WebSocket (`ws://localhost:7331`) で外部プロセスからのコマンドを受け付け、`BrowserExecutor` を通じて操作を実行する。MCP Server 機能が有効のときのみ接続を試みる。
-- **native-input.ts**: `BG_NATIVE_INPUT` 型のメッセージを `chrome.runtime.onMessage` で受け付け、Chrome Debugger API (`Input.dispatchMouseEvent` / `Input.dispatchKeyEvent`) を使って `isTrusted: true` なイベントを生成する。
+`native-input.ts` は `chrome.runtime.onMessage` 経由で `BG_NATIVE_INPUT` 型のメッセージを受け付け、Chrome Debugger API (`Input.dispatchMouseEvent` / `Input.dispatchKeyEvent`) を使って `isTrusted: true` なイベントを生成する。
 
 ## Background ルーター
 
@@ -138,7 +133,6 @@ export class ChromeBrowserExecutor implements BrowserExecutor {
 
 import { acquireLock, releaseLocksForWindow } from "./handlers/session-lock";
 import { addOpenPanel, removeOpenPanel } from "./handlers/panel-tracker";
-import { initWire, sendPing } from "./handlers/wire";
 import "./handlers/native-input"; // メッセージリスナーを登録するだけ
 
 // Side Panel の接続管理 (セッションロック・パネル追跡)
@@ -166,17 +160,6 @@ chrome.runtime.onConnect.addListener((port) => {
 // アイコンクリックでサイドパネルを開く
 chrome.action.onClicked.addListener((tab) => {
   if (tab?.id) chrome.sidePanel.open({ tabId: tab.id });
-});
-
-// Wire (MCP Server WebSocket) の初期化
-initWire();
-chrome.runtime.onStartup.addListener(initWire);
-chrome.runtime.onInstalled.addListener(initWire);
-
-// Wire の定期 ping (Service Worker のアイドル終了対策)
-chrome.alarms.create("wire-keep-alive", { periodInMinutes: 25 / 60 });
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === "wire-keep-alive") sendPing();
 });
 ```
 
@@ -354,36 +337,10 @@ export interface NativeInputResponse {
 }
 ```
 
-### Wire (WebSocket) コマンド (wire.ts が直接処理)
-
-`ws://localhost:7331` に対して JSON-RPC 風のメッセージを送受信する。`chrome.runtime.sendMessage` は使わない。
-
-```typescript
-// wire.ts が受け付けるメソッド
-type WireMethod =
-  | "tabs_list"
-  | "tab_create" // { url: string }
-  | "tab_navigate" // { tabId: number, url: string }
-  | "tab_close" // { tabId: number }
-  | "tab_switch" // { tabId: number }
-  | "page_read" // { tabId: number }
-  | "page_click" // { tabId: number, selector?: string, x?: number, y?: number }
-  | "page_type" // { tabId: number, text: string, selector?: string }
-  | "page_screenshot" // { tabId: number }
-  | "page_eval" // { tabId: number, code: string }
-  | "page_pick_element" // { tabId: number, message?: string }
-  | "page_extract_image" // { tabId: number, selector: string, maxWidth?: number }
-  | "ping";
-
-// フレーム形式: { id: string, method: WireMethod, params?: Record<string, unknown> }
-// レスポンス:   { id: string, result: unknown } | { id: string, error: string }
-```
-
 ## 関連ドキュメント
 
 - [ツール設計](../architecture/tools.md) - BrowserExecutor Port 定義
 - [agent-loop 詳細設計](./agent-loop-detail.md) - ツール実行フロー
 - [セッション管理](./session-management-detail.md) - セッションロック
-- [Wire モード](./wire-mode.md) - WebSocket ブリッジによる外部 AI エージェント連携
 - [ネイティブ入力イベント](./native-input-events.md) - Chrome Debugger API による isTrusted イベント生成
 - [ADR-004](../decisions/004-browserjs-script-execution.md) - chrome.userScripts.execute の IIFE コード生成パターン
