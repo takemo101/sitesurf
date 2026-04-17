@@ -17,6 +17,7 @@ import { createSecurityMiddleware, type SecurityMiddleware } from "@/features/se
 import { convertNavigationForAPI } from "./navigation-converter";
 import { calculateBackoff, isRetryable, RETRY_CONFIG } from "./retry";
 import { estimateTokens } from "./context-compressor";
+import { getContextBudget } from "@/features/ai/context-budget";
 import type { SkillRegistry } from "@/shared/skill-registry";
 import { buildSkillDetectionMessage, isSkillDetectionMessage } from "./skill-detector";
 import { useStore } from "@/store/index";
@@ -187,6 +188,16 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
   const securityMiddleware = deps.securityMiddleware ?? defaultSecurityMiddleware;
 
   log.info("streamText 開始", { model: settings.model, provider: settings.provider });
+
+  const budget = getContextBudget(settings.model, settings.maxTokens);
+  log.info("context budget", {
+    model: settings.model,
+    windowTokens: budget.windowTokens,
+    inputBudget: budget.inputBudget,
+    maxToolResultChars: budget.maxToolResultChars,
+    useToolResultStore: budget.useToolResultStore,
+  });
+
   chatStore.setStreaming(true);
 
   // Get current URL for skill detection
@@ -217,6 +228,11 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
     let aiProvider = deps.createAIProvider(settings);
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
+      log.info("turn start", {
+        turn,
+        estimateTokens: estimateTokens(messages),
+        messagesCount: messages.length,
+      });
       let hasToolCall = false;
       let assistantText = "";
       let retryCount = 0;
