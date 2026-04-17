@@ -411,12 +411,13 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
           const prevNames = new Set(useStore.getState().artifacts.map((a) => a.name));
           await useStore.getState().loadArtifacts();
           const { artifacts } = useStore.getState();
-          if (artifacts.length > 0) {
-            useStore.getState().setArtifactPanelOpen(true);
-            // 新しいアーティファクトがあれば自動選択
-            const newArtifact = artifacts.find((a) => !prevNames.has(a.name));
-            if (newArtifact) {
-              useStore.getState().selectArtifact(newArtifact.name);
+          const newArtifact = artifacts.find((a) => !prevNames.has(a.name));
+          if (newArtifact) {
+            useStore.getState().selectArtifact(newArtifact.name);
+            // プレビュー価値の高い HTML/Markdown だけ自動でパネルを開く。
+            // JSON/画像/テキスト等は選択のみ行い、既存のパネル状態を維持する。
+            if (newArtifact.type === "html" || newArtifact.type === "markdown") {
+              useStore.getState().setArtifactPanelOpen(true);
             }
           }
         }
