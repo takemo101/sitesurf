@@ -28,6 +28,7 @@ vi.mock("@/orchestration/agent-loop", () => ({
 
 vi.mock("@/features/tools", () => ({
   AGENT_TOOL_DEFS: [],
+  getAgentToolDefs: vi.fn(() => []),
   createToolExecutorWithSkills: vi.fn(() => vi.fn()),
   loadSkillRegistry: vi.fn(async () => new SkillRegistry()),
 }));

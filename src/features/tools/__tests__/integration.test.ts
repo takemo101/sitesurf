@@ -5,6 +5,7 @@ import {
   createToolExecutorWithSkills,
   ALL_TOOL_DEFS,
   AGENT_TOOL_DEFS,
+  getAgentToolDefs,
 } from "../index";
 import { SkillRegistry, type SkillMatch } from "../skills";
 import type { BrowserExecutor, PageContent } from "@/ports/browser-executor";
@@ -165,6 +166,23 @@ describe("2段階抽出ワークフロー", () => {
       expect(names).toContain("create_skill_draft");
       expect(names).toContain("update_skill_draft");
       expect(names).toContain("delete_skill_draft");
+      expect(names).not.toContain("skill");
+    });
+
+    it("getAgentToolDefs: 引数なしで bg_fetch を除外する", () => {
+      const names = getAgentToolDefs().map((t) => t.name);
+      expect(names).not.toContain("bg_fetch");
+      expect(names).not.toContain("skill");
+    });
+
+    it("getAgentToolDefs: enableBgFetch=false で bg_fetch を除外する", () => {
+      const names = getAgentToolDefs({ enableBgFetch: false }).map((t) => t.name);
+      expect(names).not.toContain("bg_fetch");
+    });
+
+    it("getAgentToolDefs: enableBgFetch=true で bg_fetch を含む", () => {
+      const names = getAgentToolDefs({ enableBgFetch: true }).map((t) => t.name);
+      expect(names).toContain("bg_fetch");
       expect(names).not.toContain("skill");
     });
   });

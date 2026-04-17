@@ -111,6 +111,14 @@ export const AGENT_TOOL_DEFS: ToolDefinition[] = ALL_TOOL_DEFS.filter(
   (tool) => tool.name !== "skill",
 );
 
+export function getAgentToolDefs(options?: { enableBgFetch?: boolean }): ToolDefinition[] {
+  const defs = AGENT_TOOL_DEFS;
+  if (!options?.enableBgFetch) {
+    return defs.filter((tool) => tool.name !== "bg_fetch");
+  }
+  return defs;
+}
+
 export type { ToolExecutor };
 
 export function createToolExecutorWithSkills(
@@ -163,8 +171,16 @@ export function createToolExecutorWithSkills(
           selector: args.selector,
           maxWidth: typeof args.maxWidth === "number" ? args.maxWidth : undefined,
         });
-      case "bg_fetch":
+      case "bg_fetch": {
+        const bgFetchEnabled = useStore.getState().settings.enableBgFetch;
+        if (!bgFetchEnabled) {
+          return {
+            ok: false as const,
+            error: { code: "tool_script_error" as const, message: "bg_fetch is disabled in settings" },
+          };
+        }
         return executeBgFetch(args);
+      }
       case "skill": {
         const tab = await browser.getActiveTab();
         return executeSkill(storage, skillRegistry, tab.url, args as SkillAction);

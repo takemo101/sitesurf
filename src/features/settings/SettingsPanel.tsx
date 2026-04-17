@@ -325,6 +325,19 @@ export function SettingsPanel() {
               <Stack gap="md" pb="sm">
                 <div>
                   <Switch
+                    label="バックグラウンドフェッチを有効にする"
+                    description={
+                      settings.enableBgFetch
+                        ? "AIがWebページを直接取得できます"
+                        : "AIによるWebページの直接取得を無効化します"
+                    }
+                    checked={settings.enableBgFetch}
+                    onChange={(e) => setSettings({ enableBgFetch: e.currentTarget.checked })}
+                  />
+                </div>
+
+                <div>
+                  <Switch
                     label="MCP Server 接続を有効にする"
                     description={
                       settings.enableMcpServer

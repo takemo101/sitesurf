@@ -81,6 +81,7 @@ export async function loadSettings(storage: StoragePort): Promise<Settings | nul
     reasoningLevel: reasoningLevelByProvider[provider] ?? raw.reasoningLevel ?? "medium",
     maxTokens: maxTokensByProvider[provider] ?? raw.maxTokens ?? DEFAULT_MAX_TOKENS,
     enableMcpServer: raw.enableMcpServer ?? false,
+    enableBgFetch: raw.enableBgFetch ?? false,
   };
 }
 

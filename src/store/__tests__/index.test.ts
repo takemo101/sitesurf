@@ -383,6 +383,7 @@ describe("AppStore", () => {
         reasoningLevel: "high" as const,
         maxTokens: 8192,
         enableMcpServer: false,
+        enableBgFetch: false,
       };
 
       useStore.getState().hydrateSettings(loadedSettings);
