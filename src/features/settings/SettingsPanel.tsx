@@ -338,6 +338,21 @@ export function SettingsPanel() {
 
                 <div>
                   <Switch
+                    label="プロンプトインジェクション検知を有効にする"
+                    description={
+                      settings.enableSecurityMiddleware
+                        ? "ツール出力内の不審な指示を検知した場合、実際の内容をAIに渡さずブロック通知のみ返します"
+                        : "⚠️ 検知をスキップします。悪意あるWebページの指示をAIが実行してしまうリスクがあります"
+                    }
+                    checked={settings.enableSecurityMiddleware}
+                    onChange={(e) =>
+                      setSettings({ enableSecurityMiddleware: e.currentTarget.checked })
+                    }
+                  />
+                </div>
+
+                <div>
+                  <Switch
                     label="MCP Server 接続を有効にする"
                     description={
                       settings.enableMcpServer

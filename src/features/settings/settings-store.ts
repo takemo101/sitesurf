@@ -28,6 +28,7 @@ export interface Settings {
   maxTokens: number;
   enableMcpServer: boolean;
   enableBgFetch: boolean;
+  enableSecurityMiddleware: boolean;
 }
 
 export interface SettingsSlice {
@@ -61,6 +62,7 @@ export const createSettingsSlice: StateCreator<AppStore, [], [], SettingsSlice> 
     maxTokens: DEFAULT_MAX_TOKENS,
     enableMcpServer: false,
     enableBgFetch: false,
+    enableSecurityMiddleware: true,
   },
   setSettings: (partial) =>
     set((s) => {

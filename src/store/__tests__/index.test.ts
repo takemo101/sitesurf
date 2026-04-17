@@ -384,6 +384,7 @@ describe("AppStore", () => {
         maxTokens: 8192,
         enableMcpServer: false,
         enableBgFetch: false,
+        enableSecurityMiddleware: true,
       };
 
       useStore.getState().hydrateSettings(loadedSettings);
