@@ -50,6 +50,7 @@ export function ArtifactPanel() {
   >(new Map());
   const [loading, setLoading] = useState<Set<string>>(new Set());
   const tabListRef = useRef<HTMLDivElement>(null);
+  const tabViewportRef = useRef<HTMLDivElement>(null);
   const loadVersionRef = useRef(0);
   const artifactDataRef = useRef(artifactData);
   const loadingRef = useRef(loading);
@@ -280,7 +281,16 @@ export function ArtifactPanel() {
           flexShrink: 0,
         }}
       >
-        <ScrollArea scrollbarSize={4}>
+        <ScrollArea
+          scrollbarSize={8}
+          type="auto"
+          viewportRef={tabViewportRef}
+          onWheel={(e) => {
+            const viewport = tabViewportRef.current;
+            if (!viewport || e.deltaY === 0) return;
+            viewport.scrollLeft += e.deltaY;
+          }}
+        >
           <Group ref={tabListRef} gap={4} px="xs" py={4} wrap="nowrap">
             {artifacts.map((artifact) => {
               const isActive = selectedArtifact === artifact.name;
