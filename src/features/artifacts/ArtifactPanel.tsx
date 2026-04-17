@@ -313,6 +313,7 @@ export function ArtifactPanel() {
                     display: "flex",
                     alignItems: "center",
                     gap: 6,
+                    flexShrink: 0,
                     minWidth: 60,
                     maxWidth: 160,
                   }}
