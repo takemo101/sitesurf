@@ -4,7 +4,7 @@ import { useStore } from "@/store/index";
 import { isExcludedUrl, getLastKnownUrl } from "@/shared/utils";
 import { runAgentLoop } from "@/orchestration/agent-loop";
 import { getSystemPromptV2 } from "@/features/ai/system-prompt-v2";
-import { AGENT_TOOL_DEFS, createToolExecutorWithSkills, loadSkillRegistry } from "@/features/tools";
+import { getAgentToolDefs, createToolExecutorWithSkills, loadSkillRegistry } from "@/features/tools";
 import { createAutoSaver } from "@/features/sessions/auto-save";
 import { saveSettings } from "@/features/settings/persistence";
 import { subscribeSkillRegistryReload } from "@/features/settings/skill-registry-sync";
@@ -204,7 +204,7 @@ export function useAgent() {
           maxTokens: settings.maxTokens,
         },
         session,
-        tools: AGENT_TOOL_DEFS,
+        tools: getAgentToolDefs({ enableBgFetch: settings.enableBgFetch }),
         systemPrompt,
         autoSaver: autoSaverRef.current,
         toolExecutor: createToolExecutorWithSkills(

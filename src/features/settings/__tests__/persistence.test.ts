@@ -32,6 +32,7 @@ describe("persistence", () => {
       reasoningLevel: "medium",
       maxTokens: 8192,
       enableMcpServer: false,
+      enableBgFetch: false,
     };
 
     await saveSettings(storage, data);
@@ -60,6 +61,7 @@ describe("persistence", () => {
       reasoningLevel: "medium",
       maxTokens: 8192,
       enableMcpServer: false,
+      enableBgFetch: false,
     };
     const data2: Settings = {
       provider: "openai",
@@ -79,6 +81,7 @@ describe("persistence", () => {
       reasoningLevel: "high",
       maxTokens: 8192,
       enableMcpServer: false,
+      enableBgFetch: false,
     };
 
     await saveSettings(storage, data1);
@@ -106,6 +109,7 @@ describe("persistence", () => {
       reasoningLevel: "high",
       maxTokens: 32768,
       enableMcpServer: false,
+      enableBgFetch: false,
     });
 
     const result = await loadSettings(storage);
@@ -141,6 +145,7 @@ describe("persistence", () => {
       reasoningLevel: "high",
       maxTokens: 32768,
       enableMcpServer: false,
+      enableBgFetch: false,
     });
 
     const result = await loadSettings(storage);
@@ -168,6 +173,7 @@ describe("persistence", () => {
       credentials,
       credentialsByProvider: { openai: credentials },
       enableMcpServer: false,
+      enableBgFetch: false,
     });
 
     const result = await loadSettings(storage);
@@ -200,6 +206,7 @@ describe("persistence", () => {
       reasoningLevel: "high",
       maxTokens: 32768,
       enableMcpServer: false,
+      enableBgFetch: false,
     });
 
     const result = await loadSettings(storage);
@@ -236,6 +243,7 @@ describe("persistence", () => {
       reasoningLevel: "medium",
       maxTokens: 8192,
       enableMcpServer: false,
+      enableBgFetch: false,
     });
 
     const result = await loadSettings(storage);

@@ -27,6 +27,7 @@ export interface Settings {
   reasoningLevel: ReasoningLevel;
   maxTokens: number;
   enableMcpServer: boolean;
+  enableBgFetch: boolean;
 }
 
 export interface SettingsSlice {
@@ -59,6 +60,7 @@ export const createSettingsSlice: StateCreator<AppStore, [], [], SettingsSlice> 
     reasoningLevel: "medium",
     maxTokens: DEFAULT_MAX_TOKENS,
     enableMcpServer: false,
+    enableBgFetch: false,
   },
   setSettings: (partial) =>
     set((s) => {
