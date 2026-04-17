@@ -49,7 +49,7 @@ async function restoreTheme(storage: AppDeps["storage"]): Promise<void> {
 async function restoreSettings(storage: AppDeps["storage"]): Promise<void> {
   const settings = await loadSettings(storage);
   if (settings) {
-    useStore.getState().setSettings(settings);
+    useStore.getState().hydrateSettings(settings);
   }
 }
 
