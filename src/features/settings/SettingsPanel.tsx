@@ -264,6 +264,21 @@ export function SettingsPanel() {
                   </Text>
                 </div>
 
+                <div>
+                  <Switch
+                    label="クラウドで自動圧縮を有効にする"
+                    description={
+                      settings.provider === "local" || settings.provider === "ollama"
+                        ? "ローカルモデルでは必要時に自動圧縮されます。クラウド向け設定は保存のみ行います"
+                        : settings.autoCompact
+                          ? "長い会話で構造化要約を自動生成します。追加の LLM コストが発生します"
+                          : "デフォルトはOFFです。長期セッションで情報保持を優先したい場合のみ有効にしてください"
+                    }
+                    checked={settings.autoCompact}
+                    onChange={(e) => setSettings({ autoCompact: e.currentTarget.checked })}
+                  />
+                </div>
+
                 {visibility.showApiKey && (
                   <PasswordInput
                     label="APIキー"

@@ -16,13 +16,15 @@ import { sleep } from "@/shared/utils";
 import { createSecurityMiddleware, type SecurityMiddleware } from "@/features/security/middleware";
 import { convertNavigationForAPI } from "./navigation-converter";
 import { calculateBackoff, isRetryable, RETRY_CONFIG } from "./retry";
-import { estimateTokens } from "./context-compressor";
+import { estimateTokens, stripStructuredSummaryMessage } from "./context-compressor";
 import { getContextBudget } from "@/features/ai/context-budget";
 import type { ToolResultStorePort } from "@/ports/tool-result-store";
 import { generateVisitedUrlsSection, type VisitedUrlEntry } from "@/features/ai/system-prompt-v2";
+import { prepareMessagesForTurn, trimMessagesToThreshold } from "./context-manager";
 import type { SkillRegistry } from "@/shared/skill-registry";
 import { buildSkillDetectionMessage, isSkillDetectionMessage } from "./skill-detector";
 import { useStore } from "@/store/index";
+import type { ProviderId } from "@/shared/constants";
 import {
   defaultConsoleLogService,
   normalizeConsoleLogEntry,
@@ -34,7 +36,6 @@ import {
   shouldStore,
   summarizeToolResult,
 } from "@/features/tools/result-summarizer";
-import { manageContextMessages } from "./context-manager";
 import type { GetToolResultValue } from "@/features/tools";
 
 const log = createLogger("agent-loop");
@@ -87,6 +88,7 @@ export interface Settings {
   oauthToken?: string;
   reasoningLevel?: string;
   maxTokens?: number;
+  autoCompact?: boolean;
 }
 
 export interface AgentLoopParams {
@@ -518,7 +520,32 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
 
       while (retryCount <= RETRY_CONFIG.maxRetries) {
         let hasError = false;
-        manageContextMessages(messages, budget);
+        const contextResult = await prepareMessagesForTurn({
+          aiProvider,
+          messages,
+          budget,
+          model: settings.model,
+          provider: settings.provider as ProviderId,
+          autoCompact: settings.autoCompact,
+          sessionSummary: session.summary,
+        });
+        messages = contextResult.messages;
+        if (contextResult.summary) {
+          session.summary = contextResult.summary;
+          const storeState = useStore.getState() as {
+            activeSessionSnapshot?: Session | null;
+            setActiveSession?: (nextSession: Session) => void;
+          };
+          if (
+            storeState.activeSessionSnapshot?.id === session.id &&
+            typeof storeState.setActiveSession === "function"
+          ) {
+            storeState.setActiveSession({
+              ...storeState.activeSessionSnapshot,
+              summary: contextResult.summary,
+            });
+          }
+        }
         chatStore.startNewAssistantMessage();
 
         for await (const event of aiProvider.streamText({
@@ -639,16 +666,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
                 );
                 chatStore.clearLastAssistantMessage();
 
-                while (
-                  messages.length > 4 &&
-                  estimateTokens(messages) > budget.compressionThreshold
-                ) {
-                  const idx = messages.findIndex(
-                    (m, i) => i > 0 && (m.role === "tool" || m.role === "assistant"),
-                  );
-                  if (idx > 0) messages.splice(idx, 1);
-                  else break;
-                }
+                messages = trimMessagesToThreshold(messages, budget.compressionThreshold);
 
                 retryCount++;
                 hasError = true;
@@ -694,7 +712,12 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
     }
   } finally {
     log.info("streamText 終了");
-    chatStore.syncHistory(messages.filter((message) => !isSkillDetectionMessage(message)));
+    chatStore.syncHistory(
+      messages.filter((message, index) => {
+        if (isSkillDetectionMessage(message)) return false;
+        return !(index === 0 && stripStructuredSummaryMessage(message));
+      }),
+    );
     chatStore.setStreaming(false);
     autoSaver.saveImmediately();
   }
