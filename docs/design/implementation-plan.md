@@ -24,42 +24,42 @@
 
 ### Wave 1（全プロバイダ対応、独立リリース可）
 
-| Issue | 依存 | 並列可？ |
-|---|---|---|
-| W1-1: estimateTokens v2 | なし | ✓ |
-| W1-2: ContextBudget + 計測ログ | W1-1 | W1-4/W1-5 と並列 |
-| W1-3: agent-loop ハードコード差し替え | W1-2 | - |
-| W1-4: COMPRESS_THRESHOLDS/buildMessagesForAPI 統合 | W1-2 | W1-3 の後 |
-| W1-5: URL 訪問追跡 + system prompt 注入 | なし | 並列可 |
-| W1-6: 2段階 truncate 実装 | W1-3 | W1-3 の後 |
+| Issue                                              | 依存 | 並列可？         |
+| -------------------------------------------------- | ---- | ---------------- |
+| W1-1: estimateTokens v2                            | なし | ✓                |
+| W1-2: ContextBudget + 計測ログ                     | W1-1 | W1-4/W1-5 と並列 |
+| W1-3: agent-loop ハードコード差し替え              | W1-2 | -                |
+| W1-4: COMPRESS_THRESHOLDS/buildMessagesForAPI 統合 | W1-2 | W1-3 の後        |
+| W1-5: URL 訪問追跡 + system prompt 注入            | なし | 並列可           |
+| W1-6: 2段階 truncate 実装                          | W1-3 | W1-3 の後        |
 
 **推奨順序**: W1-1 → W1-2 → (W1-3 ‖ W1-5) → W1-4 → W1-6
 
 ### Wave 2（小窓特化、スパイク必須）
 
-| Issue | 依存 |
-|---|---|
-| W2-0: スパイク（tool_result 差し替え検証） | **第2弾の最初に必須** |
-| W2-1: ToolResultStorePort + IndexedDB adapter | W2-0 |
-| W2-2: ResultSummarizer + shouldStore | なし（W2-1 と並列可） |
-| W2-3: get_tool_result ツール + 動的登録 | W2-1, W2-2 |
-| W2-4: executeToolCall 改修 | W2-1, W2-2 |
-| W2-5: ContextManager（新設） | W2-4 |
+| Issue                                         | 依存                  |
+| --------------------------------------------- | --------------------- |
+| W2-0: スパイク（tool_result 差し替え検証）    | **第2弾の最初に必須** |
+| W2-1: ToolResultStorePort + IndexedDB adapter | W2-0                  |
+| W2-2: ResultSummarizer + shouldStore          | なし（W2-1 と並列可） |
+| W2-3: get_tool_result ツール + 動的登録       | W2-1, W2-2            |
+| W2-4: executeToolCall 改修                    | W2-1, W2-2            |
+| W2-5: ContextManager（新設）                  | W2-4                  |
 
 ### Wave 3（超長期対応）
 
-| Issue | 依存 |
-|---|---|
-| W3-1: 構造化要約プロンプト + テストハーネス | なし |
-| W3-2: compressMessagesIfNeeded 新設 | W3-1 |
+| Issue                                               | 依存       |
+| --------------------------------------------------- | ---------- |
+| W3-1: 構造化要約プロンプト + テストハーネス         | なし       |
+| W3-2: compressMessagesIfNeeded 新設                 | W3-1       |
 | W3-3: ContextManager Step C 統合 + userConfirmed UI | W2-5, W3-2 |
 
 ### Wave 4（UI、任意）
 
-| Issue | 依存 |
-|---|---|
+| Issue                      | 依存 |
+| -------------------------- | ---- |
 | W4-1: ツール結果展開ボタン | W2-1 |
-| W4-2: 自動圧縮設定 UI | W3-3 |
+| W4-2: 自動圧縮設定 UI      | W3-3 |
 
 ---
 
@@ -79,40 +79,40 @@
 
 ### Wave 1
 
-| # | 概要 | 新規ファイル | 改修ファイル | 想定行数 |
-|---|---|---|---|---|
-| W1-1 | `estimateTokens` v2 | - | `src/shared/token-utils.ts` + test | ~80 |
-| W1-2 | `ContextBudget` + 計測ログ | `src/features/ai/context-budget.ts` + test | `src/orchestration/agent-loop.ts` | ~200 |
-| W1-3 | agent-loop ハードコード差し替え | - | `src/orchestration/agent-loop.ts` + test | ~80 |
-| W1-4 | COMPRESS_THRESHOLDS/buildMessagesForAPI 統合 | - | `src/orchestration/context-compressor.ts` + test | ~100 |
-| W1-5 | URL 訪問追跡 + system prompt 注入 | - | `src/orchestration/agent-loop.ts`, `src/features/ai/system-prompt-v2.ts` + test | ~150 |
-| W1-6 | 2段階 truncate 実装 | - | `src/orchestration/agent-loop.ts` | ~50 |
+| #    | 概要                                         | 新規ファイル                               | 改修ファイル                                                                    | 想定行数 |
+| ---- | -------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------- | -------- |
+| W1-1 | `estimateTokens` v2                          | -                                          | `src/shared/token-utils.ts` + test                                              | ~80      |
+| W1-2 | `ContextBudget` + 計測ログ                   | `src/features/ai/context-budget.ts` + test | `src/orchestration/agent-loop.ts`                                               | ~200     |
+| W1-3 | agent-loop ハードコード差し替え              | -                                          | `src/orchestration/agent-loop.ts` + test                                        | ~80      |
+| W1-4 | COMPRESS_THRESHOLDS/buildMessagesForAPI 統合 | -                                          | `src/orchestration/context-compressor.ts` + test                                | ~100     |
+| W1-5 | URL 訪問追跡 + system prompt 注入            | -                                          | `src/orchestration/agent-loop.ts`, `src/features/ai/system-prompt-v2.ts` + test | ~150     |
+| W1-6 | 2段階 truncate 実装                          | -                                          | `src/orchestration/agent-loop.ts`                                               | ~50      |
 
 ### Wave 2
 
-| # | 概要 | 新規ファイル | 改修ファイル | 想定行数 |
-|---|---|---|---|---|
-| W2-0 | スパイク | `docs/spike/tool-result-rewrite.md`（結果レポ） | - | - |
-| W2-1 | ToolResultStore Port + Adapter | `src/ports/tool-result-store.ts`, `src/adapters/storage/indexeddb-tool-result-store.ts` + test | `src/orchestration/agent-loop.ts`（deps 注入） | ~400 |
-| W2-2 | ResultSummarizer + shouldStore | `src/features/tools/result-summarizer.ts` + test | - | ~300 |
-| W2-3 | get_tool_result ツール + 動的登録 | `src/features/tools/get-tool-result.ts` + test | `src/features/tools/index.ts`, `src/features/ai/system-prompt-v2.ts` | ~200 |
-| W2-4 | executeToolCall 改修 | - | `src/orchestration/agent-loop.ts` + test | ~250 |
-| W2-5 | ContextManager 新設 | `src/orchestration/context-manager.ts` + test | `src/orchestration/agent-loop.ts`（置き換え） | ~350 |
+| #    | 概要                              | 新規ファイル                                                                                   | 改修ファイル                                                         | 想定行数 |
+| ---- | --------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | -------- |
+| W2-0 | スパイク                          | `docs/spike/tool-result-rewrite.md`（結果レポ）                                                | -                                                                    | -        |
+| W2-1 | ToolResultStore Port + Adapter    | `src/ports/tool-result-store.ts`, `src/adapters/storage/indexeddb-tool-result-store.ts` + test | `src/orchestration/agent-loop.ts`（deps 注入）                       | ~400     |
+| W2-2 | ResultSummarizer + shouldStore    | `src/features/tools/result-summarizer.ts` + test                                               | -                                                                    | ~300     |
+| W2-3 | get_tool_result ツール + 動的登録 | `src/features/tools/get-tool-result.ts` + test                                                 | `src/features/tools/index.ts`, `src/features/ai/system-prompt-v2.ts` | ~200     |
+| W2-4 | executeToolCall 改修              | -                                                                                              | `src/orchestration/agent-loop.ts` + test                             | ~250     |
+| W2-5 | ContextManager 新設               | `src/orchestration/context-manager.ts` + test                                                  | `src/orchestration/agent-loop.ts`（置き換え）                        | ~350     |
 
 ### Wave 3
 
-| # | 概要 | 新規ファイル | 改修ファイル | 想定行数 |
-|---|---|---|---|---|
-| W3-1 | 構造化要約プロンプト | `src/features/ai/structured-summary-prompt.ts` + test | - | ~150 |
-| W3-2 | compressMessagesIfNeeded | - | `src/orchestration/context-compressor.ts` + test | ~200 |
-| W3-3 | ContextManager Step C 統合 + 設定UI | - | `src/orchestration/context-manager.ts`, `src/features/settings/settings-store.ts`, `SettingsPanel.tsx` + test | ~250 |
+| #    | 概要                                | 新規ファイル                                          | 改修ファイル                                                                                                  | 想定行数 |
+| ---- | ----------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------- |
+| W3-1 | 構造化要約プロンプト                | `src/features/ai/structured-summary-prompt.ts` + test | -                                                                                                             | ~150     |
+| W3-2 | compressMessagesIfNeeded            | -                                                     | `src/orchestration/context-compressor.ts` + test                                                              | ~200     |
+| W3-3 | ContextManager Step C 統合 + 設定UI | -                                                     | `src/orchestration/context-manager.ts`, `src/features/settings/settings-store.ts`, `SettingsPanel.tsx` + test | ~250     |
 
 ### Wave 4
 
-| # | 概要 | 新規ファイル | 改修ファイル | 想定行数 |
-|---|---|---|---|---|
-| W4-1 | ツール結果展開ボタン | - | `src/features/chat/ToolCallBlock.tsx`, `src/features/chat/ChatBubble.tsx` + test | ~200 |
-| W4-2 | 自動圧縮設定 UI | - | `SettingsPanel.tsx` | ~80 |
+| #    | 概要                 | 新規ファイル | 改修ファイル                                                                     | 想定行数 |
+| ---- | -------------------- | ------------ | -------------------------------------------------------------------------------- | -------- |
+| W4-1 | ツール結果展開ボタン | -            | `src/features/chat/ToolCallBlock.tsx`, `src/features/chat/ChatBubble.tsx` + test | ~200     |
+| W4-2 | 自動圧縮設定 UI      | -            | `SettingsPanel.tsx`                                                              | ~80      |
 
 ---
 
@@ -123,6 +123,7 @@
 - Wave 1 全体の統合テストが必要なら `takemo101/wave-1-integration` を別途
 
 PR タイトル規約（既存コミット履歴を参考）:
+
 - `feat: Wave 1-1 — estimateTokens v2 実装`
 - `refactor: Wave 1-4 — COMPRESS_THRESHOLDS を ContextBudget に統合`
 
@@ -139,6 +140,7 @@ PR タイトル規約（既存コミット履歴を参考）:
 Wave 1 完了 → 2週間運用 → 計測データ確認 → Wave 2 発動可否を判断。
 
 計測確認項目（D-L1-5 参照）:
+
 - 使用モデル窓の分布（< 40k / 40-80k / ≥80k）
 - セッション長分布（ターン数）
 - `trimThreshold` 到達率

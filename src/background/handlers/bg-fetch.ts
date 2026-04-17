@@ -13,20 +13,9 @@ const MAX_REDIRECTS = 10;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const MAX_CACHE_ENTRIES = 100;
 const BLOCKED_PROTOCOLS = ["chrome:", "chrome-extension:", "file:", "data:", "javascript:"];
-const BLOCKED_HOSTS = new Set([
-  "localhost",
-  "0.0.0.0",
-  "[::1]",
-  "metadata.google.internal",
-]);
+const BLOCKED_HOSTS = new Set(["localhost", "0.0.0.0", "[::1]", "metadata.google.internal"]);
 const ALLOWED_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]);
-const BLOCKED_HEADERS = new Set([
-  "host",
-  "origin",
-  "cookie",
-  "set-cookie",
-  "proxy-authorization",
-]);
+const BLOCKED_HEADERS = new Set(["host", "origin", "cookie", "set-cookie", "proxy-authorization"]);
 
 // --- Semaphore ---
 

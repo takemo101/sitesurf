@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { Box, Collapse, Code, Paper, Text, UnstyledButton } from "@mantine/core";
-import { ChevronDown, ChevronUp, FileCode, Globe, Image as ImageIcon, Terminal } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  FileCode,
+  Globe,
+  Image as ImageIcon,
+  Terminal,
+} from "lucide-react";
 import type { ToolCallInfo } from "@/ports/session-types";
 import { defaultConsoleLogService } from "./services/console-log";
 import { defaultToolRendererRegistry } from "./tool-renderers";

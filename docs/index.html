@@ -1,851 +1,1123 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SiteSurf - AIと一緒にWebを操作するChrome拡張機能</title>
     <style>
-        /* ── Tokens (matches SiteSurf UI) ── */
-        :root {
-            --indigo-5: #6366f1;
-            --indigo-7: #4338ca;
-            --indigo-light: rgba(99, 102, 241, 0.12);
-            --indigo-outline: rgba(99, 102, 241, 0.35);
-            --cyan-4: #22d3ee;
-            --cyan-5: #06b6d4;
-            --blue-4: #60a5fa;
+      /* ── Tokens (matches SiteSurf UI) ── */
+      :root {
+        --indigo-5: #6366f1;
+        --indigo-7: #4338ca;
+        --indigo-light: rgba(99, 102, 241, 0.12);
+        --indigo-outline: rgba(99, 102, 241, 0.35);
+        --cyan-4: #22d3ee;
+        --cyan-5: #06b6d4;
+        --blue-4: #60a5fa;
 
-            --bg: #1e1f24;
-            --surface: #2a2b32;
-            --border: #40414a;
-            --text: #d4d5da;
-            --text-bright: #f0f0f5;
-            --dimmed: #a8a9b0;
-            --hover: rgba(255, 255, 255, 0.04);
-            --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            --font-mono: "SF Mono", "Fira Code", Consolas, monospace;
+        --bg: #1e1f24;
+        --surface: #2a2b32;
+        --border: #40414a;
+        --text: #d4d5da;
+        --text-bright: #f0f0f5;
+        --dimmed: #a8a9b0;
+        --hover: rgba(255, 255, 255, 0.04);
+        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        --font-mono: "SF Mono", "Fira Code", Consolas, monospace;
+      }
+
+      [data-theme="light"] {
+        --bg: #ffffff;
+        --surface: #f8f9fa;
+        --border: #e0e1e6;
+        --text: #3b3c43;
+        --text-bright: #1a1b1e;
+        --dimmed: #6c6d75;
+        --hover: rgba(0, 0, 0, 0.04);
+        --indigo-light: rgba(99, 102, 241, 0.08);
+        --indigo-outline: rgba(99, 102, 241, 0.25);
+      }
+
+      /* ── Reset ── */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: var(--font);
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      ::selection {
+        background: var(--indigo-5);
+        color: #fff;
+      }
+
+      /* ── Layout ── */
+      .container {
+        max-width: 56rem;
+        margin: 0 auto;
+        padding: 0 1.25rem;
+      }
+
+      /* ── Hero ── */
+      .hero {
+        position: relative;
+        text-align: center;
+        padding: 5rem 1.25rem 4rem;
+        overflow: hidden;
+      }
+
+      .hero::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(
+            ellipse 60% 50% at 50% 0%,
+            color-mix(in srgb, var(--indigo-5) 14%, transparent),
+            transparent
+          ),
+          radial-gradient(
+            ellipse 40% 40% at 30% 20%,
+            color-mix(in srgb, var(--cyan-5) 8%, transparent),
+            transparent
+          );
+        pointer-events: none;
+      }
+
+      .hero-title {
+        font-size: clamp(2.6rem, 6vw, 4rem);
+        font-weight: 800;
+        color: var(--text-bright);
+        display: inline-block;
+        transform-origin: center bottom;
+        animation: surfTitleRide 2.4s ease-in-out infinite;
+      }
+
+      .hero-wave {
+        width: min(360px, 86vw);
+        height: clamp(52px, 11vw, 72px);
+        margin: 12px auto 0;
+        filter: drop-shadow(0 0 6px color-mix(in srgb, var(--cyan-5) 24%, transparent));
+      }
+
+      .hero-wave svg {
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+
+      .wave-line {
+        fill: none;
+        stroke-linecap: round;
+        stroke-width: 3.4;
+        transform-origin: center;
+      }
+      .wave-line.w1 {
+        stroke: color-mix(in srgb, var(--indigo-5) 82%, white);
+        animation: surfLineStorm 1.4s linear infinite;
+      }
+      .wave-line.w2 {
+        stroke: color-mix(in srgb, var(--cyan-5) 80%, white);
+        animation: surfLineStorm 1.8s linear infinite reverse;
+        opacity: 0.95;
+      }
+      .wave-line.w3 {
+        stroke: color-mix(in srgb, var(--blue-4) 76%, white);
+        animation: surfLineStormPulse 0.95s ease-in-out infinite;
+        opacity: 0.9;
+      }
+      .wave-line.w4 {
+        stroke: color-mix(in srgb, var(--cyan-4) 84%, white);
+        animation: surfLineStorm 2.1s linear infinite;
+        opacity: 0.52;
+      }
+
+      .hero-sub {
+        font-size: 1.25rem;
+        color: var(--dimmed);
+        margin-top: 0.75rem;
+        max-width: 32rem;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .hero-cta {
+        margin-top: 2rem;
+        display: flex;
+        gap: 0.75rem;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      /* ── Buttons ── */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.7rem 1.6rem;
+        font-family: var(--font);
+        font-size: 0.9rem;
+        font-weight: 600;
+        border-radius: 999px;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        border: none;
+      }
+
+      .btn-primary {
+        background: var(--indigo-5);
+        color: #fff;
+      }
+      .btn-primary:hover {
+        background: var(--indigo-7);
+        box-shadow: 0 4px 20px color-mix(in srgb, var(--indigo-5) 40%, transparent);
+      }
+
+      .btn-outline {
+        background: transparent;
+        color: var(--text-bright);
+        border: 1px solid var(--border);
+      }
+      .btn-outline:hover {
+        background: var(--hover);
+        border-color: var(--indigo-outline);
+      }
+
+      /* ── Section ── */
+      .section {
+        padding: 4rem 0;
+      }
+
+      .section-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        text-align: center;
+        color: var(--text-bright);
+        margin-bottom: 2.5rem;
+      }
+
+      .section-title .accent {
+        background: linear-gradient(135deg, var(--indigo-5), var(--cyan-5));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      /* ── Wave Divider ── */
+      .wave-divider {
+        width: 100%;
+        height: 48px;
+        overflow: hidden;
+      }
+
+      .wave-divider svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .wave-divider-line {
+        fill: none;
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        opacity: 0.35;
+      }
+
+      /* ── Feature Grid ── */
+      .features {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1rem;
+      }
+
+      .feature-card {
+        padding: 1.5rem;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
+        transition:
+          border-color 0.2s ease,
+          box-shadow 0.2s ease;
+      }
+
+      .feature-card:hover {
+        border-color: var(--indigo-outline);
+        box-shadow: 0 2px 12px color-mix(in srgb, var(--indigo-5) 10%, transparent);
+      }
+
+      .feature-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        background: var(--indigo-light);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 0.75rem;
+        font-size: 1.1rem;
+      }
+
+      .feature-card h3 {
+        font-size: 1.05rem;
+        font-weight: 600;
+        color: var(--text-bright);
+        margin-bottom: 0.4rem;
+      }
+
+      .feature-card p {
+        font-size: 0.93rem;
+        color: var(--text);
+      }
+
+      /* ── Provider Table ── */
+      .providers {
+        max-width: 40rem;
+        margin: 0 auto;
+      }
+
+      .provider-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+      }
+
+      .provider-table th,
+      .provider-table td {
+        padding: 0.65rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .provider-table th {
+        color: var(--dimmed);
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .provider-table td {
+        color: var(--text);
+        font-size: 0.95rem;
+      }
+
+      .provider-table td:first-child {
+        color: var(--text-bright);
+        font-weight: 500;
+      }
+
+      /* ── Steps ── */
+      .steps {
+        max-width: 44rem;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .step {
+        display: flex;
+        gap: 1rem;
+        padding: 1.25rem 1.5rem;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
+        transition: border-color 0.2s ease;
+      }
+
+      .step:hover {
+        border-color: var(--indigo-outline);
+      }
+
+      .step-num {
+        flex-shrink: 0;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 50%;
+        background: var(--indigo-light);
+        border: 1px solid var(--indigo-outline);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.8rem;
+        color: var(--indigo-5);
+      }
+
+      .step-body {
+        flex: 1;
+      }
+
+      .step-body h3 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-bright);
+        margin-bottom: 0.3rem;
+      }
+
+      .step-body p,
+      .step-body li {
+        font-size: 0.95rem;
+        color: var(--text);
+      }
+
+      .step-body ul {
+        list-style: disc;
+        margin: 0.4rem 0 0 1.25rem;
+      }
+
+      .step-body li {
+        margin-bottom: 0.2rem;
+      }
+
+      code {
+        padding: 0.12rem 0.4rem;
+        border-radius: 4px;
+        background: color-mix(in srgb, var(--indigo-5) 8%, var(--surface));
+        font-family: var(--font-mono);
+        font-size: 0.8em;
+      }
+
+      kbd {
+        padding: 0.1rem 0.45rem;
+        border-radius: 4px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        font-family: var(--font-mono);
+        font-size: 0.75em;
+        box-shadow: 0 1px 0 var(--border);
+      }
+
+      .step .btn {
+        margin-top: 0.75rem;
+        font-size: 0.83rem;
+        padding: 0.55rem 1.2rem;
+      }
+
+      /* ── Info Box ── */
+      .info-box {
+        max-width: 44rem;
+        margin: 0 auto;
+        padding: 1.5rem;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
+      }
+
+      .info-box p,
+      .info-box li {
+        font-size: 0.95rem;
+        color: var(--text);
+      }
+
+      .info-box ul {
+        list-style: disc;
+        margin: 0.5rem 0 0 1.25rem;
+      }
+
+      .info-box li {
+        margin-bottom: 0.25rem;
+      }
+
+      .note {
+        margin-top: 1rem;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        background: var(--indigo-light);
+        border: 1px solid var(--indigo-outline);
+      }
+
+      .note p {
+        font-size: 0.9rem;
+        color: var(--text);
+      }
+
+      /* ── Privacy ── */
+      .privacy-grid {
+        max-width: 44rem;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .privacy-card {
+        padding: 1.5rem;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
+      }
+
+      .privacy-card h3 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-bright);
+        margin-bottom: 0.5rem;
+      }
+
+      .privacy-card p {
+        font-size: 0.95rem;
+        color: var(--text);
+        margin-bottom: 0.35rem;
+      }
+
+      /* ── Footer ── */
+      footer {
+        text-align: center;
+        padding: 3rem 1.25rem 2rem;
+        color: var(--dimmed);
+        font-size: 0.75rem;
+      }
+
+      footer a {
+        color: var(--text-bright);
+        text-decoration: none;
+      }
+
+      footer a:hover {
+        text-decoration: underline;
+      }
+
+      /* ── Theme toggle ── */
+      .theme-toggle {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 100;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: border-color 0.2s ease;
+      }
+
+      .theme-toggle:hover {
+        border-color: var(--indigo-outline);
+      }
+
+      .theme-toggle .icon-light {
+        display: none;
+      }
+      [data-theme="light"] .theme-toggle .icon-dark {
+        display: none;
+      }
+      [data-theme="light"] .theme-toggle .icon-light {
+        display: inline;
+      }
+
+      /* ── Animations (from SiteSurf UI) ── */
+      @keyframes surfTitleRide {
+        0%,
+        100% {
+          transform: translateY(0) rotate(-0.8deg);
         }
-
-        [data-theme="light"] {
-            --bg: #ffffff;
-            --surface: #f8f9fa;
-            --border: #e0e1e6;
-            --text: #3b3c43;
-            --text-bright: #1a1b1e;
-            --dimmed: #6c6d75;
-            --hover: rgba(0, 0, 0, 0.04);
-            --indigo-light: rgba(99, 102, 241, 0.08);
-            --indigo-outline: rgba(99, 102, 241, 0.25);
+        25% {
+          transform: translateY(-1px) rotate(1.1deg);
         }
-
-        /* ── Reset ── */
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-        body {
-            font-family: var(--font);
-            background: var(--bg);
-            color: var(--text);
-            line-height: 1.65;
-            -webkit-font-smoothing: antialiased;
+        50% {
+          transform: translateY(-2px) rotate(-0.5deg) scale(1.01);
         }
-
-        ::selection {
-            background: var(--indigo-5);
-            color: #fff;
+        75% {
+          transform: translateY(-1px) rotate(1deg);
         }
+      }
 
-        /* ── Layout ── */
-        .container {
-            max-width: 56rem;
-            margin: 0 auto;
-            padding: 0 1.25rem;
+      @keyframes surfLineStorm {
+        0% {
+          stroke-dasharray: 14 7;
+          stroke-dashoffset: 0;
+          transform: translateY(0) scaleY(1);
         }
-
-        /* ── Hero ── */
-        .hero {
-            position: relative;
-            text-align: center;
-            padding: 5rem 1.25rem 4rem;
-            overflow: hidden;
+        30% {
+          transform: translateY(-4px) scaleY(1.16);
         }
-
-        .hero::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            background:
-                radial-gradient(ellipse 60% 50% at 50% 0%, color-mix(in srgb, var(--indigo-5) 14%, transparent), transparent),
-                radial-gradient(ellipse 40% 40% at 30% 20%, color-mix(in srgb, var(--cyan-5) 8%, transparent), transparent);
-            pointer-events: none;
+        60% {
+          transform: translateY(2px) scaleY(0.92);
         }
-
-        .hero-title {
-            font-size: clamp(2.6rem, 6vw, 4rem);
-            font-weight: 800;
-            color: var(--text-bright);
-            display: inline-block;
-            transform-origin: center bottom;
-            animation: surfTitleRide 2.4s ease-in-out infinite;
+        100% {
+          stroke-dasharray: 14 7;
+          stroke-dashoffset: -120;
+          transform: translateY(0) scaleY(1);
         }
+      }
 
-        .hero-wave {
-            width: min(360px, 86vw);
-            height: clamp(52px, 11vw, 72px);
-            margin: 12px auto 0;
-            filter: drop-shadow(0 0 6px color-mix(in srgb, var(--cyan-5) 24%, transparent));
+      @keyframes surfLineStormPulse {
+        0%,
+        100% {
+          transform: translateY(0) scale(1);
+          opacity: 0.74;
         }
+        50% {
+          transform: translateY(-5px) scale(1.1);
+          opacity: 1;
+        }
+      }
 
-        .hero-wave svg { width: 100%; height: 100%; overflow: visible; }
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(12px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
 
+      .fade-in {
+        animation: fadeInUp 0.5s ease forwards;
+        opacity: 0;
+      }
+      .fade-in-d1 {
+        animation-delay: 0.1s;
+      }
+      .fade-in-d2 {
+        animation-delay: 0.2s;
+      }
+      .fade-in-d3 {
+        animation-delay: 0.3s;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .hero-title,
         .wave-line {
-            fill: none;
-            stroke-linecap: round;
-            stroke-width: 3.4;
-            transform-origin: center;
+          animation: none;
         }
-        .wave-line.w1 { stroke: color-mix(in srgb, var(--indigo-5) 82%, white); animation: surfLineStorm 1.4s linear infinite; }
-        .wave-line.w2 { stroke: color-mix(in srgb, var(--cyan-5) 80%, white); animation: surfLineStorm 1.8s linear infinite reverse; opacity: 0.95; }
-        .wave-line.w3 { stroke: color-mix(in srgb, var(--blue-4) 76%, white); animation: surfLineStormPulse 0.95s ease-in-out infinite; opacity: 0.9; }
-        .wave-line.w4 { stroke: color-mix(in srgb, var(--cyan-4) 84%, white); animation: surfLineStorm 2.1s linear infinite; opacity: 0.52; }
+        .fade-in {
+          animation: none;
+          opacity: 1;
+        }
+      }
 
-        .hero-sub {
-            font-size: 1.25rem;
-            color: var(--dimmed);
-            margin-top: 0.75rem;
-            max-width: 32rem;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .hero-cta {
-            margin-top: 2rem;
-            display: flex;
-            gap: 0.75rem;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        /* ── Buttons ── */
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.7rem 1.6rem;
-            font-family: var(--font);
-            font-size: 0.9rem;
-            font-weight: 600;
-            border-radius: 999px;
-            text-decoration: none;
-            transition: all 0.2s ease;
-            cursor: pointer;
-            border: none;
-        }
-
-        .btn-primary {
-            background: var(--indigo-5);
-            color: #fff;
-        }
-        .btn-primary:hover {
-            background: var(--indigo-7);
-            box-shadow: 0 4px 20px color-mix(in srgb, var(--indigo-5) 40%, transparent);
-        }
-
-        .btn-outline {
-            background: transparent;
-            color: var(--text-bright);
-            border: 1px solid var(--border);
-        }
-        .btn-outline:hover {
-            background: var(--hover);
-            border-color: var(--indigo-outline);
-        }
-
-        /* ── Section ── */
-        .section {
-            padding: 4rem 0;
-        }
-
-        .section-title {
-            font-size: 1.75rem;
-            font-weight: 700;
-            text-align: center;
-            color: var(--text-bright);
-            margin-bottom: 2.5rem;
-        }
-
-        .section-title .accent {
-            background: linear-gradient(135deg, var(--indigo-5), var(--cyan-5));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        /* ── Wave Divider ── */
-        .wave-divider {
-            width: 100%;
-            height: 48px;
-            overflow: hidden;
-        }
-
-        .wave-divider svg {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
-
-        .wave-divider-line {
-            fill: none;
-            stroke-width: 1.5;
-            stroke-linecap: round;
-            opacity: 0.35;
-        }
-
-        /* ── Feature Grid ── */
+      @media (max-width: 640px) {
         .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 1rem;
+          grid-template-columns: 1fr;
         }
-
-        .feature-card {
-            padding: 1.5rem;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            background: var(--surface);
-            transition: border-color 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .feature-card:hover {
-            border-color: var(--indigo-outline);
-            box-shadow: 0 2px 12px color-mix(in srgb, var(--indigo-5) 10%, transparent);
-        }
-
-        .feature-icon {
-            width: 36px;
-            height: 36px;
-            border-radius: 8px;
-            background: var(--indigo-light);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 0.75rem;
-            font-size: 1.1rem;
-        }
-
-        .feature-card h3 {
-            font-size: 1.05rem;
-            font-weight: 600;
-            color: var(--text-bright);
-            margin-bottom: 0.4rem;
-        }
-
-        .feature-card p {
-            font-size: 0.93rem;
-            color: var(--text);
-        }
-
-        /* ── Provider Table ── */
-        .providers {
-            max-width: 40rem;
-            margin: 0 auto;
-        }
-
-        .provider-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.875rem;
-        }
-
-        .provider-table th,
-        .provider-table td {
-            padding: 0.65rem 1rem;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .provider-table th {
-            color: var(--dimmed);
-            font-weight: 600;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .provider-table td {
-            color: var(--text);
-            font-size: 0.95rem;
-        }
-
-        .provider-table td:first-child {
-            color: var(--text-bright);
-            font-weight: 500;
-        }
-
-        /* ── Steps ── */
-        .steps {
-            max-width: 44rem;
-            margin: 0 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
         .step {
-            display: flex;
-            gap: 1rem;
-            padding: 1.25rem 1.5rem;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            background: var(--surface);
-            transition: border-color 0.2s ease;
+          padding: 1rem;
         }
-
-        .step:hover {
-            border-color: var(--indigo-outline);
+        .hero {
+          padding: 3rem 1rem 2.5rem;
         }
-
-        .step-num {
-            flex-shrink: 0;
-            width: 2rem;
-            height: 2rem;
-            border-radius: 50%;
-            background: var(--indigo-light);
-            border: 1px solid var(--indigo-outline);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 0.8rem;
-            color: var(--indigo-5);
-        }
-
-        .step-body { flex: 1; }
-
-        .step-body h3 {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--text-bright);
-            margin-bottom: 0.3rem;
-        }
-
-        .step-body p, .step-body li {
-            font-size: 0.95rem;
-            color: var(--text);
-        }
-
-        .step-body ul {
-            list-style: disc;
-            margin: 0.4rem 0 0 1.25rem;
-        }
-
-        .step-body li { margin-bottom: 0.2rem; }
-
-        code {
-            padding: 0.12rem 0.4rem;
-            border-radius: 4px;
-            background: color-mix(in srgb, var(--indigo-5) 8%, var(--surface));
-            font-family: var(--font-mono);
-            font-size: 0.8em;
-        }
-
-        kbd {
-            padding: 0.1rem 0.45rem;
-            border-radius: 4px;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            font-family: var(--font-mono);
-            font-size: 0.75em;
-            box-shadow: 0 1px 0 var(--border);
-        }
-
-        .step .btn {
-            margin-top: 0.75rem;
-            font-size: 0.83rem;
-            padding: 0.55rem 1.2rem;
-        }
-
-        /* ── Info Box ── */
-        .info-box {
-            max-width: 44rem;
-            margin: 0 auto;
-            padding: 1.5rem;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            background: var(--surface);
-        }
-
-        .info-box p, .info-box li {
-            font-size: 0.95rem;
-            color: var(--text);
-        }
-
-        .info-box ul {
-            list-style: disc;
-            margin: 0.5rem 0 0 1.25rem;
-        }
-
-        .info-box li { margin-bottom: 0.25rem; }
-
-        .note {
-            margin-top: 1rem;
-            padding: 0.75rem 1rem;
-            border-radius: 8px;
-            background: var(--indigo-light);
-            border: 1px solid var(--indigo-outline);
-        }
-
-        .note p {
-            font-size: 0.9rem;
-            color: var(--text);
-        }
-
-        /* ── Privacy ── */
-        .privacy-grid {
-            max-width: 44rem;
-            margin: 0 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .privacy-card {
-            padding: 1.5rem;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            background: var(--surface);
-        }
-
-        .privacy-card h3 {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--text-bright);
-            margin-bottom: 0.5rem;
-        }
-
-        .privacy-card p {
-            font-size: 0.95rem;
-            color: var(--text);
-            margin-bottom: 0.35rem;
-        }
-
-        /* ── Footer ── */
-        footer {
-            text-align: center;
-            padding: 3rem 1.25rem 2rem;
-            color: var(--dimmed);
-            font-size: 0.75rem;
-        }
-
-        footer a {
-            color: var(--text-bright);
-            text-decoration: none;
-        }
-
-        footer a:hover { text-decoration: underline; }
-
-        /* ── Theme toggle ── */
-        .theme-toggle {
-            position: fixed;
-            top: 1rem;
-            right: 1rem;
-            z-index: 100;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            width: 36px;
-            height: 36px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 1rem;
-            transition: border-color 0.2s ease;
-        }
-
-        .theme-toggle:hover { border-color: var(--indigo-outline); }
-
-        .theme-toggle .icon-light { display: none; }
-        [data-theme="light"] .theme-toggle .icon-dark { display: none; }
-        [data-theme="light"] .theme-toggle .icon-light { display: inline; }
-
-        /* ── Animations (from SiteSurf UI) ── */
-        @keyframes surfTitleRide {
-            0%, 100% { transform: translateY(0) rotate(-0.8deg); }
-            25% { transform: translateY(-1px) rotate(1.1deg); }
-            50% { transform: translateY(-2px) rotate(-0.5deg) scale(1.01); }
-            75% { transform: translateY(-1px) rotate(1deg); }
-        }
-
-        @keyframes surfLineStorm {
-            0% { stroke-dasharray: 14 7; stroke-dashoffset: 0; transform: translateY(0) scaleY(1); }
-            30% { transform: translateY(-4px) scaleY(1.16); }
-            60% { transform: translateY(2px) scaleY(0.92); }
-            100% { stroke-dasharray: 14 7; stroke-dashoffset: -120; transform: translateY(0) scaleY(1); }
-        }
-
-        @keyframes surfLineStormPulse {
-            0%, 100% { transform: translateY(0) scale(1); opacity: 0.74; }
-            50% { transform: translateY(-5px) scale(1.1); opacity: 1; }
-        }
-
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(12px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .fade-in { animation: fadeInUp 0.5s ease forwards; opacity: 0; }
-        .fade-in-d1 { animation-delay: 0.1s; }
-        .fade-in-d2 { animation-delay: 0.2s; }
-        .fade-in-d3 { animation-delay: 0.3s; }
-
-        @media (prefers-reduced-motion: reduce) {
-            .hero-title, .wave-line { animation: none; }
-            .fade-in { animation: none; opacity: 1; }
-        }
-
-        @media (max-width: 640px) {
-            .features { grid-template-columns: 1fr; }
-            .step { padding: 1rem; }
-            .hero { padding: 3rem 1rem 2.5rem; }
-        }
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <button class="theme-toggle" onclick="toggleTheme()" aria-label="テーマ切替">
-        <span class="icon-dark">&#9790;</span>
-        <span class="icon-light">&#9728;</span>
+      <span class="icon-dark">&#9790;</span>
+      <span class="icon-light">&#9728;</span>
     </button>
 
     <!-- ── Hero ── -->
     <section class="hero">
-        <div class="container">
-            <h1 class="hero-title">SiteSurf</h1>
+      <div class="container">
+        <h1 class="hero-title">SiteSurf</h1>
 
-            <div class="hero-wave" aria-hidden="true">
-                <svg viewBox="0 0 220 48" preserveAspectRatio="none">
-                    <path class="wave-line w1" d="M0 28 C 18 4, 42 46, 66 20 S 118 4, 146 30 S 194 50, 220 24"/>
-                    <path class="wave-line w2" d="M0 20 C 22 44, 44 2, 72 28 S 126 44, 154 16 S 196 0, 220 26"/>
-                    <path class="wave-line w3" d="M0 30 C 26 8, 56 52, 90 24 S 154 8, 182 34 S 206 46, 220 22"/>
-                    <path class="wave-line w4" d="M0 24 C 16 -2, 48 52, 82 18 S 140 -2, 172 30 S 206 54, 220 18"/>
-                </svg>
-            </div>
-
-            <p class="hero-sub">AIと一緒にWebを操作しよう。チャットで指示するだけで、ページの読み取り・操作・ナビゲーションを自動化するChrome拡張機能です。</p>
-
-            <div class="hero-cta">
-                <a href="https://github.com/takemo101/sitesurf/releases/latest" target="_blank" class="btn btn-primary">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    ダウンロード
-                </a>
-                <a href="https://github.com/takemo101/sitesurf" target="_blank" class="btn btn-outline">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
-                    GitHub
-                </a>
-            </div>
+        <div class="hero-wave" aria-hidden="true">
+          <svg viewBox="0 0 220 48" preserveAspectRatio="none">
+            <path
+              class="wave-line w1"
+              d="M0 28 C 18 4, 42 46, 66 20 S 118 4, 146 30 S 194 50, 220 24"
+            />
+            <path
+              class="wave-line w2"
+              d="M0 20 C 22 44, 44 2, 72 28 S 126 44, 154 16 S 196 0, 220 26"
+            />
+            <path
+              class="wave-line w3"
+              d="M0 30 C 26 8, 56 52, 90 24 S 154 8, 182 34 S 206 46, 220 22"
+            />
+            <path
+              class="wave-line w4"
+              d="M0 24 C 16 -2, 48 52, 82 18 S 140 -2, 172 30 S 206 54, 220 18"
+            />
+          </svg>
         </div>
+
+        <p class="hero-sub">
+          AIと一緒にWebを操作しよう。チャットで指示するだけで、ページの読み取り・操作・ナビゲーションを自動化するChrome拡張機能です。
+        </p>
+
+        <div class="hero-cta">
+          <a
+            href="https://github.com/takemo101/sitesurf/releases/latest"
+            target="_blank"
+            class="btn btn-primary"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            ダウンロード
+          </a>
+          <a href="https://github.com/takemo101/sitesurf" target="_blank" class="btn btn-outline">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"
+              />
+            </svg>
+            GitHub
+          </a>
+        </div>
+      </div>
     </section>
 
     <!-- ── Wave Divider ── -->
     <div class="wave-divider" aria-hidden="true">
-        <svg viewBox="0 0 1200 48" preserveAspectRatio="none">
-            <path class="wave-divider-line" stroke="var(--indigo-5)" d="M0 24 Q 150 4, 300 24 T 600 24 T 900 24 T 1200 24"/>
-            <path class="wave-divider-line" stroke="var(--cyan-5)" d="M0 28 Q 150 44, 300 28 T 600 28 T 900 28 T 1200 28"/>
-        </svg>
+      <svg viewBox="0 0 1200 48" preserveAspectRatio="none">
+        <path
+          class="wave-divider-line"
+          stroke="var(--indigo-5)"
+          d="M0 24 Q 150 4, 300 24 T 600 24 T 900 24 T 1200 24"
+        />
+        <path
+          class="wave-divider-line"
+          stroke="var(--cyan-5)"
+          d="M0 28 Q 150 44, 300 28 T 600 28 T 900 28 T 1200 28"
+        />
+      </svg>
     </div>
 
     <!-- ── Features ── -->
     <section class="section">
-        <div class="container">
-            <h2 class="section-title"><span class="accent">SiteSurf</span> とは？</h2>
+      <div class="container">
+        <h2 class="section-title"><span class="accent">SiteSurf</span> とは？</h2>
 
-            <div class="features">
-                <div class="feature-card fade-in">
-                    <div class="feature-icon">&#128196;</div>
-                    <h3>ページ読み取り</h3>
-                    <p>現在のページのテキスト・DOM構造をAIに送信し、内容を理解させます。</p>
-                </div>
-                <div class="feature-card fade-in fade-in-d1">
-                    <div class="feature-icon">&#128295;</div>
-                    <h3>DOM操作</h3>
-                    <p>AIがJavaScriptでページ要素を操作。クリック、入力、データ抽出を自動化。</p>
-                </div>
-                <div class="feature-card fade-in fade-in-d2">
-                    <div class="feature-icon">&#129517;</div>
-                    <h3>ナビゲーション</h3>
-                    <p>AIが指定URLへ自動移動。複数ページにまたがるタスクもこなします。</p>
-                </div>
-                <div class="feature-card fade-in fade-in-d1">
-                    <div class="feature-icon">&#127919;</div>
-                    <h3>要素選択</h3>
-                    <p>ページ上の要素をクリックして選択し、AIに直接渡せます。</p>
-                </div>
-                <div class="feature-card fade-in fade-in-d2">
-                    <div class="feature-icon">&#128248;</div>
-                    <h3>スクリーンショット</h3>
-                    <p>ページのスクリーンショットをAIに送信。視覚的な情報も活用できます。</p>
-                </div>
-                <div class="feature-card fade-in fade-in-d3">
-                    <div class="feature-icon">&#129302;</div>
-                    <h3>マルチプロバイダー</h3>
-                    <p>Claude, ChatGPT, Gemini, Copilot, Ollama など多数のAIに対応。</p>
-                </div>
-            </div>
-
-            <div class="providers" style="margin-top: 2.5rem;">
-                <table class="provider-table">
-                    <thead>
-                        <tr><th>プロバイダー</th><th>認証方式</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr><td>Anthropic (Claude)</td><td>APIキー</td></tr>
-                        <tr><td>OpenAI (ChatGPT)</td><td>APIキー / OAuth</td></tr>
-                        <tr><td>Google (Gemini)</td><td>APIキー</td></tr>
-                        <tr><td>GitHub Copilot</td><td>OAuth (Device Flow)</td></tr>
-                        <tr><td>Kimi (Moonshot AI)</td><td>APIキー</td></tr>
-                        <tr><td>Ollama</td><td>なし</td></tr>
-                        <tr><td>ローカルLLM (OpenAI互換)</td><td>APIキー (任意)</td></tr>
-                    </tbody>
-                </table>
-            </div>
+        <div class="features">
+          <div class="feature-card fade-in">
+            <div class="feature-icon">&#128196;</div>
+            <h3>ページ読み取り</h3>
+            <p>現在のページのテキスト・DOM構造をAIに送信し、内容を理解させます。</p>
+          </div>
+          <div class="feature-card fade-in fade-in-d1">
+            <div class="feature-icon">&#128295;</div>
+            <h3>DOM操作</h3>
+            <p>AIがJavaScriptでページ要素を操作。クリック、入力、データ抽出を自動化。</p>
+          </div>
+          <div class="feature-card fade-in fade-in-d2">
+            <div class="feature-icon">&#129517;</div>
+            <h3>ナビゲーション</h3>
+            <p>AIが指定URLへ自動移動。複数ページにまたがるタスクもこなします。</p>
+          </div>
+          <div class="feature-card fade-in fade-in-d1">
+            <div class="feature-icon">&#127919;</div>
+            <h3>要素選択</h3>
+            <p>ページ上の要素をクリックして選択し、AIに直接渡せます。</p>
+          </div>
+          <div class="feature-card fade-in fade-in-d2">
+            <div class="feature-icon">&#128248;</div>
+            <h3>スクリーンショット</h3>
+            <p>ページのスクリーンショットをAIに送信。視覚的な情報も活用できます。</p>
+          </div>
+          <div class="feature-card fade-in fade-in-d3">
+            <div class="feature-icon">&#129302;</div>
+            <h3>マルチプロバイダー</h3>
+            <p>Claude, ChatGPT, Gemini, Copilot, Ollama など多数のAIに対応。</p>
+          </div>
         </div>
+
+        <div class="providers" style="margin-top: 2.5rem">
+          <table class="provider-table">
+            <thead>
+              <tr>
+                <th>プロバイダー</th>
+                <th>認証方式</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Anthropic (Claude)</td>
+                <td>APIキー</td>
+              </tr>
+              <tr>
+                <td>OpenAI (ChatGPT)</td>
+                <td>APIキー / OAuth</td>
+              </tr>
+              <tr>
+                <td>Google (Gemini)</td>
+                <td>APIキー</td>
+              </tr>
+              <tr>
+                <td>GitHub Copilot</td>
+                <td>OAuth (Device Flow)</td>
+              </tr>
+              <tr>
+                <td>Kimi (Moonshot AI)</td>
+                <td>APIキー</td>
+              </tr>
+              <tr>
+                <td>Ollama</td>
+                <td>なし</td>
+              </tr>
+              <tr>
+                <td>ローカルLLM (OpenAI互換)</td>
+                <td>APIキー (任意)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </section>
 
     <!-- ── Wave Divider ── -->
     <div class="wave-divider" aria-hidden="true">
-        <svg viewBox="0 0 1200 48" preserveAspectRatio="none">
-            <path class="wave-divider-line" stroke="var(--cyan-5)" d="M0 20 Q 200 40, 400 20 T 800 20 T 1200 20"/>
-            <path class="wave-divider-line" stroke="var(--blue-4)" d="M0 30 Q 200 10, 400 30 T 800 30 T 1200 30"/>
-        </svg>
+      <svg viewBox="0 0 1200 48" preserveAspectRatio="none">
+        <path
+          class="wave-divider-line"
+          stroke="var(--cyan-5)"
+          d="M0 20 Q 200 40, 400 20 T 800 20 T 1200 20"
+        />
+        <path
+          class="wave-divider-line"
+          stroke="var(--blue-4)"
+          d="M0 30 Q 200 10, 400 30 T 800 30 T 1200 30"
+        />
+      </svg>
     </div>
 
     <!-- ── Installation ── -->
     <section class="section" id="install">
-        <div class="container">
-            <h2 class="section-title">インストール<span class="accent">方法</span></h2>
+      <div class="container">
+        <h2 class="section-title">インストール<span class="accent">方法</span></h2>
 
-            <div class="steps">
-                <div class="step">
-                    <div class="step-num">1</div>
-                    <div class="step-body">
-                        <h3>Chrome バージョンの確認</h3>
-                        <p>Google Chrome の最新版がインストールされていることを確認してください。</p>
-                    </div>
-                </div>
-
-                <div class="step">
-                    <div class="step-num">2</div>
-                    <div class="step-body">
-                        <h3>SiteSurf をダウンロード</h3>
-                        <p>GitHub Releases から最新リリースの <code>dist.zip</code> をダウンロードしてください。</p>
-                        <a href="https://github.com/takemo101/sitesurf/releases/latest" target="_blank" class="btn btn-primary">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                            GitHub Releases からダウンロード
-                        </a>
-                    </div>
-                </div>
-
-                <div class="step">
-                    <div class="step-num">3</div>
-                    <div class="step-body">
-                        <h3>ZIP を展開</h3>
-                        <p>ダウンロードした ZIP ファイルをわかりやすい場所に展開します。</p>
-                        <ul>
-                            <li><strong>Windows:</strong> <code>C:\Users\YourName\Desktop\sitesurf</code></li>
-                            <li><strong>macOS:</strong> <code>~/Desktop/sitesurf</code></li>
-                        </ul>
-                    </div>
-                </div>
-
-                <div class="step">
-                    <div class="step-num">4</div>
-                    <div class="step-body">
-                        <h3>Chrome 拡張機能ページを開く</h3>
-                        <p>アドレスバーに <code>chrome://extensions</code> と入力して Enter を押します。</p>
-                    </div>
-                </div>
-
-                <div class="step">
-                    <div class="step-num">5</div>
-                    <div class="step-body">
-                        <h3>デベロッパーモードを有効化</h3>
-                        <p>右上の「デベロッパー モード」トグルをオンにします。</p>
-                    </div>
-                </div>
-
-                <div class="step">
-                    <div class="step-num">6</div>
-                    <div class="step-body">
-                        <h3>拡張機能を読み込む</h3>
-                        <p>「パッケージ化されていない拡張機能を読み込む」をクリックし、展開した <code>sitesurf</code> フォルダを選択します。</p>
-                    </div>
-                </div>
-
-                <div class="step">
-                    <div class="step-num">7</div>
-                    <div class="step-body">
-                        <h3>拡張機能の設定</h3>
-                        <p><code>chrome://extensions</code> で SiteSurf の「詳細」をクリックし、以下を有効にします。</p>
-                        <ul>
-                            <li><strong>ユーザー スクリプトを許可する</strong> — AIが生成したコードをページ上で実行するために必要です</li>
-                        </ul>
-                    </div>
-                </div>
-
-                <div class="step">
-                    <div class="step-num">8</div>
-                    <div class="step-body">
-                        <h3>SiteSurf を起動</h3>
-                        <p>Chrome 右上の SiteSurf アイコンをクリック、またはキーボードショートカットで開きます。</p>
-                        <ul>
-                            <li><strong>macOS:</strong> <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>E</kbd></li>
-                            <li><strong>Windows:</strong> <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>E</kbd></li>
-                        </ul>
-                    </div>
-                </div>
-
-                <div class="step">
-                    <div class="step-num">9</div>
-                    <div class="step-body">
-                        <h3>AI プロバイダーを設定</h3>
-                        <p>設定画面で使用するAIプロバイダーを選択し、APIキーまたはOAuth認証を設定します。</p>
-                    </div>
-                </div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <h3>Chrome バージョンの確認</h3>
+              <p>Google Chrome の最新版がインストールされていることを確認してください。</p>
             </div>
+          </div>
+
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <h3>SiteSurf をダウンロード</h3>
+              <p>
+                GitHub Releases から最新リリースの
+                <code>dist.zip</code> をダウンロードしてください。
+              </p>
+              <a
+                href="https://github.com/takemo101/sitesurf/releases/latest"
+                target="_blank"
+                class="btn btn-primary"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                GitHub Releases からダウンロード
+              </a>
+            </div>
+          </div>
+
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <h3>ZIP を展開</h3>
+              <p>ダウンロードした ZIP ファイルをわかりやすい場所に展開します。</p>
+              <ul>
+                <li><strong>Windows:</strong> <code>C:\Users\YourName\Desktop\sitesurf</code></li>
+                <li><strong>macOS:</strong> <code>~/Desktop/sitesurf</code></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <h3>Chrome 拡張機能ページを開く</h3>
+              <p>アドレスバーに <code>chrome://extensions</code> と入力して Enter を押します。</p>
+            </div>
+          </div>
+
+          <div class="step">
+            <div class="step-num">5</div>
+            <div class="step-body">
+              <h3>デベロッパーモードを有効化</h3>
+              <p>右上の「デベロッパー モード」トグルをオンにします。</p>
+            </div>
+          </div>
+
+          <div class="step">
+            <div class="step-num">6</div>
+            <div class="step-body">
+              <h3>拡張機能を読み込む</h3>
+              <p>
+                「パッケージ化されていない拡張機能を読み込む」をクリックし、展開した
+                <code>sitesurf</code> フォルダを選択します。
+              </p>
+            </div>
+          </div>
+
+          <div class="step">
+            <div class="step-num">7</div>
+            <div class="step-body">
+              <h3>拡張機能の設定</h3>
+              <p>
+                <code>chrome://extensions</code> で SiteSurf
+                の「詳細」をクリックし、以下を有効にします。
+              </p>
+              <ul>
+                <li>
+                  <strong>ユーザー スクリプトを許可する</strong> —
+                  AIが生成したコードをページ上で実行するために必要です
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="step">
+            <div class="step-num">8</div>
+            <div class="step-body">
+              <h3>SiteSurf を起動</h3>
+              <p>
+                Chrome 右上の SiteSurf
+                アイコンをクリック、またはキーボードショートカットで開きます。
+              </p>
+              <ul>
+                <li><strong>macOS:</strong> <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>E</kbd></li>
+                <li><strong>Windows:</strong> <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>E</kbd></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="step">
+            <div class="step-num">9</div>
+            <div class="step-body">
+              <h3>AI プロバイダーを設定</h3>
+              <p>設定画面で使用するAIプロバイダーを選択し、APIキーまたはOAuth認証を設定します。</p>
+            </div>
+          </div>
         </div>
+      </div>
     </section>
 
     <!-- ── Wave Divider ── -->
     <div class="wave-divider" aria-hidden="true">
-        <svg viewBox="0 0 1200 48" preserveAspectRatio="none">
-            <path class="wave-divider-line" stroke="var(--indigo-5)" d="M0 28 Q 300 8, 600 28 T 1200 28"/>
-            <path class="wave-divider-line" stroke="var(--cyan-4)" d="M0 20 Q 300 40, 600 20 T 1200 20"/>
-        </svg>
+      <svg viewBox="0 0 1200 48" preserveAspectRatio="none">
+        <path
+          class="wave-divider-line"
+          stroke="var(--indigo-5)"
+          d="M0 28 Q 300 8, 600 28 T 1200 28"
+        />
+        <path
+          class="wave-divider-line"
+          stroke="var(--cyan-4)"
+          d="M0 20 Q 300 40, 600 20 T 1200 20"
+        />
+      </svg>
     </div>
 
     <!-- ── Updating ── -->
     <section class="section" id="updating">
-        <div class="container">
-            <h2 class="section-title">アップデート<span class="accent">方法</span></h2>
+      <div class="container">
+        <h2 class="section-title">アップデート<span class="accent">方法</span></h2>
 
-            <div class="steps">
-                <div class="step">
-                    <div class="step-num">1</div>
-                    <div class="step-body">
-                        <h3>最新版をダウンロード</h3>
-                        <p>GitHub Releases から最新の <code>dist.zip</code> をダウンロードします。</p>
-                        <a href="https://github.com/takemo101/sitesurf/releases/latest" target="_blank" class="btn btn-outline">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                            最新版をダウンロード
-                        </a>
-                    </div>
-                </div>
-
-                <div class="step">
-                    <div class="step-num">2</div>
-                    <div class="step-body">
-                        <h3>ファイルを差し替え</h3>
-                        <p>既存の <code>sitesurf</code> フォルダの中身を新しいファイルで置き換えます。</p>
-                    </div>
-                </div>
-
-                <div class="step">
-                    <div class="step-num">3</div>
-                    <div class="step-body">
-                        <h3>拡張機能をリロード</h3>
-                        <p><code>chrome://extensions</code> で SiteSurf カードの更新ボタンをクリック、または Chrome を再起動します。</p>
-                    </div>
-                </div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <h3>最新版をダウンロード</h3>
+              <p>GitHub Releases から最新の <code>dist.zip</code> をダウンロードします。</p>
+              <a
+                href="https://github.com/takemo101/sitesurf/releases/latest"
+                target="_blank"
+                class="btn btn-outline"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                最新版をダウンロード
+              </a>
             </div>
+          </div>
+
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <h3>ファイルを差し替え</h3>
+              <p>既存の <code>sitesurf</code> フォルダの中身を新しいファイルで置き換えます。</p>
+            </div>
+          </div>
+
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <h3>拡張機能をリロード</h3>
+              <p>
+                <code>chrome://extensions</code> で SiteSurf カードの更新ボタンをクリック、または
+                Chrome を再起動します。
+              </p>
+            </div>
+          </div>
         </div>
+      </div>
     </section>
 
     <!-- ── Wave Divider ── -->
     <div class="wave-divider" aria-hidden="true">
-        <svg viewBox="0 0 1200 48" preserveAspectRatio="none">
-            <path class="wave-divider-line" stroke="var(--blue-4)" d="M0 24 Q 150 8, 300 24 T 600 24 T 900 24 T 1200 24"/>
-            <path class="wave-divider-line" stroke="var(--indigo-5)" d="M0 28 Q 150 42, 300 28 T 600 28 T 900 28 T 1200 28"/>
-        </svg>
+      <svg viewBox="0 0 1200 48" preserveAspectRatio="none">
+        <path
+          class="wave-divider-line"
+          stroke="var(--blue-4)"
+          d="M0 24 Q 150 8, 300 24 T 600 24 T 900 24 T 1200 24"
+        />
+        <path
+          class="wave-divider-line"
+          stroke="var(--indigo-5)"
+          d="M0 28 Q 150 42, 300 28 T 600 28 T 900 28 T 1200 28"
+        />
+      </svg>
     </div>
 
     <!-- ── Getting Started ── -->
     <section class="section">
-        <div class="container">
-            <h2 class="section-title">使い<span class="accent">始める</span></h2>
+      <div class="container">
+        <h2 class="section-title">使い<span class="accent">始める</span></h2>
 
-            <div class="info-box">
-                <p style="color: var(--text-bright);">SiteSurf を開いたら、テキストボックスにやりたいことを入力して送信するだけ。AIがページを理解し、操作を実行します。</p>
-                <p style="margin-top: 0.75rem; color: var(--text-bright); font-weight: 600;">使用例:</p>
-                <ul>
-                    <li>「このページのすべてのリンクを一覧にして」</li>
-                    <li>「検索ボックスに"Chrome拡張"と入力して検索ボタンを押して」</li>
-                    <li>「このページの価格情報を抽出して」</li>
-                </ul>
+        <div class="info-box">
+          <p style="color: var(--text-bright)">
+            SiteSurf
+            を開いたら、テキストボックスにやりたいことを入力して送信するだけ。AIがページを理解し、操作を実行します。
+          </p>
+          <p style="margin-top: 0.75rem; color: var(--text-bright); font-weight: 600">使用例:</p>
+          <ul>
+            <li>「このページのすべてのリンクを一覧にして」</li>
+            <li>「検索ボックスに"Chrome拡張"と入力して検索ボタンを押して」</li>
+            <li>「このページの価格情報を抽出して」</li>
+          </ul>
 
-                <div class="note">
-                    <p><strong>Note:</strong> SiteSurf は開発中のソフトウェアです。問題が発生した場合は <kbd>Escape</kbd> キーまたは停止ボタンで即座に停止できます。</p>
-                </div>
-            </div>
+          <div class="note">
+            <p>
+              <strong>Note:</strong> SiteSurf は開発中のソフトウェアです。問題が発生した場合は
+              <kbd>Escape</kbd> キーまたは停止ボタンで即座に停止できます。
+            </p>
+          </div>
         </div>
+      </div>
     </section>
 
     <!-- ── Privacy ── -->
     <section class="section">
-        <div class="container">
-            <h2 class="section-title">プライバシー &amp; <span class="accent">セキュリティ</span></h2>
+      <div class="container">
+        <h2 class="section-title">プライバシー &amp; <span class="accent">セキュリティ</span></h2>
 
-            <div class="privacy-grid">
-                <div class="privacy-card">
-                    <h3>データはあなたの手元に</h3>
-                    <p><strong>設定・APIキー:</strong> ブラウザの IndexedDB にローカル保存。使用するプロバイダー以外には送信されません。</p>
-                    <p><strong>チャット履歴:</strong> すべてローカルに保存されます。</p>
-                    <p><strong>メッセージ送信時:</strong> 選択したAIプロバイダーにのみ送信されます。</p>
-                </div>
-            </div>
+        <div class="privacy-grid">
+          <div class="privacy-card">
+            <h3>データはあなたの手元に</h3>
+            <p>
+              <strong>設定・APIキー:</strong> ブラウザの IndexedDB
+              にローカル保存。使用するプロバイダー以外には送信されません。
+            </p>
+            <p><strong>チャット履歴:</strong> すべてローカルに保存されます。</p>
+            <p><strong>メッセージ送信時:</strong> 選択したAIプロバイダーにのみ送信されます。</p>
+          </div>
         </div>
+      </div>
     </section>
 
     <!-- ── Footer ── -->
     <footer>
-        <div class="hero-wave" aria-hidden="true" style="width: min(200px, 50vw); height: 32px; margin: 0 auto 1.5rem; opacity: 0.5;">
-            <svg viewBox="0 0 220 48" preserveAspectRatio="none">
-                <path class="wave-line w1" d="M0 28 C 18 4, 42 46, 66 20 S 118 4, 146 30 S 194 50, 220 24"/>
-                <path class="wave-line w2" d="M0 20 C 22 44, 44 2, 72 28 S 126 44, 154 16 S 196 0, 220 26"/>
-            </svg>
-        </div>
-        <p>
-            <a href="https://github.com/takemo101/sitesurf" target="_blank">GitHub</a>
-            &nbsp;&middot;&nbsp;
-            MIT License
-        </p>
+      <div
+        class="hero-wave"
+        aria-hidden="true"
+        style="width: min(200px, 50vw); height: 32px; margin: 0 auto 1.5rem; opacity: 0.5"
+      >
+        <svg viewBox="0 0 220 48" preserveAspectRatio="none">
+          <path
+            class="wave-line w1"
+            d="M0 28 C 18 4, 42 46, 66 20 S 118 4, 146 30 S 194 50, 220 24"
+          />
+          <path
+            class="wave-line w2"
+            d="M0 20 C 22 44, 44 2, 72 28 S 126 44, 154 16 S 196 0, 220 26"
+          />
+        </svg>
+      </div>
+      <p>
+        <a href="https://github.com/takemo101/sitesurf" target="_blank">GitHub</a>
+        &nbsp;&middot;&nbsp; MIT License
+      </p>
     </footer>
 
     <script>
-        function toggleTheme() {
-            const html = document.documentElement;
-            const current = html.getAttribute("data-theme");
-            const next = current === "light" ? "dark" : "light";
-            html.setAttribute("data-theme", next);
-            localStorage.setItem("sitesurf-theme", next);
-        }
+      function toggleTheme() {
+        const html = document.documentElement;
+        const current = html.getAttribute("data-theme");
+        const next = current === "light" ? "dark" : "light";
+        html.setAttribute("data-theme", next);
+        localStorage.setItem("sitesurf-theme", next);
+      }
 
-        // Restore preference
-        const saved = localStorage.getItem("sitesurf-theme");
-        if (saved) document.documentElement.setAttribute("data-theme", saved);
+      // Restore preference
+      const saved = localStorage.getItem("sitesurf-theme");
+      if (saved) document.documentElement.setAttribute("data-theme", saved);
 
-        // Intersection Observer for fade-in
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(e => {
-                if (e.isIntersecting) {
-                    e.target.style.animationPlayState = "running";
-                    observer.unobserve(e.target);
-                }
-            });
-        }, { threshold: 0.1 });
+      // Intersection Observer for fade-in
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((e) => {
+            if (e.isIntersecting) {
+              e.target.style.animationPlayState = "running";
+              observer.unobserve(e.target);
+            }
+          });
+        },
+        { threshold: 0.1 },
+      );
 
-        document.querySelectorAll(".fade-in").forEach(el => {
-            el.style.animationPlayState = "paused";
-            observer.observe(el);
-        });
+      document.querySelectorAll(".fade-in").forEach((el) => {
+        el.style.animationPlayState = "paused";
+        observer.observe(el);
+      });
     </script>
-</body>
+  </body>
 </html>

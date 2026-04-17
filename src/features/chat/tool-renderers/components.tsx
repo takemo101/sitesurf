@@ -335,7 +335,10 @@ export function ImageLightbox({ src, alt }: { src: string; alt?: string }) {
 
   return (
     <>
-      <UnstyledButton onClick={() => setOpened(true)} style={{ cursor: "zoom-in", display: "block" }}>
+      <UnstyledButton
+        onClick={() => setOpened(true)}
+        style={{ cursor: "zoom-in", display: "block" }}
+      >
         <Image src={src} alt={alt ?? "Image"} style={{ maxWidth: "100%", height: "auto" }} />
       </UnstyledButton>
       {opened && (

@@ -24,12 +24,12 @@ AI → tool call: bg_fetch({ urls: [...], response_type: "readability" })
 
 ### 設計判断: 独立tool vs REPL sandbox関数
 
-| 比較項目 | 独立tool（採用） | REPL sandbox関数 |
-|---|---|---|
-| 結果の扱い | AIコンテキストに直接入る | REPL出力として返る |
-| 並列取得 | `urls: string[]` で1 tool callで実現 | `Promise.all` をAIが書く必要あり |
-| 変更範囲 | sandbox.html, repl.ts 変更不要 | sandbox.html, RuntimeProvider変更必要 |
-| 統一感 | `read_page`, `navigate` と同列 | REPL内の関数として異質 |
+| 比較項目   | 独立tool（採用）                     | REPL sandbox関数                      |
+| ---------- | ------------------------------------ | ------------------------------------- |
+| 結果の扱い | AIコンテキストに直接入る             | REPL出力として返る                    |
+| 並列取得   | `urls: string[]` で1 tool callで実現 | `Promise.all` をAIが書く必要あり      |
+| 変更範囲   | sandbox.html, repl.ts 変更不要       | sandbox.html, RuntimeProvider変更必要 |
+| 統一感     | `read_page`, `navigate` と同列       | REPL内の関数として異質                |
 
 ## API仕様
 
@@ -85,7 +85,7 @@ interface BgFetchResultItem {
   status: number;
   statusText: string;
   headers: Record<string, string>;
-  body: string | object;      // responseTypeに応じた型
+  body: string | object; // responseTypeに応じた型
   redirected?: boolean;
   redirectUrl?: string;
   error?: string;
@@ -93,11 +93,12 @@ interface BgFetchResultItem {
 
 // readability時の body
 interface ReadabilityBody {
-  title: string;              // ページタイトル
-  content: string;            // 本文テキスト（ナビ/広告/サイドバー除去済み）
-  links: Array<{              // 本文内のリンク一覧（ドキュメント探索用）
+  title: string; // ページタイトル
+  content: string; // 本文テキスト（ナビ/広告/サイドバー除去済み）
+  links: Array<{
+    // 本文内のリンク一覧（ドキュメント探索用）
     text: string;
-    href: string;             // 絶対URL（相対パス自動解決）
+    href: string; // 絶対URL（相対パス自動解決）
   }>;
 }
 ```
@@ -107,36 +108,36 @@ interface ReadabilityBody {
 
 ### responseType 別の body 型
 
-| responseType | body の型 | 用途 |
-|---|---|---|
-| `text` (default) | `string` | GitHub raw files, ソースコード, テキスト |
-| `json` | `object` | JSON API レスポンス |
-| `base64` | `string` | 画像等バイナリ |
-| `readability` | `ReadabilityBody` | Webページ（本文抽出+リンク探索） |
+| responseType     | body の型         | 用途                                     |
+| ---------------- | ----------------- | ---------------------------------------- |
+| `text` (default) | `string`          | GitHub raw files, ソースコード, テキスト |
+| `json`           | `object`          | JSON API レスポンス                      |
+| `base64`         | `string`          | 画像等バイナリ                           |
+| `readability`    | `ReadabilityBody` | Webページ（本文抽出+リンク探索）         |
 
 ## セキュリティ仕様
 
 ### URLバリデーション
 
-| チェック項目 | 制限 |
-|---|---|
-| プロトコル | `chrome://`, `chrome-extension://`, `file://`, `data:`, `javascript:` をブロック |
-| ホスト | `localhost`, `127.0.0.1`, `::1`, `0.0.0.0`, `[::1]` をブロック |
-| URL長 | 2000文字上限 |
-| 認証情報 | `user:pass@host` 禁止 |
-| HTTP昇格 | `http://` → `https://` 自動昇格 |
+| チェック項目 | 制限                                                                             |
+| ------------ | -------------------------------------------------------------------------------- |
+| プロトコル   | `chrome://`, `chrome-extension://`, `file://`, `data:`, `javascript:` をブロック |
+| ホスト       | `localhost`, `127.0.0.1`, `::1`, `0.0.0.0`, `[::1]` をブロック                   |
+| URL長        | 2000文字上限                                                                     |
+| 認証情報     | `user:pass@host` 禁止                                                            |
+| HTTP昇格     | `http://` → `https://` 自動昇格                                                  |
 
 ### リクエスト制御
 
-| 項目 | 制限 |
-|---|---|
-| タイムアウト | デフォルト30秒、最大60秒 |
-| レスポンスサイズ | 5MB（1リクエストあたり） |
-| 同時リクエスト | 最大10（セマフォ制御） |
-| URL数/tool call | 最大20 |
-| リダイレクト | 同一ホスト（www有無のみ）自動追従、別ホストは通知 |
-| リダイレクトホップ | 最大10回 |
-| 出力文字数 | 1レスポンスあたり50K文字で切り詰め |
+| 項目               | 制限                                              |
+| ------------------ | ------------------------------------------------- |
+| タイムアウト       | デフォルト30秒、最大60秒                          |
+| レスポンスサイズ   | 5MB（1リクエストあたり）                          |
+| 同時リクエスト     | 最大10（セマフォ制御）                            |
+| URL数/tool call    | 最大20                                            |
+| リダイレクト       | 同一ホスト（www有無のみ）自動追従、別ホストは通知 |
+| リダイレクトホップ | 最大10回                                          |
+| 出力文字数         | 1レスポンスあたり50K文字で切り詰め                |
 
 ### キャッシュ
 
@@ -236,14 +237,17 @@ interface ReadabilityResponse {
 
 ```javascript
 // 1. ファイル一覧取得
-bg_fetch({ urls: ["https://api.github.com/repos/owner/repo/contents/src"], response_type: "json" })
+bg_fetch({ urls: ["https://api.github.com/repos/owner/repo/contents/src"], response_type: "json" });
 
 // 2. 複数ソースファイルを並列取得
-bg_fetch({ urls: [
-  "https://raw.githubusercontent.com/.../index.ts",
-  "https://raw.githubusercontent.com/.../utils.ts",
-  "https://raw.githubusercontent.com/.../types.ts"
-], response_type: "text" })
+bg_fetch({
+  urls: [
+    "https://raw.githubusercontent.com/.../index.ts",
+    "https://raw.githubusercontent.com/.../utils.ts",
+    "https://raw.githubusercontent.com/.../types.ts",
+  ],
+  response_type: "text",
+});
 ```
 
 ### ドキュメント探索（リンク辿り）
@@ -261,23 +265,23 @@ bg_fetch({ urls: [body.links から選んだURL], response_type: "readability" }
 ### JSON API
 
 ```javascript
-bg_fetch({ urls: ["https://api.example.com/data"], response_type: "json" })
+bg_fetch({ urls: ["https://api.example.com/data"], response_type: "json" });
 ```
 
 ## 実装箇所
 
-| ファイル | 変更種別 | 内容 |
-|---|---|---|
-| `src/shared/message-types.ts` | 変更 | BgFetch/Readability メッセージ型 |
+| ファイル                              | 変更種別 | 内容                                                                                 |
+| ------------------------------------- | -------- | ------------------------------------------------------------------------------------ |
+| `src/shared/message-types.ts`         | 変更     | BgFetch/Readability メッセージ型                                                     |
 | `src/background/handlers/bg-fetch.ts` | **新規** | fetchハンドラー（バリデーション、セマフォ、キャッシュ、リダイレクト、offscreen連携） |
-| `src/background/index.ts` | 変更 | bg-fetchハンドラー import |
-| `src/offscreen/index.ts` | **新規** | Readability本文抽出 + リンク抽出 |
-| `public/offscreen.html` | **新規** | offscreen document |
-| `src/features/tools/bg-fetch.ts` | **新規** | ToolDefinition + executeBgFetch |
-| `src/features/tools/index.ts` | 変更 | tool登録 |
-| `public/manifest.json` | 変更 | `"offscreen"` permission追加 |
-| `vite.config.ts` | 変更 | offscreenエントリポイント、chunk、HTMLコピー |
-| `package.json` | 変更 | `@mozilla/readability` 依存追加 |
+| `src/background/index.ts`             | 変更     | bg-fetchハンドラー import                                                            |
+| `src/offscreen/index.ts`              | **新規** | Readability本文抽出 + リンク抽出                                                     |
+| `public/offscreen.html`               | **新規** | offscreen document                                                                   |
+| `src/features/tools/bg-fetch.ts`      | **新規** | ToolDefinition + executeBgFetch                                                      |
+| `src/features/tools/index.ts`         | 変更     | tool登録                                                                             |
+| `public/manifest.json`                | 変更     | `"offscreen"` permission追加                                                         |
+| `vite.config.ts`                      | 変更     | offscreenエントリポイント、chunk、HTMLコピー                                         |
+| `package.json`                        | 変更     | `@mozilla/readability` 依存追加                                                      |
 
 ## 関連ドキュメント
 

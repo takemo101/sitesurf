@@ -1,20 +1,6 @@
 import { useState } from "react";
-import {
-  Badge,
-  Box,
-  Collapse,
-  Group,
-  Loader,
-  Paper,
-  Text,
-  UnstyledButton,
-} from "@mantine/core";
-import {
-  CheckCircle,
-  ChevronDown,
-  ExternalLink,
-  XCircle,
-} from "lucide-react";
+import { Badge, Box, Collapse, Group, Loader, Paper, Text, UnstyledButton } from "@mantine/core";
+import { CheckCircle, ChevronDown, ExternalLink, XCircle } from "lucide-react";
 import { ScrollableResult } from "./components";
 import type { ToolRenderer, ToolRendererContext } from "./types";
 
@@ -77,9 +63,7 @@ function FetchResultCard({ item }: { item: FetchResultItem }) {
       radius="sm"
       withBorder
       style={{
-        borderColor: item.ok
-          ? "var(--mantine-color-green-3)"
-          : "var(--mantine-color-red-3)",
+        borderColor: item.ok ? "var(--mantine-color-green-3)" : "var(--mantine-color-red-3)",
         overflow: "hidden",
       }}
     >
@@ -214,9 +198,8 @@ function getUrls(args: Record<string, unknown>): string[] {
 
 function BgFetchExecuting({ toolCall }: ToolRendererContext) {
   const urls = getUrls(toolCall.args);
-  const responseType = typeof toolCall.args.response_type === "string"
-    ? toolCall.args.response_type
-    : "text";
+  const responseType =
+    typeof toolCall.args.response_type === "string" ? toolCall.args.response_type : "text";
 
   return (
     <Box>
@@ -254,9 +237,8 @@ function BgFetchExecuting({ toolCall }: ToolRendererContext) {
 
 function BgFetchSuccess({ toolCall }: ToolRendererContext) {
   const items = parseResult(toolCall.result);
-  const responseType = typeof toolCall.args.response_type === "string"
-    ? toolCall.args.response_type
-    : "text";
+  const responseType =
+    typeof toolCall.args.response_type === "string" ? toolCall.args.response_type : "text";
   const successCount = items.filter((i) => i.ok).length;
 
   return (
@@ -297,9 +279,8 @@ export const bgFetchToolRenderer: ToolRenderer = {
   renderError: (context) => <BgFetchError {...context} />,
   renderSummary: ({ toolCall }) => {
     const urls = getUrls(toolCall.args);
-    const responseType = typeof toolCall.args.response_type === "string"
-      ? toolCall.args.response_type
-      : "text";
+    const responseType =
+      typeof toolCall.args.response_type === "string" ? toolCall.args.response_type : "text";
     return (
       <Group gap={6}>
         <Badge size="xs" variant="light" color="indigo">

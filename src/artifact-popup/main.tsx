@@ -41,10 +41,7 @@ function useThemeSync(initial: ResolvedTheme): ResolvedTheme {
   const [theme, setTheme] = useState(initial);
 
   useEffect(() => {
-    const listener = (
-      changes: { [key: string]: chrome.storage.StorageChange },
-      area: string,
-    ) => {
+    const listener = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
       if (area !== "local") return;
       const change = changes[THEME_STORAGE_KEY] ?? changes[LEGACY_THEME_STORAGE_KEY];
       if (change) {

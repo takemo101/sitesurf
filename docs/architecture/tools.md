@@ -52,13 +52,13 @@ type Unsubscribe = () => void;
 
 ### ツール定義 → BrowserExecutor 能力のマッピング
 
-| ツール         | 使用する BrowserExecutor メソッド                     |
-| -------------- | ----------------------------------------------------- |
-| `read_page`    | `getActiveTab()` + `readPageContent()`                |
-| `repl`         | `getActiveTab()` + `executeScript()` + `navigateTo()` |
-| `pick_element` | `getActiveTab()` + `injectElementPicker()`            |
-| `screenshot`   | `captureScreenshot()`                                 |
-| `skill`        | ストレージ操作（SkillRegistry経由）                   |
+| ツール         | 使用する BrowserExecutor メソッド                               |
+| -------------- | --------------------------------------------------------------- |
+| `read_page`    | `getActiveTab()` + `readPageContent()`                          |
+| `repl`         | `getActiveTab()` + `executeScript()` + `navigateTo()`           |
+| `pick_element` | `getActiveTab()` + `injectElementPicker()`                      |
+| `screenshot`   | `captureScreenshot()`                                           |
+| `skill`        | ストレージ操作（SkillRegistry経由）                             |
 | `bg_fetch`     | 不使用（`chrome.runtime.sendMessage` で background に直接通信） |
 
 新ツール `click_element` を追加する場合:
@@ -103,15 +103,15 @@ shared/port.ts                          background/index.ts
 
 ### 責務の分離
 
-| モジュール                                   | 責務                                                 | 依存                     |
-| -------------------------------------------- | ---------------------------------------------------- | ------------------------ |
-| `adapters/chrome/chrome-browser-executor.ts` | Chrome API 直接呼び出し。BrowserExecutor Port を実装 | `ports/browser-executor` |
-| `shared/port.ts`                             | Port (長接続) の確立とメッセージ送受信               | 誰にも依存しない         |
-| `background/index.ts`                        | Port 接続受付。セッションロックとパネル追跡のみ処理  | `shared/port` (型契約)   |
-| `background/handlers/session-lock.ts`        | chrome.storage.session を使ったセッション排他ロック  | Chrome API のみ          |
-| `background/handlers/panel-tracker.ts`       | サイドパネルの開閉状態追跡                           | Chrome API のみ          |
-| `background/handlers/native-input.ts`        | Native Input Functions（デバッガー経由）             | Chrome API のみ          |
-| `background/handlers/bg-fetch.ts`            | bg_fetch（URLバリデーション、fetch、セマフォ、キャッシュ） | Chrome API + offscreen  |
+| モジュール                                   | 責務                                                       | 依存                     |
+| -------------------------------------------- | ---------------------------------------------------------- | ------------------------ |
+| `adapters/chrome/chrome-browser-executor.ts` | Chrome API 直接呼び出し。BrowserExecutor Port を実装       | `ports/browser-executor` |
+| `shared/port.ts`                             | Port (長接続) の確立とメッセージ送受信                     | 誰にも依存しない         |
+| `background/index.ts`                        | Port 接続受付。セッションロックとパネル追跡のみ処理        | `shared/port` (型契約)   |
+| `background/handlers/session-lock.ts`        | chrome.storage.session を使ったセッション排他ロック        | Chrome API のみ          |
+| `background/handlers/panel-tracker.ts`       | サイドパネルの開閉状態追跡                                 | Chrome API のみ          |
+| `background/handlers/native-input.ts`        | Native Input Functions（デバッガー経由）                   | Chrome API のみ          |
+| `background/handlers/bg-fetch.ts`            | bg_fetch（URLバリデーション、fetch、セマフォ、キャッシュ） | Chrome API + offscreen   |
 
 **ツール実行はすべて Side Panel から直接 Chrome API を呼び出す。**
 Background は以下に特化:
