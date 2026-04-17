@@ -103,10 +103,7 @@ function normalizeUrl(url: string): string {
 }
 
 /** 訪問済みURLの再訪問警告メッセージを生成する（再訪問でなければ null） */
-function trackVisitedUrl(
-  visitedUrls: Map<string, number>,
-  url: string,
-): string | null {
+function trackVisitedUrl(visitedUrls: Map<string, number>, url: string): string | null {
   const normalized = normalizeUrl(url);
   const count = (visitedUrls.get(normalized) ?? 0) + 1;
   visitedUrls.set(normalized, count);
@@ -117,10 +114,7 @@ function trackVisitedUrl(
 }
 
 /** bg_fetch 結果から SPA ドメインを検出・追跡し、警告メッセージを返す */
-function trackSpaDomainsFromBgFetch(
-  spaDetectedDomains: Set<string>,
-  toolValue: unknown,
-): string {
+function trackSpaDomainsFromBgFetch(spaDetectedDomains: Set<string>, toolValue: unknown): string {
   let warning = "";
   try {
     const items = Array.isArray(toolValue) ? toolValue : [toolValue];
@@ -314,7 +308,9 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
           ? JSON.stringify(toolResult.value)
           : `Error: ${toolResult.error.message}`;
 
-        if (!resultStr.includes("data:image/")) {
+        const securityEnabled = useStore.getState().settings.enableSecurityMiddleware;
+
+        if (securityEnabled && !resultStr.includes("data:image/")) {
           const securityResult = await securityMiddleware.processToolOutput(resultStr, {
             source: name,
             sessionId: session.id,

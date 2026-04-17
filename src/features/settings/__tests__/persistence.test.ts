@@ -33,6 +33,7 @@ describe("persistence", () => {
       maxTokens: 8192,
       enableMcpServer: false,
       enableBgFetch: false,
+      enableSecurityMiddleware: true,
     };
 
     await saveSettings(storage, data);
@@ -62,6 +63,7 @@ describe("persistence", () => {
       maxTokens: 8192,
       enableMcpServer: false,
       enableBgFetch: false,
+      enableSecurityMiddleware: true,
     };
     const data2: Settings = {
       provider: "openai",
@@ -82,6 +84,7 @@ describe("persistence", () => {
       maxTokens: 8192,
       enableMcpServer: false,
       enableBgFetch: false,
+      enableSecurityMiddleware: true,
     };
 
     await saveSettings(storage, data1);
@@ -253,5 +256,38 @@ describe("persistence", () => {
       model: "claude-sonnet-4-6",
       modelByProvider: { anthropic: "" },
     });
+  });
+
+  it("enableSecurityMiddleware 未設定の legacy 設定はデフォルトで true に解決する", async () => {
+    const storage = new InMemoryStorage();
+
+    await storage.set("sitesurf_settings", {
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      apiKey: "sk-test",
+      enableMcpServer: false,
+      enableBgFetch: false,
+    });
+
+    const result = await loadSettings(storage);
+
+    expect(result?.enableSecurityMiddleware).toBe(true);
+  });
+
+  it("enableSecurityMiddleware=false は永続化されて復元される", async () => {
+    const storage = new InMemoryStorage();
+
+    await storage.set("sitesurf_settings", {
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      apiKey: "sk-test",
+      enableMcpServer: false,
+      enableBgFetch: false,
+      enableSecurityMiddleware: false,
+    });
+
+    const result = await loadSettings(storage);
+
+    expect(result?.enableSecurityMiddleware).toBe(false);
   });
 });

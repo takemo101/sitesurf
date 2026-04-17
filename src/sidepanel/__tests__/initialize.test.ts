@@ -131,6 +131,7 @@ describe("initializeApp", () => {
       maxTokens: 8192,
       enableMcpServer: false,
       enableBgFetch: false,
+      enableSecurityMiddleware: true,
     };
     await storage.set("sitesurf_settings", loadedSettings);
 
