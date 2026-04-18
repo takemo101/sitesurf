@@ -80,7 +80,7 @@ export async function loadSettings(storage: StoragePort): Promise<Settings | nul
     maxTokensByProvider,
     reasoningLevel: reasoningLevelByProvider[provider] ?? raw.reasoningLevel ?? "medium",
     maxTokens: maxTokensByProvider[provider] ?? raw.maxTokens ?? DEFAULT_MAX_TOKENS,
-    autoCompact: raw.autoCompact ?? false,
+    autoCompact: raw.autoCompact ?? true,
     enableBgFetch: raw.enableBgFetch ?? false,
     enableSecurityMiddleware: raw.enableSecurityMiddleware ?? true,
   };
