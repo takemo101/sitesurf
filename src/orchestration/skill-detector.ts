@@ -22,7 +22,7 @@ export function buildSkillDetectionMessage(
     content: [
       {
         type: "text",
-        text: `${SKILL_DETECTION_PREFIX}\n\n${lines.join("\n\n")}\n\nSkill extractor code is stored as full function source. Reconstruct it with \`const fn = new Function(\`return (\${code})\`)();\` and pass that function to \`browserjs(fn)\` when you want to run one.`,
+        text: `${SKILL_DETECTION_PREFIX}\n\n${lines.join("\n\n")}\n\nCall matching skill extractors directly inside \`browserjs()\` via the runtime-injected window object, for example: \`browserjs(() => window.youtube.getVideoInfo())\`.`,
       },
     ],
   };

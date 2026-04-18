@@ -4,7 +4,7 @@ import { buildSkillDetectionMessage } from "../skill-detector";
 import type { SkillMatch } from "@/features/tools/skills";
 
 describe("buildSkillDetectionMessage", () => {
-  it("guides the model to reconstruct extractor functions without the old new Function(code) form", () => {
+  it("guides the model to call runtime-injected skill extractors", () => {
     const matches: SkillMatch[] = [
       {
         skill: {
@@ -15,7 +15,7 @@ describe("buildSkillDetectionMessage", () => {
           version: "1.0.0",
           extractors: [
             {
-              id: "video-info",
+              id: "getVideoInfo",
               name: "Video Info",
               description: "Get video info",
               code: "function () { return document.title; }",
@@ -25,7 +25,7 @@ describe("buildSkillDetectionMessage", () => {
         },
         availableExtractors: [
           {
-            id: "video-info",
+            id: "getVideoInfo",
             name: "Video Info",
             description: "Get video info",
             code: "function () { return document.title; }",
@@ -44,6 +44,7 @@ describe("buildSkillDetectionMessage", () => {
     if (text?.type !== "text") return;
 
     expect(text.text).not.toContain("browserjs(new Function(code))");
-    expect(text.text).toContain("new Function(`return (${code})`)()");
+    expect(text.text).not.toContain("new Function(`return (${code})`)()");
+    expect(text.text).toContain("window.youtube.getVideoInfo()");
   });
 });
