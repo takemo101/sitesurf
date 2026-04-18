@@ -18,6 +18,13 @@
         return sendToParent("navigate", { url });
       }
 
+      async function readPage(maxDepth) {
+        if (maxDepth !== undefined && typeof maxDepth !== "number") {
+          throw new Error("readPage: maxDepth must be a number or omitted");
+        }
+        return sendToParent("readPage", { maxDepth });
+      }
+
       async function bgFetch(url, options) {
         if (typeof url !== "string" || !url) {
           throw new Error("bgFetch: url must be a non-empty string");
@@ -250,6 +257,7 @@
             const fn = new AsyncFunction(
               "browserjs",
               "navigate",
+              "readPage",
               "bgFetch",
               "skills",
               "createOrUpdateArtifact",
@@ -275,6 +283,7 @@
             const result = await fn(
               browserjs,
               navigate,
+              readPage,
               bgFetch,
               skills,
               createOrUpdateArtifact,
