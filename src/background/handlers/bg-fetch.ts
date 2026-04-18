@@ -411,7 +411,14 @@ async function convertResponse(
 
 // --- Main handler ---
 
-async function handleBgFetch(msg: BgFetchMessage): Promise<BgFetchResponse> {
+/**
+ * 1 URL 分の fetch を background 側インフラ (semaphore / cache / redirect /
+ * offscreen readability) を通して実行する。
+ *
+ * 通常は chrome.runtime onMessage 経由で呼ばれるが、同一プロセスからの
+ * 直接呼び出しもサポートする（FetchProvider / テスト用途）。
+ */
+export async function fetchOneWithBgInfra(msg: BgFetchMessage): Promise<BgFetchResponse> {
   // Validate method
   let method: string;
   try {
@@ -488,7 +495,7 @@ chrome.runtime.onMessage.addListener(
     sendResponse: (response: BgFetchResponse) => void,
   ) => {
     if (msg.type === "BG_FETCH") {
-      handleBgFetch(msg as BgFetchMessage)
+      fetchOneWithBgInfra(msg as BgFetchMessage)
         .then(sendResponse)
         .catch((err) =>
           sendResponse({
