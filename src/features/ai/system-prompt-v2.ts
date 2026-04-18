@@ -29,6 +29,14 @@ const BASE_SECTIONS: SectionKey[] = [
   "COMPLETION_PRINCIPLE",
 ];
 
+function formatPropertyAccess(value: string): string {
+  return /^[$A-Z_a-z][0-9A-Z_a-z$]*$/u.test(value) ? `.${value}` : `[${JSON.stringify(value)}]`;
+}
+
+function formatWindowSkillCall(skillId: string, extractorId: string): string {
+  return `window${formatPropertyAccess(skillId)}${formatPropertyAccess(extractorId)}()`;
+}
+
 function generateSkillsSection(skills: SkillMatch[]): string {
   const active = skills.filter((m) => m.availableExtractors.length > 0);
 
@@ -70,24 +78,20 @@ function renderSkillEntries(skills: SkillMatch[]): string {
   for (const match of skills) {
     const { skill, availableExtractors } = match;
     const target = skill.scope === "global" ? "any page" : skill.matchers.hosts.join(", ");
-    lines.push(`**${skill.name}** (${target}):\n`);
+    lines.push(`**${skill.name}** (id: ${skill.id}, ${target})`);
+    lines.push(skill.description);
+    lines.push("");
 
     for (const ext of availableExtractors) {
-      lines.push(`- ${ext.name}: ${ext.description}`);
+      lines.push(`- ${ext.id}(): ${ext.outputSchema} — ${ext.description}`);
     }
 
     lines.push("");
-    lines.push("Run extractor.code by reconstructing it first:");
+    lines.push("Call skill extractors from browserjs() via the runtime-injected window object:");
     lines.push("```javascript");
     lines.push(
-      `const code = skills["${skill.id}"].extractors["${availableExtractors[0].id}"].code;`,
+      `const info = await browserjs(() => ${formatWindowSkillCall(skill.id, availableExtractors[0].id)});`,
     );
-    lines.push("const fn = new Function(`return (${code})`)();");
-    lines.push("const result = await browserjs(fn);");
-    lines.push("```");
-    lines.push("");
-    lines.push("```javascript");
-    lines.push(availableExtractors[0].code.trim());
     lines.push("```");
     lines.push("");
   }
