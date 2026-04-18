@@ -1,3 +1,5 @@
+import type { BrowserExecutor } from "@/ports/browser-executor";
+import type { AppError, Result } from "@/shared/errors";
 import { createLogger } from "@/shared/logger";
 import type { VisitedUrlEntry } from "@/features/ai";
 
@@ -70,6 +72,69 @@ export function pruneVisitedUrls(visitedUrls: Map<string, VisitedUrlEntry>): voi
   const toRemove = entries.length - MAX_VISITED_URLS;
   for (let i = 0; i < toRemove; i++) {
     visitedUrls.delete(entries[i][0]);
+  }
+}
+
+/**
+ * ツール結果から訪問 URL を抽出して `visitedUrls` に in-place で追記する。
+ *
+ * - `navigate`: `finalUrl` / `title` を使用
+ * - `bg_fetch`: 各要素の `url` を個別に追記
+ *
+ * `repl` 経由のナビゲーションは tool 結果から辿れないので
+ * {@link detectUrlChangeAfterNavTool} 側で tab 情報から別途追跡する。
+ */
+export function trackVisitedUrlsFromToolResult(
+  name: string,
+  toolResult: Result<unknown, AppError>,
+  visitedUrls: Map<string, VisitedUrlEntry>,
+): void {
+  if (!toolResult.ok) return;
+  if (name === "navigate") {
+    const navResult = toolResult.value as { finalUrl?: string; title?: string };
+    if (navResult.finalUrl) {
+      const title = navResult.title || extractHostname(navResult.finalUrl);
+      trackVisitedUrl(visitedUrls, navResult.finalUrl, title, "navigate");
+    }
+    return;
+  }
+  if (name === "bg_fetch") {
+    const items = Array.isArray(toolResult.value) ? toolResult.value : [toolResult.value];
+    for (const item of items) {
+      const it = item as { url?: string };
+      if (it.url) {
+        trackVisitedUrl(visitedUrls, it.url, extractHostname(it.url), "bg_fetch");
+      }
+    }
+  }
+}
+
+/**
+ * navigate / repl 実行後にアクティブ tab の URL を確認する。
+ *
+ * - repl 経由で URL が変わっていれば `visitedUrls` に追記する
+ *   （navigate ツール直接呼び出しは {@link trackVisitedUrlsFromToolResult} で追跡済みなのでここでは対象外）
+ * - 新しい URL を返す。呼び出し側で直前の currentUrl と比較し、変化していれば
+ *   スキル再構築のためのメッセージ再構築を行う。
+ *
+ * tab 取得に失敗した場合は例外を握りつぶして空文字列を返す（ブラウザ側の
+ * 一時的な状態に依存するため、失敗してもエージェントループは継続する）。
+ */
+export async function detectUrlChangeAfterNavTool(
+  toolName: string,
+  browser: BrowserExecutor,
+  visitedUrls: Map<string, VisitedUrlEntry>,
+): Promise<string> {
+  try {
+    const tab = await browser.getActiveTab();
+    const newUrl = tab.url || "";
+    if (toolName === "repl" && newUrl) {
+      const title = tab.title || extractHostname(newUrl);
+      trackVisitedUrl(visitedUrls, newUrl, title, "navigate");
+    }
+    return newUrl;
+  } catch {
+    return "";
   }
 }
 
