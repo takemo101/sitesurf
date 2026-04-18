@@ -208,6 +208,7 @@ export function useAgent() {
           reasoningLevel: settings.reasoningLevel,
           maxTokens: settings.maxTokens,
           autoCompact: settings.autoCompact,
+          enableSecurityMiddleware: settings.enableSecurityMiddleware,
         },
         session,
         tools: getAgentToolDefs({
@@ -226,6 +227,32 @@ export function useAgent() {
         onCredentialsUpdate: (creds) => {
           useStore.getState().setCredentials(creds);
           saveSettings(deps.storage, useStore.getState().settings);
+        },
+        // context-compressor が session.summary を更新した時に、UI 側の
+        // activeSessionSnapshot を差し替える（orchestration から Zustand を
+        // 直接触らないための注入）
+        onSessionSummaryUpdate: (nextSession) => {
+          const { activeSessionSnapshot, setActiveSession } = useStore.getState();
+          if (activeSessionSnapshot?.id === nextSession.id && nextSession.summary) {
+            setActiveSession({ ...activeSessionSnapshot, summary: nextSession.summary });
+          }
+        },
+        // repl が新しい artifact を作成したら自動選択・プレビュー可能なら
+        // パネルを展開する。agent-loop 側は snapshot / onReplCompleted を呼ぶだけ。
+        artifactAutoExpand: {
+          snapshotNames: () => new Set(useStore.getState().artifacts.map((a) => a.name)),
+          onReplCompleted: async (prevNames) => {
+            await useStore.getState().loadArtifacts();
+            const { artifacts } = useStore.getState();
+            const newArtifact = artifacts.find((a) => !prevNames.has(a.name));
+            if (!newArtifact) return;
+            useStore.getState().selectArtifact(newArtifact.name);
+            // プレビュー価値の高い HTML/Markdown だけ自動でパネルを開く。
+            // JSON/画像/テキスト等は選択のみ行い、既存のパネル状態を維持する。
+            if (newArtifact.type === "html" || newArtifact.type === "markdown") {
+              useStore.getState().setArtifactPanelOpen(true);
+            }
+          },
         },
       })
         .then(() => {

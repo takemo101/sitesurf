@@ -1,11 +1,4 @@
-import type {
-  AIMessage,
-  AIProvider,
-  AssistantContent,
-  TokenUsage,
-  ToolDefinition,
-  UserContent,
-} from "@/ports/ai-provider";
+import type { AIMessage, AIProvider, TokenUsage, ToolDefinition } from "@/ports/ai-provider";
 import type { AuthCredentials, AuthProvider } from "@/ports/auth-provider";
 import type { BrowserExecutor } from "@/ports/browser-executor";
 import type { ChatMessage, Session } from "@/ports/session-types";
@@ -14,10 +7,8 @@ import type { AppError, Result } from "@/shared/errors";
 import { createLogger } from "@/shared/logger";
 import { sleep } from "@/shared/utils";
 import { createSecurityMiddleware, type SecurityMiddleware } from "@/features/security/middleware";
-import { convertNavigationForAPI } from "./navigation-converter";
 import { calculateBackoff, isRetryable, RETRY_CONFIG } from "./retry";
-import { estimateTokens } from "./context-compressor";
-import { compressIfNeeded, stripStructuredSummaryMessage } from "./context-compressor";
+import { compressIfNeeded, estimateTokens } from "./context-compressor";
 import {
   buildContextBudgetBreakdown,
   getContextBudget,
@@ -33,14 +24,25 @@ import {
 import { prepareMessagesForTurn, trimMessagesToThreshold } from "./context-manager";
 import type { SkillRegistry } from "@/shared/skill-registry";
 import type { SkillMatch } from "@/shared/skill-types";
-import { buildSkillDetectionMessage, isSkillDetectionMessage } from "./skill-detector";
-import { useStore } from "@/store/index";
 import type { ProviderId } from "@/shared/constants";
-import { normalizeConsoleLogEntry, defaultConsoleLogService } from "@/shared/console-log-types";
+import {
+  detectUrlChangeAfterNavTool,
+  trackVisitedUrlsFromToolResult,
+} from "./visited-url-tracker";
+import { executeToolWithTracking, makeReplConsoleHooks } from "./tool-execution-pipeline";
+import {
+  buildAssistantMessageContent,
+  buildMessagesForAPI,
+  toPersistedHistory,
+} from "./messages-builder";
+
+// 既存テスト / 外部呼び出し互換のため、ここからも再エクスポートする。
+export { pruneVisitedUrls, trackVisitedUrl } from "./visited-url-tracker";
+export { normalizeImageForApi } from "./messages-builder";
+export { toPersistedHistory };
 
 const log = createLogger("agent-loop");
 const defaultSecurityMiddleware = createSecurityMiddleware();
-const SESSION_SUMMARY_PREFIX = "[過去の会話の要約]\n";
 
 export interface AgentLoopDeps {
   createAIProvider: (settings: Settings) => AIProvider;
@@ -89,6 +91,25 @@ export interface Settings {
   reasoningLevel?: string;
   maxTokens?: number;
   autoCompact?: boolean;
+  /** true なら tool 出力を Security middleware に通す。未指定時は true と見なす */
+  enableSecurityMiddleware?: boolean;
+}
+
+/**
+ * artifact ストレージから最新 artifact 一覧を取得し、repl 実行前後の差分
+ * 検出 / 自動選択 / 自動パネル展開を行う UI 層側フック。
+ *
+ * agent-loop 本体は UI state（Zustand store）を直接触らない。必要な副作用
+ * はこのコールバックを通じて sidepanel 側から注入される。
+ */
+export interface ArtifactAutoExpandHook {
+  /** repl 呼び出し直前の既知 artifact 名集合を返す */
+  snapshotNames(): Set<string>;
+  /**
+   * ストレージの最新状態を store に再読込し、snapshot 時点になかった
+   * artifact を検出したら選択・（プレビュー可能形式なら）パネル展開する。
+   */
+  onReplCompleted(prevNames: Set<string>): Promise<void>;
 }
 
 export interface AgentLoopParams {
@@ -104,12 +125,27 @@ export interface AgentLoopParams {
   skillMatches?: SkillMatch[];
   credentials?: AuthCredentials;
   onCredentialsUpdate?: (creds: AuthCredentials | null) => void;
+  /**
+   * context-compressor が session.summary を更新したとき、UI 側の active
+   * session snapshot に同期するためのコールバック。未指定なら何もしない。
+   */
+  onSessionSummaryUpdate?: (session: Session) => void;
+  /**
+   * repl 実行後に artifact の差分を反映するためのフック。未指定なら
+   * repl による自動 artifact 反映は行わない。
+   */
+  artifactAutoExpand?: ArtifactAutoExpandHook;
+  /**
+   * shownSkillIds の読み取り / 更新フック。未指定なら差分注入は無効
+   * (毎ターン full skill で送信)。
+   */
+  getShownSkillIds?: () => ReadonlySet<string>;
+  onSkillsShown?: (ids: string[]) => void;
 }
 
 export type { ToolExecutor } from "@/ports/tool-executor";
 
 const MAX_TURNS = 25;
-const MAX_VISITED_URLS = 20;
 
 function shouldIncludeCommonPatternsOnTurn(
   messages: AIMessage[],
@@ -134,95 +170,6 @@ function buildToolsForTurn(
   });
 }
 
-/** 末尾スラッシュを除去してURLを正規化する */
-function normalizeUrl(url: string): string {
-  return url.replace(/\/$/, "");
-}
-
-/** URLからホスト名を抽出する（パース失敗時はURLをそのまま返す） */
-function extractHostname(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return url;
-  }
-}
-
-/**
- * 訪問済み URL をトラッキングする。system prompt の "Current Session: Visited URLs"
- * セクションに反映されるほか、重複ログの抑制にも使う。
- *
- * 以前は `visitCount >= URL_REVISIT_THRESHOLD` で警告を返却していたが、
- * 同一 URL を正当に何度も参照するワークフロー（ドキュメント参照、状態確認等）
- * があるため撤廃。必要なら AI は履歴から前回の取得結果を直接参照できる。
- */
-export function trackVisitedUrl(
-  visitedUrls: Map<string, VisitedUrlEntry>,
-  url: string,
-  title: string,
-  method: VisitedUrlEntry["lastMethod"],
-): void {
-  const normalized = normalizeUrl(url);
-  const existing = visitedUrls.get(normalized);
-  const entry: VisitedUrlEntry = {
-    url,
-    title,
-    visitedAt: Date.now(),
-    visitCount: (existing?.visitCount ?? 0) + 1,
-    lastMethod: method,
-  };
-  visitedUrls.set(normalized, entry);
-  pruneVisitedUrls(visitedUrls);
-
-  if (entry.visitCount > 1) {
-    log.info("visitedUrl revisit count", {
-      url: normalized,
-      title,
-      method,
-      visitCount: entry.visitCount,
-    });
-  }
-}
-
-/** MAX_VISITED_URLS を超えたとき、訪問回数が少なく古いエントリを削除する */
-export function pruneVisitedUrls(visitedUrls: Map<string, VisitedUrlEntry>): void {
-  if (visitedUrls.size <= MAX_VISITED_URLS) return;
-  const entries = [...visitedUrls.entries()];
-  entries.sort(([, a], [, b]) => {
-    if (a.visitCount !== b.visitCount) return a.visitCount - b.visitCount;
-    return a.visitedAt - b.visitedAt;
-  });
-  const toRemove = entries.length - MAX_VISITED_URLS;
-  for (let i = 0; i < toRemove; i++) {
-    visitedUrls.delete(entries[i][0]);
-  }
-}
-
-/** bg_fetch 結果から SPA ドメインを検出・追跡し、警告メッセージを返す */
-function trackSpaDomainsFromBgFetch(spaDetectedDomains: Set<string>, toolValue: unknown): string {
-  let warning = "";
-  try {
-    const items = Array.isArray(toolValue) ? toolValue : [toolValue];
-    for (const item of items) {
-      const it = item as { url?: string; spaWarning?: string };
-      if (!it.url) continue;
-      // spaWarning があればドメインを登録
-      if (it.spaWarning) {
-        spaDetectedDomains.add(new URL(it.url).hostname);
-      } else {
-        // spaWarning がなくても既知 SPA ドメインなら警告
-        const host = new URL(it.url).hostname;
-        if (spaDetectedDomains.has(host)) {
-          warning += `\n\n⚠️ WARNING: The domain "${host}" was previously detected as a SPA/CSR site. bg_fetch cannot retrieve JS-rendered content from this domain. Use navigate() + repl with readPage()/browserjs() instead.`;
-        }
-      }
-    }
-  } catch {
-    // Ignore
-  }
-  return warning;
-}
-
 function isContextOverflowError(error: AppError): boolean {
   const msg = error.message.toLowerCase();
   return (
@@ -232,69 +179,6 @@ function isContextOverflowError(error: AppError): boolean {
       msg.includes("too long") ||
       msg.includes("context_length"))
   );
-}
-
-function isLeadingSessionSummaryMessage(
-  message: AIMessage | undefined,
-  summaryText?: string,
-): boolean {
-  if (!message || !summaryText || message.role !== "user") return false;
-  if (!Array.isArray(message.content) || message.content.length !== 1) return false;
-
-  const [part] = message.content;
-  return part.type === "text" && part.text === `${SESSION_SUMMARY_PREFIX}${summaryText}`;
-}
-
-function stripLeadingSessionSummaryMessage(
-  messages: AIMessage[],
-  summaryText?: string,
-): AIMessage[] {
-  if (!isLeadingSessionSummaryMessage(messages[0], summaryText)) {
-    return messages;
-  }
-  return messages.slice(1);
-}
-
-// 構造化要約メッセージ（[構造化要約]\n...）は圧縮直後の in-memory messages 先頭に
-// 残るが、セッション永続化の履歴には session.summary として別途保持するため
-// 重複送信・残骸蓄積を避けるために先頭から外しておく。
-function stripLeadingStructuredSummary(messages: AIMessage[]): AIMessage[] {
-  if (stripStructuredSummaryMessage(messages[0]) === undefined) {
-    return messages;
-  }
-  return messages.slice(1);
-}
-
-// Phase 2 で get_tool_result ツールを廃止する前に作られたセッションの履歴には
-// `Stored: tool_result://...` / `Use get_tool_result("...") for full content.` の
-// マーカー行が残り続けており、それを読み取った AI が存在しないツールを呼び出して
-// invalid-tool エラーを起こす。履歴読み込み / 書き戻しのいずれの経路でも
-// マーカーを除去して、ユーザが気づかないうちにセッションを健全化する。
-const LEGACY_STORED_MARKER_RE = /\nStored: tool_result:\/\/[^\n]+\n?/g;
-const LEGACY_USE_MARKER_RE = /\nUse get_tool_result\("[^"]+"\) for full content\.\n?/g;
-
-function stripLegacyToolResultMarkers(messages: AIMessage[]): AIMessage[] {
-  let mutated = false;
-  const next = messages.map((message) => {
-    if (message.role !== "tool" || typeof message.result !== "string") return message;
-    const cleaned = message.result
-      .replace(LEGACY_STORED_MARKER_RE, "\n")
-      .replace(LEGACY_USE_MARKER_RE, "\n");
-    if (cleaned === message.result) return message;
-    mutated = true;
-    return { ...message, result: cleaned };
-  });
-  return mutated ? next : messages;
-}
-
-export function toPersistedHistory(messages: AIMessage[], summaryText?: string): AIMessage[] {
-  const withoutSkillMessages = messages.filter((message) => !isSkillDetectionMessage(message));
-  const withoutStructuredSummary = stripLeadingStructuredSummary(withoutSkillMessages);
-  const withoutSessionSummary = stripLeadingSessionSummaryMessage(
-    withoutStructuredSummary,
-    summaryText,
-  );
-  return stripLegacyToolResultMarkers(withoutSessionSummary);
 }
 
 export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
@@ -395,13 +279,37 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
       >();
       const toolCallsAdded = new Set<string>();
 
+      // navigate/repl 呼び出し中だけ立てる「ツールによる遷移中」フラグのライフサイクル。
+      // navFlagTimer は外側スコープ。連続 navigate 時に前回の setTimeout をキャンセルし、
+      // 後発 navigate のフラグが意図せず false に戻らないようにしている。
+      const beginNavFlag = (): void => {
+        if (navFlagTimer !== null) {
+          clearTimeout(navFlagTimer);
+          navFlagTimer = null;
+        }
+        chatStore.setToolNavigating?.(true);
+      };
+      const endNavFlagAfterDelay = (): void => {
+        // SPA の初期ルーティング完了を待ってからフラグをクリアする。
+        // DOMContentLoaded 直後に SPA が CSR リダイレクトするケースでの抑制漏れを防ぐ。
+        navFlagTimer = setTimeout(() => {
+          navFlagTimer = null;
+          chatStore.setToolNavigating?.(false);
+        }, 500);
+      };
+      const notifyUserOfSecurityBlock = (): void => {
+        chatStore.addSystemMessage(
+          "⚠️ ツール出力内に不審な指示らしきテキストを検出したため、AI には安全な要約だけを返しました。",
+        );
+      };
+
       const executeToolCall = async (
         id: string,
         name: string,
         args: Record<string, unknown>,
         providerOptions?: Record<string, Record<string, unknown>>,
       ) => {
-        log.debug("tool-call", { name, args });
+        // --- 1) Chat UI に「実行中」を反映 ---
         if (!toolCallsAdded.has(id)) {
           chatStore.addToolCall({ id, name, args, isRunning: true });
           toolCallsAdded.add(id);
@@ -409,179 +317,81 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
           chatStore.updateToolCallArgs(id, args);
         }
 
+        // --- 2) navigate/repl は tab-update 由来の navigation message を抑制 ---
         const isNavTool = name === "navigate" || name === "repl";
-        if (isNavTool) {
-          if (navFlagTimer !== null) {
-            clearTimeout(navFlagTimer);
-            navFlagTimer = null;
-          }
-          chatStore.setToolNavigating?.(true);
-        }
+        if (isNavTool) beginNavFlag();
 
-        let toolResult: Result<unknown, AppError>;
+        // repl 実行後に artifact の差分を検出するため、事前スナップショットを取る
+        const replPrevNames =
+          name === "repl" && params.artifactAutoExpand
+            ? params.artifactAutoExpand.snapshotNames()
+            : null;
+
+        // --- 3) Security / screenshot / bg_fetch SPA 警告は pipeline 内で処理 ---
+        const consoleHooks = makeReplConsoleHooks(id);
+        let pipelineResult: Awaited<ReturnType<typeof executeToolWithTracking>>;
         try {
-          toolResult = await toolExecutor(name, args, deps.browserExecutor, undefined, {
-            onConsoleStart:
-              name === "repl"
-                ? () => {
-                    defaultConsoleLogService.clear(id);
-                  }
-                : undefined,
-            onConsoleLog:
-              name === "repl"
-                ? (message) => {
-                    const normalized = normalizeConsoleLogEntry(message);
-                    defaultConsoleLogService.append(id, {
-                      level: normalized.level,
-                      message: normalized.message,
-                      timestamp: normalized.timestamp,
-                    });
-                  }
-                : undefined,
-          });
-        } catch (e: unknown) {
-          toolResult = {
-            ok: false,
-            error: {
-              code: "tool_script_error",
-              message: e instanceof Error ? e.message : String(e),
-            },
-          };
-        } finally {
-          if (isNavTool) {
-            // SPA の初期ルーティング完了を待ってからフラグをクリアする。
-            // DOMContentLoaded 直後に SPA がクライアントサイドリダイレクトを行い、
-            // onTabUpdated が遅延発火するケースでの抑制漏れを防ぐ。
-            // 連続 navigate 時は新しい setToolNavigating(true) で前のタイマーを
-            // キャンセル済みなので、後の navigate のフラグが意図せずクリアされない。
-            navFlagTimer = setTimeout(() => {
-              navFlagTimer = null;
-              chatStore.setToolNavigating?.(false);
-            }, 500);
-          }
-        }
-        pendingToolCalls.push({ id, name, args, providerOptions });
-        let fullResult = toolResult.ok
-          ? JSON.stringify(toolResult.value)
-          : `Error: ${toolResult.error.message}`;
-
-        const securityEnabled = useStore.getState().settings.enableSecurityMiddleware;
-
-        if (securityEnabled && !fullResult.includes("data:image/")) {
-          const securityResult = await securityMiddleware.processToolOutput(fullResult, {
-            source: name,
+          pipelineResult = await executeToolWithTracking({
+            toolCall: { id, name, args },
+            browser: deps.browserExecutor,
+            toolExecutor,
+            securityMiddleware,
+            securityEnabled: settings.enableSecurityMiddleware ?? true,
             sessionId: session.id,
+            spaDetectedDomains,
+            onConsoleStart: consoleHooks.onConsoleStart,
+            onConsoleLog: consoleHooks.onConsoleLog,
+            onSecurityBlocked: notifyUserOfSecurityBlock,
           });
+        } finally {
+          if (isNavTool) endNavFlagAfterDelay();
+        }
 
-          if (securityResult.alert) {
-            chatStore.addSystemMessage(
-              "⚠️ ツール出力内に不審な指示らしきテキストを検出したため、AI には安全な要約だけを返しました。",
+        const { toolResult, fullResult } = pipelineResult;
+        pendingToolCalls.push({ id, name, args, providerOptions });
+
+        // --- 4) ツール結果から訪問 URL を追跡 ---
+        trackVisitedUrlsFromToolResult(name, toolResult, visitedUrls);
+
+        // --- 5) navigate/repl 後の URL 変化検出: スキル再構築 + repl 訪問追跡 ---
+        if (isNavTool) {
+          const newUrl = await detectUrlChangeAfterNavTool(
+            name,
+            deps.browserExecutor,
+            visitedUrls,
+          );
+          if (newUrl && newUrl !== currentUrl) {
+            currentUrl = newUrl;
+            messages = buildMessagesForAPI(
+              currentSession,
+              chatStore.getMessages(),
+              currentUrl,
+              skillRegistry,
+              { historyUserCount: rebuiltHistoryUserCount },
             );
-            const blockedPayload = {
-              securityAlert: {
-                kind: securityResult.alert.kind,
-                confidence: securityResult.alert.confidence,
-                matches: securityResult.alert.matches,
-                message: securityResult.alert.message,
-              },
-            };
-            fullResult = JSON.stringify(blockedPayload);
-            toolResult = toolResult.ok
-              ? { ok: true, value: blockedPayload }
-              : {
-                  ok: false,
-                  error: {
-                    code: "tool_output_blocked",
-                    message: "Security middleware blocked suspicious tool output.",
-                  },
-                };
           }
         }
 
-        if (fullResult.includes("data:image/")) {
-          fullResult = "[screenshot captured]";
-        }
-
-        // --- ツール別ポスト処理: 訪問追跡・SPA検出・スキル再構築 ---
-
-        if (name === "navigate" && toolResult.ok) {
-          const navResult = toolResult.value as { finalUrl?: string; title?: string };
-          if (navResult.finalUrl) {
-            const title = navResult.title || extractHostname(navResult.finalUrl);
-            trackVisitedUrl(visitedUrls, navResult.finalUrl, title, "navigate");
-          }
-        }
-
-        if (name === "bg_fetch" && toolResult.ok) {
-          fullResult += trackSpaDomainsFromBgFetch(spaDetectedDomains, toolResult.value);
-          const items = Array.isArray(toolResult.value) ? toolResult.value : [toolResult.value];
-          for (const item of items) {
-            const it = item as { url?: string };
-            if (it.url) {
-              trackVisitedUrl(visitedUrls, it.url, extractHostname(it.url), "bg_fetch");
-            }
-          }
-        }
-
-        // navigate/repl 後のURL変化検出: スキル再構築 + repl 訪問追跡
-        if (name === "navigate" || name === "repl") {
-          try {
-            const tab = await deps.browserExecutor.getActiveTab();
-            const newUrl = tab.url || "";
-            // repl 経由のナビゲーションは currentUrl と同じでも追跡する。
-            // navigate ツール直接呼び出しは上で追跡済みなのでここでは repl のみ。
-            if (name === "repl" && newUrl) {
-              const title = tab.title || extractHostname(newUrl);
-              trackVisitedUrl(visitedUrls, newUrl, title, "navigate");
-            }
-            if (newUrl && newUrl !== currentUrl) {
-              currentUrl = newUrl;
-              messages = buildMessagesForAPI(
-                currentSession,
-                chatStore.getMessages(),
-                currentUrl,
-                skillRegistry,
-                { historyUserCount: rebuiltHistoryUserCount },
-              );
-            }
-          } catch {
-            // Ignore error
-          }
-        }
-
-        chatStore.updateToolCallResult(id, toolResult);
-
+        // --- 6) Chat UI / 履歴に結果を反映 ---
         // ツール結果はフルサイズで履歴に残す。文脈が溢れそうになったら
-        // compressMessagesIfNeeded（context-compressor）が LLM 要約で古い部分を畳む。
-        // 個別メッセージが極端に大きい場合は context-manager の maxToolResultChars
-        // が安全弁として働く。
-        const resultForHistory = fullResult;
-
+        // context-compressor が LLM 要約で古い部分を畳み、過大な個別メッセージは
+        // context-manager の maxToolResultChars が安全弁として働く。
+        chatStore.updateToolCallResult(id, toolResult);
         pendingToolResults.push({
           toolCallId: id,
           toolName: name,
-          result: resultForHistory,
+          result: fullResult,
           isError: !toolResult.ok,
         });
 
-        if (name === "repl" && toolResult.ok) {
-          const prevNames = new Set(useStore.getState().artifacts.map((a) => a.name));
-          await useStore.getState().loadArtifacts();
-          const { artifacts } = useStore.getState();
-          const newArtifact = artifacts.find((a) => !prevNames.has(a.name));
-          if (newArtifact) {
-            useStore.getState().selectArtifact(newArtifact.name);
-            // プレビュー価値の高い HTML/Markdown だけ自動でパネルを開く。
-            // JSON/画像/テキスト等は選択のみ行い、既存のパネル状態を維持する。
-            if (newArtifact.type === "html" || newArtifact.type === "markdown") {
-              useStore.getState().setArtifactPanelOpen(true);
-            }
-          }
+        // --- 7) repl 後に新規 artifact があれば UI に反映（UI state 操作はフック経由） ---
+        if (name === "repl" && toolResult.ok && replPrevNames && params.artifactAutoExpand) {
+          await params.artifactAutoExpand.onReplCompleted(replPrevNames);
         }
       };
 
       const visitedSection = generateVisitedUrlsSection([...visitedUrls.values()]);
-      const currentShownSkillIds = useStore.getState().shownSkillIds;
+      const currentShownSkillIds = params.getShownSkillIds?.() ?? new Set<string>();
       const skillsSection =
         skillMatches && skillMatches.length > 0
           ? generateSkillsSectionForLoop(skillMatches, currentShownSkillIds)
@@ -606,19 +416,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
         messages = contextResult.messages;
         if (contextResult.summary) {
           session.summary = contextResult.summary;
-          const storeState = useStore.getState() as {
-            activeSessionSnapshot?: Session | null;
-            setActiveSession?: (nextSession: Session) => void;
-          };
-          if (
-            storeState.activeSessionSnapshot?.id === session.id &&
-            typeof storeState.setActiveSession === "function"
-          ) {
-            storeState.setActiveSession({
-              ...storeState.activeSessionSnapshot,
-              summary: contextResult.summary,
-            });
-          }
+          params.onSessionSummaryUpdate?.(session);
         }
         const turnBudget = {
           ...budget,
@@ -714,19 +512,10 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
                 usage: event.usage,
               });
 
-              const assistantContent: AssistantContent[] = [];
-              if (assistantText) {
-                assistantContent.push({ type: "text", text: assistantText });
-              }
-              for (const tc of pendingToolCalls) {
-                assistantContent.push({
-                  type: "tool-call",
-                  id: tc.id,
-                  name: tc.name,
-                  args: tc.args,
-                  ...(tc.providerOptions ? { providerOptions: tc.providerOptions } : {}),
-                });
-              }
+              const assistantContent = buildAssistantMessageContent(
+                assistantText,
+                pendingToolCalls,
+              );
               if (assistantContent.length > 0) {
                 messages.push({ role: "assistant", content: assistantContent });
               }
@@ -840,7 +629,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
 
       // After successful AI response, mark the active skills as shown
       if (activeSkillIds.length > 0) {
-        useStore.getState().addShownSkillIds(activeSkillIds);
+        params.onSkillsShown?.(activeSkillIds);
       }
 
       if (!hasToolCall) break;
@@ -850,10 +639,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
   } finally {
     log.info("streamText 終了");
     if (currentSession.summary) {
-      const { activeSessionSnapshot, setActiveSession } = useStore.getState();
-      if (activeSessionSnapshot?.id === currentSession.id) {
-        setActiveSession({ ...activeSessionSnapshot, summary: currentSession.summary });
-      }
+      params.onSessionSummaryUpdate?.(currentSession);
     }
     chatStore.syncHistory(toPersistedHistory(messages, currentSession.summary?.text));
     chatStore.setStreaming(false);
@@ -885,94 +671,3 @@ async function tryAuthRefresh(error: AppError, params: AgentLoopParams): Promise
   return true;
 }
 
-// ============= Helpers =============
-
-function chatMessageToAIMessage(msg: ChatMessage): AIMessage | null {
-  switch (msg.role) {
-    case "user": {
-      const content: UserContent[] = [{ type: "text", text: msg.content }];
-      if (msg.image) {
-        const image = normalizeImageForApi(msg.image);
-        content.push({ type: "image", mimeType: image.mimeType, data: image.base64 });
-      }
-      return { role: "user", content };
-    }
-    case "navigation":
-      return convertNavigationForAPI(msg);
-    default:
-      return null;
-  }
-}
-
-export function normalizeImageForApi(image: string): { mimeType: string; base64: string } {
-  const value = image.trim();
-  if (value.startsWith("data:image/")) {
-    const comma = value.indexOf(",");
-    if (comma > 0) {
-      const header = value.slice(0, comma).toLowerCase();
-      const base64 = value.slice(comma + 1).trim();
-      const mimeMatch = /^data:(image\/[a-z0-9.+-]+)/.exec(header);
-      const isBase64 = header.includes(";base64");
-      if (mimeMatch && isBase64 && base64.length > 0) {
-        return {
-          mimeType: mimeMatch[1],
-          base64,
-        };
-      }
-    }
-  }
-
-  return {
-    mimeType: "image/png",
-    base64: value,
-  };
-}
-
-function buildMessagesForAPI(
-  session: Session,
-  chatMessages: ChatMessage[],
-  currentUrl: string,
-  skillRegistry: SkillRegistry,
-  options: { historyUserCount?: number } = {},
-): AIMessage[] {
-  const messages: AIMessage[] = [];
-  const persistedHistory = stripLegacyToolResultMarkers(
-    stripLeadingSessionSummaryMessage(
-      session.history.filter((message) => !isSkillDetectionMessage(message)),
-      session.summary?.text,
-    ),
-  );
-
-  // 1. Session summary (if exists)
-  if (session.summary) {
-    messages.push({
-      role: "user",
-      content: [{ type: "text", text: `${SESSION_SUMMARY_PREFIX}${session.summary.text}` }],
-    });
-  }
-
-  // 2. Add session history
-  messages.push(...persistedHistory);
-
-  // 3. Add skill detection message (before user messages)
-  if (currentUrl) {
-    const skillMatches = skillRegistry.getAvailableSkills(currentUrl);
-    const skillMessage = buildSkillDetectionMessage(skillMatches);
-    if (skillMessage) {
-      messages.push(skillMessage);
-    }
-  }
-
-  // 4. Add new user messages (including navigation messages)
-  const historyUserCount =
-    options.historyUserCount ?? persistedHistory.filter((m) => m.role === "user").length;
-  const userMessages = chatMessages.filter((m) => m.role === "user" || m.role === "navigation");
-  const newMessages = userMessages.slice(historyUserCount);
-
-  for (const msg of newMessages) {
-    const converted = chatMessageToAIMessage(msg);
-    if (converted) messages.push(converted);
-  }
-
-  return messages;
-}

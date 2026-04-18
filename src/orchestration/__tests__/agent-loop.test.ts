@@ -812,19 +812,20 @@ describe("tool execution error", () => {
     const auditLogger = {
       logSecurityEvent: vi.fn().mockResolvedValue(undefined),
     };
-    vi.mocked(useStore.getState).mockReturnValue({
-      loadArtifacts: vi.fn().mockResolvedValue(undefined),
-      artifacts: [],
-      setArtifactPanelOpen: vi.fn(),
-      settings: { enableSecurityMiddleware: false },
-      // biome-ignore lint/suspicious/noExplicitAny: minimal store stub for test
-    } as any);
 
     const params = createParams({
       deps: {
         createAIProvider: () => createMockAIProvider(),
         browserExecutor: {} as BrowserExecutor,
         securityMiddleware: createSecurityMiddleware({ auditLogger }),
+      },
+      settings: {
+        provider: "anthropic",
+        model: "claude-sonnet-4-20250514",
+        apiKey: "sk-test",
+        baseUrl: "",
+        enterpriseDomain: "",
+        enableSecurityMiddleware: false,
       },
     });
     vi.mocked(params.toolExecutor).mockResolvedValueOnce({
