@@ -6,6 +6,23 @@ import { estimateTokens } from "@/shared/token-utils";
 
 const log = createLogger("context-budget");
 const CONTEXT_BUDGET_LOG_PREFIX = "[ctx-budget]";
+const APPROX_CHARS_PER_TOKEN = 4;
+
+function toApproxTokens(charCount: number): number {
+  return Math.ceil(charCount / APPROX_CHARS_PER_TOKEN);
+}
+
+function estimateTextTokens(text: string): number {
+  return toApproxTokens(text.length);
+}
+
+function estimateSerializedTokens(value: unknown): number {
+  return estimateTextTokens(JSON.stringify(value));
+}
+
+function estimateMessageTokens(messages: AIMessage[]): number {
+  return toApproxTokens(estimateTokens(messages));
+}
 
 export interface ContextBudget {
   windowTokens: number;
@@ -80,10 +97,10 @@ export function buildContextBudgetBreakdown(input: {
   }
 
   return {
-    systemPromptTokens: input.systemPrompt.length,
-    toolsTokens: JSON.stringify(input.tools).length,
-    historyTokens: estimateTokens(historyMessages),
-    toolResultsTokens: estimateTokens(latestToolResultMessages),
+    systemPromptTokens: estimateTextTokens(input.systemPrompt),
+    toolsTokens: estimateSerializedTokens(input.tools),
+    historyTokens: estimateMessageTokens(historyMessages),
+    toolResultsTokens: estimateMessageTokens(latestToolResultMessages),
   };
 }
 
