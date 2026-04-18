@@ -47,10 +47,19 @@ function replaceExpiredRetrievedResults(messages: AIMessage[]): void {
   }
 }
 
+const ACTIVE_RETRIEVED_RESULT_PREFIX = "[get_tool_result]\nRestored:";
+
 function normalizeContextMessages(messages: AIMessage[], budget: ContextBudget): void {
   for (let index = 0; index < messages.length; index++) {
     const message = messages[index];
     if (message.role !== "tool" || typeof message.result !== "string") {
+      continue;
+    }
+
+    // 復元中の get_tool_result は maxToolResultChars で切り詰めない。
+    // AI が明示的に全文を求めた直後の 1 ターン限定で渡す想定で、
+    // 次ターン以降は replaceExpiredRetrievedResults が要約形へ戻す。
+    if (message.result.startsWith(ACTIVE_RETRIEVED_RESULT_PREFIX)) {
       continue;
     }
 

@@ -65,6 +65,29 @@ describe("context-manager", () => {
     expect((messages[0] as Extract<AIMessage, { role: "tool" }>).result).toContain("FULL CONTENT");
   });
 
+  it("does not truncate active get_tool_result content larger than maxToolResultChars", () => {
+    const hugeFullValue = "X".repeat(budget.maxToolResultChars * 5);
+    const messages: AIMessage[] = [
+      {
+        role: "tool",
+        toolCallId: "tool-1",
+        toolName: "get_tool_result",
+        result: formatRetrievedToolResult({
+          key: "tc_1",
+          toolName: "read_page",
+          fullValue: hugeFullValue,
+          summary: "Body preview: hello",
+        }),
+      },
+    ];
+
+    manageContextMessages(messages, budget);
+
+    const result = (messages[0] as Extract<AIMessage, { role: "tool" }>).result;
+    expect(result).toContain(hugeFullValue);
+    expect(result).not.toContain("... (truncated)");
+  });
+
   it("logs when trimThreshold is reached and reports splicedMessageCount", () => {
     const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
     const messages: AIMessage[] = [
