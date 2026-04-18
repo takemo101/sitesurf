@@ -232,10 +232,36 @@ function stripLeadingStructuredSummary(messages: AIMessage[]): AIMessage[] {
   return messages.slice(1);
 }
 
+// Phase 2 で get_tool_result ツールを廃止する前に作られたセッションの履歴には
+// `Stored: tool_result://...` / `Use get_tool_result("...") for full content.` の
+// マーカー行が残り続けており、それを読み取った AI が存在しないツールを呼び出して
+// invalid-tool エラーを起こす。履歴読み込み / 書き戻しのいずれの経路でも
+// マーカーを除去して、ユーザが気づかないうちにセッションを健全化する。
+const LEGACY_STORED_MARKER_RE = /\nStored: tool_result:\/\/[^\n]+\n?/g;
+const LEGACY_USE_MARKER_RE = /\nUse get_tool_result\("[^"]+"\) for full content\.\n?/g;
+
+function stripLegacyToolResultMarkers(messages: AIMessage[]): AIMessage[] {
+  let mutated = false;
+  const next = messages.map((message) => {
+    if (message.role !== "tool" || typeof message.result !== "string") return message;
+    const cleaned = message.result
+      .replace(LEGACY_STORED_MARKER_RE, "\n")
+      .replace(LEGACY_USE_MARKER_RE, "\n");
+    if (cleaned === message.result) return message;
+    mutated = true;
+    return { ...message, result: cleaned };
+  });
+  return mutated ? next : messages;
+}
+
 export function toPersistedHistory(messages: AIMessage[], summaryText?: string): AIMessage[] {
   const withoutSkillMessages = messages.filter((message) => !isSkillDetectionMessage(message));
   const withoutStructuredSummary = stripLeadingStructuredSummary(withoutSkillMessages);
-  return stripLeadingSessionSummaryMessage(withoutStructuredSummary, summaryText);
+  const withoutSessionSummary = stripLeadingSessionSummaryMessage(
+    withoutStructuredSummary,
+    summaryText,
+  );
+  return stripLegacyToolResultMarkers(withoutSessionSummary);
 }
 
 export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
@@ -847,9 +873,11 @@ function buildMessagesForAPI(
   options: { historyUserCount?: number } = {},
 ): AIMessage[] {
   const messages: AIMessage[] = [];
-  const persistedHistory = stripLeadingSessionSummaryMessage(
-    session.history.filter((message) => !isSkillDetectionMessage(message)),
-    session.summary?.text,
+  const persistedHistory = stripLegacyToolResultMarkers(
+    stripLeadingSessionSummaryMessage(
+      session.history.filter((message) => !isSkillDetectionMessage(message)),
+      session.summary?.text,
+    ),
   );
 
   // 1. Session summary (if exists)

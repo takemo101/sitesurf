@@ -1287,4 +1287,23 @@ describe("toPersistedHistory", () => {
 
     expect(result).toEqual(messages);
   });
+
+  it("旧 W2 の Stored: tool_result:// / Use get_tool_result(...) 行を tool メッセージから除去する", () => {
+    const messages = [
+      {
+        role: "tool" as const,
+        toolCallId: "tc-legacy",
+        toolName: "read_page",
+        result:
+          '[read_page]\nBody preview: hello\nStored: tool_result://tc_abc123\nUse get_tool_result("tc_abc123") for full content.',
+      },
+    ];
+
+    const result = toPersistedHistory(messages);
+
+    const cleaned = result[0] as Extract<(typeof messages)[number], { role: "tool" }>;
+    expect(cleaned.result).not.toContain("Stored: tool_result://");
+    expect(cleaned.result).not.toContain("get_tool_result");
+    expect(cleaned.result).toContain("Body preview: hello");
+  });
 });

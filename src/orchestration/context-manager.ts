@@ -31,10 +31,10 @@ function normalizeContextMessages(messages: AIMessage[], budget: ContextBudget):
     if (message.role !== "tool" || typeof message.result !== "string") {
       continue;
     }
-    messages[index] = {
-      ...message,
-      result: truncateToolResult(message.result, budget.maxToolResultChars),
-    };
+    const next = truncateToolResult(message.result, budget.maxToolResultChars);
+    if (next !== message.result) {
+      messages[index] = { ...message, result: next };
+    }
   }
 }
 
