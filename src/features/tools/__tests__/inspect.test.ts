@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pickElementToolDef, executePickElement } from "../pick-element";
+import { inspectToolDef, executeInspect } from "../inspect";
 import type { BrowserExecutor } from "@/ports/browser-executor";
 import { ok } from "@/shared/errors";
 
@@ -8,7 +8,7 @@ function createMockBrowser(overrides: Partial<BrowserExecutor> = {}): BrowserExe
     getActiveTab: async () => ({ id: 1, url: "https://example.com", title: "Example" }),
     openTab: async () => 1,
     navigateTo: async () => ok({ url: "", title: "" }),
-    captureScreenshot: async () => "",
+    captureScreenshot: async () => "data:image/png;base64,abc",
     onTabActivated: () => () => {},
     onTabUpdated: () => () => {},
     onTabRemoved: () => () => {},
@@ -19,25 +19,28 @@ function createMockBrowser(overrides: Partial<BrowserExecutor> = {}): BrowserExe
   };
 }
 
-describe("pickElementToolDef", () => {
-  it("name は pick_element", () => {
-    expect(pickElementToolDef.name).toBe("pick_element");
+describe("inspectToolDef", () => {
+  it("name は inspect", () => {
+    expect(inspectToolDef.name).toBe("inspect");
   });
 
-  it("required は空", () => {
-    expect((pickElementToolDef.parameters as Record<string, unknown>).required).toEqual([]);
+  it("required に action が含まれる", () => {
+    expect((inspectToolDef.parameters as Record<string, unknown>).required).toEqual(["action"]);
   });
 
-  it("parameters に message を含む", () => {
-    const props = (pickElementToolDef.parameters as Record<string, unknown>).properties as Record<
+  it("parameters に action / message / selector / maxWidth を含む", () => {
+    const props = (inspectToolDef.parameters as Record<string, unknown>).properties as Record<
       string,
       unknown
     >;
+    expect(props).toHaveProperty("action");
     expect(props).toHaveProperty("message");
+    expect(props).toHaveProperty("selector");
+    expect(props).toHaveProperty("maxWidth");
   });
 });
 
-describe("executePickElement", () => {
+describe("executeInspect - pick_element", () => {
   it("選択された要素情報を返す", async () => {
     const elementInfo = {
       selector: "#btn",
@@ -52,7 +55,7 @@ describe("executePickElement", () => {
       injectElementPicker: async () => ok(elementInfo),
     });
 
-    const result = await executePickElement(browser, {});
+    const result = await executeInspect(browser, { action: "pick_element" });
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value).toStrictEqual(elementInfo);
@@ -64,7 +67,7 @@ describe("executePickElement", () => {
       injectElementPicker: async () => ok(null),
     });
 
-    const result = await executePickElement(browser, {});
+    const result = await executeInspect(browser, { action: "pick_element" });
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value).toBeNull();
@@ -80,7 +83,7 @@ describe("executePickElement", () => {
       },
     });
 
-    await executePickElement(browser, { message: "要素を選んでください" });
+    await executeInspect(browser, { action: "pick_element", message: "要素を選んでください" });
     expect(receivedMessage).toBe("要素を選んでください");
   });
 
@@ -89,10 +92,37 @@ describe("executePickElement", () => {
       getActiveTab: async () => ({ id: null, url: "", title: "" }),
     });
 
-    const result = await executePickElement(browser, {});
+    const result = await executeInspect(browser, { action: "pick_element" });
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe("tool_tab_not_found");
+    }
+  });
+});
+
+describe("executeInspect - screenshot", () => {
+  it("スクリーンショットの dataUrl を返す", async () => {
+    const browser = createMockBrowser({
+      captureScreenshot: async () => "data:image/png;base64,abc123",
+    });
+
+    const result = await executeInspect(browser, { action: "screenshot" });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const val = result.value as { dataUrl: string };
+      expect(val.dataUrl).toBe("data:image/png;base64,abc123");
+    }
+  });
+});
+
+describe("executeInspect - extract_image", () => {
+  it("selector がない場合はエラーを返す", async () => {
+    const browser = createMockBrowser();
+
+    const result = await executeInspect(browser, { action: "extract_image" });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe("tool_script_error");
     }
   });
 });
