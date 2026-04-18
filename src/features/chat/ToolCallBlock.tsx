@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Box, Collapse, Code, Paper, Text, UnstyledButton } from "@mantine/core";
 import {
+  Camera,
   ChevronDown,
   ChevronUp,
   FileCode,
   Globe,
   Image as ImageIcon,
+  MousePointerClick,
   Terminal,
 } from "lucide-react";
 import type { ToolCallInfo } from "@/ports/session-types";
@@ -195,23 +197,41 @@ function renderSpecializedToolBody(toolCall: ToolCallInfo) {
 
 function getToolDescription(toolCall: ToolCallInfo): string | null {
   const args = toolCall.args && typeof toolCall.args === "object" ? toolCall.args : {};
+  const inspectAction =
+    toolCall.name === "inspect" && typeof (args as { action?: unknown }).action === "string"
+      ? ((args as { action: string }).action as string)
+      : null;
 
   return (
     ("title" in args && typeof args.title === "string" && args.title) ||
     ("description" in args && typeof args.description === "string" && args.description) ||
     (toolCall.name === "artifacts" && (args as { filename?: string }).filename) ||
-    (toolCall.name === "extract_image" && (args as { selector?: string }).selector) ||
+    (inspectAction === "extract_image" && (args as { selector?: string }).selector) ||
+    (inspectAction === "pick_element" && (args as { message?: string }).message) ||
     null
   );
 }
 
-function getToolIcon(toolName: string) {
+function getToolIcon(toolName: string, toolArgs?: Record<string, unknown> | unknown) {
   if (toolName === "artifacts") {
     return <FileCode size={14} color="var(--mantine-color-indigo-5)" />;
   }
 
-  if (toolName === "extract_image") {
-    return <ImageIcon size={14} color="var(--mantine-color-green-5)" />;
+  if (toolName === "inspect") {
+    const action =
+      toolArgs && typeof toolArgs === "object" && typeof (toolArgs as { action?: unknown }).action === "string"
+        ? (toolArgs as { action: string }).action
+        : null;
+    if (action === "extract_image") {
+      return <ImageIcon size={14} color="var(--mantine-color-green-5)" />;
+    }
+    if (action === "screenshot") {
+      return <Camera size={14} color="var(--mantine-color-green-5)" />;
+    }
+    if (action === "pick_element") {
+      return <MousePointerClick size={14} color="var(--mantine-color-indigo-5)" />;
+    }
+    return <Terminal size={14} color="var(--mantine-color-indigo-5)" />;
   }
 
   if (toolName === "bg_fetch") {
@@ -237,7 +257,7 @@ export function ToolCallBlock({ tc }: { tc: ToolCallInfo }) {
         toolCall={tc}
         description={renderer ? null : description}
         summary={summary}
-        icon={getToolIcon(tc.name)}
+        icon={getToolIcon(tc.name, tc.args)}
         defaultExpanded={tc.name === "repl"}
       >
         {renderer ? (
