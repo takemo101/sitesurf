@@ -9,23 +9,11 @@ interface CacheEntry {
 }
 
 /**
- * Build a stable, lightweight cache key from prompt options.
- * Uses only scalar flags and skill IDs (not full skill objects).
+ * Build a stable, lightweight cache key for the base (static) sections of the system prompt.
+ * Skills section is excluded from the cache because shownSkillIds changes per turn.
  */
 export function createPromptCacheKey(options: SystemPromptOptions): string {
-  const parts: string[] = [
-    `skills:${options.includeSkills ?? false}`,
-    `locale:${options.locale ?? "default"}`,
-  ];
-
-  if (options.includeSkills && options.skills) {
-    const ids = options.skills.map((m) => m.skill.id).sort();
-    parts.push(`ids:${ids.join(",")}`);
-    const availableIds = options.skills
-      .flatMap((m) => m.availableExtractors.map((e) => e.id))
-      .sort();
-    parts.push(`available:${availableIds.join(",")}`);
-  }
+  const parts: string[] = [`locale:${options.locale ?? "default"}`];
 
   return parts.join("|");
 }
