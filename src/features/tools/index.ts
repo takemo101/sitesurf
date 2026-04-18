@@ -6,7 +6,7 @@ import { SkillRegistry } from "@/shared/skill-registry";
 import { useStore } from "@/store/index";
 
 import { readPageToolDef, executeReadPage } from "./read-page";
-import { replToolDef, executeRepl, formatSkillsForSandbox } from "./repl";
+import { replToolDef, buildReplToolDef, executeRepl, formatSkillsForSandbox } from "./repl";
 import { navigateToolDef, executeNavigate } from "./navigate";
 import { pickElementToolDef, executePickElement } from "./pick-element";
 import { screenshotToolDef, executeScreenshot } from "./screenshot";
@@ -42,7 +42,7 @@ import { artifactsTool } from "./definitions/artifacts-tool";
 import { handleArtifactsTool } from "./handlers/artifacts-handler";
 
 export { readPageToolDef, executeReadPage };
-export { replToolDef, executeRepl, formatSkillsForSandbox };
+export { replToolDef, buildReplToolDef, executeRepl, formatSkillsForSandbox };
 export { navigateToolDef, executeNavigate };
 export { pickElementToolDef, executePickElement };
 export { screenshotToolDef, executeScreenshot };
@@ -112,8 +112,10 @@ export const AGENT_TOOL_DEFS: ToolDefinition[] = ALL_TOOL_DEFS.filter(
 );
 
 export function getAgentToolDefs(options?: { enableBgFetch?: boolean }): ToolDefinition[] {
-  let defs = AGENT_TOOL_DEFS;
-  if (!options?.enableBgFetch) {
+  const enableBgFetch = options?.enableBgFetch ?? false;
+  const replWithBgFetch = buildReplToolDef({ enableBgFetch });
+  let defs = AGENT_TOOL_DEFS.map((tool) => (tool.name === "repl" ? replWithBgFetch : tool));
+  if (!enableBgFetch) {
     defs = defs.filter((tool) => tool.name !== "bg_fetch");
   }
   return defs;

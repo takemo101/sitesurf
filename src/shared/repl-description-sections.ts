@@ -92,6 +92,7 @@ export const COMMON_PATTERNS = [
   "await createOrUpdateArtifact('items.json', allItems);",
   "```",
   "",
+  "<!-- BG_FETCH_SECTION_START -->",
   "## Multi-URL Fetch (static / server-rendered pages, JSON APIs)",
   "",
   "**Prefer this over top-level `bg_fetch` when you have 5+ URLs.** Results never hit the AI context — they go straight to an artifact, saving tokens and turns.",
@@ -111,6 +112,7 @@ export const COMMON_PATTERNS = [
   "await createOrUpdateArtifact('docs.json', contents);",
   "return `Collected ${Object.keys(contents).length} pages`;",
   "```",
+  "<!-- BG_FETCH_SECTION_END -->",
   "",
   "**Data storage rule:** `createOrUpdateArtifact` for structured JSON data (name with `.json` extension). `returnFile` for user-facing files (HTML, CSV, Markdown, images).",
   "",
@@ -340,7 +342,9 @@ export const AVAILABLE_FUNCTIONS = [
   "### Do NOT Use For",
   "- Single page interactions (use native functions)",
   "- Inside browserjs() (closures don't work)",
+  "<!-- BG_FETCH_SECTION_START -->",
   "- Multi-URL fetching of static / server-rendered pages — use `bgFetch` instead",
+  "<!-- BG_FETCH_SECTION_END -->",
   "",
   "```javascript",
   "// ✅ Navigate and extract",
@@ -348,6 +352,7 @@ export const AVAILABLE_FUNCTIONS = [
   "const title = await browserjs(() => document.title);",
   "```",
   "",
+  "<!-- BG_FETCH_SECTION_START -->",
   "## bgFetch(url, options?) — Multi-URL fetch that bypasses the AI context",
   "",
   "Fetch an external URL via the background service worker. CORS-free, does not touch the active tab, and — unlike top-level `bg_fetch` — results never hit the AI conversation history, so you can save them straight into an artifact.",
@@ -392,6 +397,7 @@ export const AVAILABLE_FUNCTIONS = [
   "await createOrUpdateArtifact('docs.json', contents);",
   "return `Collected ${Object.keys(contents).length} pages`;",
   "```",
+  "<!-- BG_FETCH_SECTION_END -->",
   "",
   "## Artifact Functions (Data Persistence)",
   "",
@@ -481,6 +487,22 @@ const SECTIONS: Record<ReplDescriptionSectionKey, string> = {
   AVAILABLE_FUNCTIONS,
 };
 
-export function assembleReplDescriptionSections(keys: ReplDescriptionSectionKey[]): string {
-  return keys.map((key) => SECTIONS[key]).join("\n\n");
+// bgFetch 関連の部分は <!-- BG_FETCH_SECTION_START --> / <!-- BG_FETCH_SECTION_END -->
+// で囲んである。enableBgFetch=false の時はマーカごと中身を削除し、AI から
+// bgFetch の存在を隠す。true の時はマーカ行だけ取り除いて中身を残す。
+const BG_FETCH_SECTION_RE = /^<!-- BG_FETCH_SECTION_START -->\n([\s\S]*?)^<!-- BG_FETCH_SECTION_END -->\n?/gm;
+
+function stripBgFetchSections(text: string, enableBgFetch: boolean): string {
+  if (enableBgFetch) {
+    return text.replace(BG_FETCH_SECTION_RE, (_match, body: string) => body);
+  }
+  return text.replace(BG_FETCH_SECTION_RE, "");
+}
+
+export function assembleReplDescriptionSections(
+  keys: ReplDescriptionSectionKey[],
+  options: { enableBgFetch?: boolean } = {},
+): string {
+  const joined = keys.map((key) => SECTIONS[key]).join("\n\n");
+  return stripBgFetchSections(joined, options.enableBgFetch ?? true);
 }
