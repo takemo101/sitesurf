@@ -61,6 +61,7 @@ export const createSessionSlice: StateCreator<AppStore, [], [], SessionSlice> = 
       activeSessionId: session.id,
       messages,
       history: session.history,
+      shownSkillIds: new Set<string>(),
     });
 
     // 3. Close artifact panel

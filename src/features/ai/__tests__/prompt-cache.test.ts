@@ -15,11 +15,18 @@ describe("createPromptCacheKey", () => {
     expect(firstKey).toBe(secondKey);
   });
 
-  it("returns different key for different options", () => {
+  it("returns different key for different locale options", () => {
+    const firstKey = createPromptCacheKey({ locale: "ja-JP" });
+    const secondKey = createPromptCacheKey({ locale: "en-US" });
+
+    expect(firstKey).not.toBe(secondKey);
+  });
+
+  it("returns same key regardless of includeSkills (skills section is cache-exempt)", () => {
     const firstKey = createPromptCacheKey({ includeSkills: true });
     const secondKey = createPromptCacheKey({ includeSkills: false });
 
-    expect(firstKey).not.toBe(secondKey);
+    expect(firstKey).toBe(secondKey);
   });
 
   it("ignores enableBgFetch because system prompt content no longer varies by that flag", () => {
@@ -29,7 +36,7 @@ describe("createPromptCacheKey", () => {
     expect(enabledKey).toBe(disabledKey);
   });
 
-  it("produces stable key regardless of skill object property order", () => {
+  it("produces same key regardless of skills (skills section is cache-exempt)", () => {
     const makeSkill = (id: string) => ({
       skill: {
         id,
@@ -52,6 +59,7 @@ describe("createPromptCacheKey", () => {
       skills: [makeSkill("b"), makeSkill("a")],
     });
 
+    // Skills are excluded from cache key since skills section is rendered per-turn
     expect(key1).toBe(key2);
   });
 });

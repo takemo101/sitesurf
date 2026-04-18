@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { getSystemPromptV2, generateVisitedUrlsSection } from "../system-prompt-v2";
+import {
+  getSystemPromptV2,
+  generateVisitedUrlsSection,
+  generateSkillsSectionForLoop,
+  getActiveSkillIds,
+} from "../system-prompt-v2";
 import type { VisitedUrlEntry } from "../system-prompt-v2";
 import type { SkillMatch } from "@/shared/skill-types";
 
@@ -123,13 +128,101 @@ describe("getSystemPromptV2", () => {
 
   it("system prompt は bgFetch の記述を含まない (repl description 側で管理)", () => {
     for (const enableBgFetch of [true, false, undefined]) {
-      const prompt = getSystemPromptV2(
-        enableBgFetch === undefined ? {} : { enableBgFetch },
-      );
+      const prompt = getSystemPromptV2(enableBgFetch === undefined ? {} : { enableBgFetch });
       expect(prompt).not.toContain("bgFetch(url, options?)");
       expect(prompt).not.toContain("BG_FETCH_SECTION_START");
       expect(prompt).not.toContain("BG_FETCH_SECTION_END");
     }
+  });
+});
+
+describe("generateSkillsSectionForLoop / shownSkillIds diff rendering", () => {
+  function makeSkillMatch(id: string, name: string, scope?: "global"): SkillMatch {
+    const extractor = {
+      id: `${id}-ext`,
+      name: "Extractor",
+      description: "Gets data",
+      code: "function() {}",
+      outputSchema: "string",
+    };
+    return {
+      skill: {
+        id,
+        name,
+        description: `${name} description`,
+        matchers: scope ? { hosts: [] } : { hosts: [`${id}.com`] },
+        version: "0.0.0",
+        scope,
+        extractors: [extractor],
+      },
+      availableExtractors: [extractor],
+      confidence: 80,
+    };
+  }
+
+  it("renders full format when shownSkillIds is empty (first turn)", () => {
+    const match = makeSkillMatch("yt", "YouTube");
+    const section = generateSkillsSectionForLoop([match], new Set());
+    expect(section).toContain("**YouTube**");
+    expect(section).toContain("id: yt");
+    expect(section).toContain("yt-ext():");
+    expect(section).toContain("browserjs");
+  });
+
+  it("renders short format for already-seen skills (subsequent turns)", () => {
+    const match = makeSkillMatch("yt", "YouTube");
+    const shownSkillIds = new Set(["yt"]);
+    const section = generateSkillsSectionForLoop([match], shownSkillIds);
+    expect(section).toContain("- YouTube (id: yt):");
+    expect(section).not.toContain("**YouTube**");
+    expect(section).not.toContain("browserjs");
+    expect(section).not.toContain("yt-ext():");
+  });
+
+  it("renders full format for new skill and short format for seen skill", () => {
+    const seen = makeSkillMatch("yt", "YouTube");
+    const newSkill = makeSkillMatch("github", "GitHub");
+    const shownSkillIds = new Set(["yt"]);
+    const section = generateSkillsSectionForLoop([seen, newSkill], shownSkillIds);
+    // YouTube already seen → short
+    expect(section).toContain("- YouTube (id: yt):");
+    expect(section).not.toContain("**YouTube**");
+    // GitHub new → full
+    expect(section).toContain("**GitHub**");
+    expect(section).toContain("github-ext():");
+  });
+
+  it("getActiveSkillIds returns only skills with available extractors", () => {
+    const withExt = makeSkillMatch("yt", "YouTube");
+    const noExt: SkillMatch = {
+      ...withExt,
+      skill: { ...withExt.skill, id: "empty" },
+      availableExtractors: [],
+    };
+    const ids = getActiveSkillIds([withExt, noExt]);
+    expect(ids).toEqual(["yt"]);
+  });
+
+  it("getSystemPromptV2 with shownSkillIds renders short format for seen skill", () => {
+    const match = makeSkillMatch("yt", "YouTube");
+    const prompt = getSystemPromptV2({
+      includeSkills: true,
+      skills: [match],
+      shownSkillIds: new Set(["yt"]),
+    });
+    expect(prompt).toContain("- YouTube (id: yt):");
+    expect(prompt).not.toContain("**YouTube**");
+  });
+
+  it("getSystemPromptV2 with empty shownSkillIds renders full format", () => {
+    const match = makeSkillMatch("yt", "YouTube");
+    const prompt = getSystemPromptV2({
+      includeSkills: true,
+      skills: [match],
+      shownSkillIds: new Set(),
+    });
+    expect(prompt).toContain("**YouTube**");
+    expect(prompt).toContain("browserjs");
   });
 });
 

@@ -9,6 +9,7 @@ export interface ChatSlice {
   history: AIMessage[];
   isStreaming: boolean;
   abortController: AbortController | null;
+  shownSkillIds: ReadonlySet<string>;
 
   addUserMessage(content: string, image?: string): void;
   addMessage(msg: Omit<ChatMessage, "id" | "timestamp">): void;
@@ -38,6 +39,8 @@ export interface ChatSlice {
   clearMessages(): void;
   clearHistory(): void;
   clearAll(): void;
+  addShownSkillIds(ids: string[]): void;
+  resetShownSkillIds(): void;
 }
 
 function findLastAssistantIndex(messages: ChatMessage[]): number {
@@ -52,6 +55,7 @@ export const createChatSlice: StateCreator<AppStore, [], [], ChatSlice> = (set, 
   history: [],
   isStreaming: false,
   abortController: null,
+  shownSkillIds: new Set<string>(),
 
   addUserMessage: (content, image) =>
     set((s) => ({
@@ -300,5 +304,14 @@ export const createChatSlice: StateCreator<AppStore, [], [], ChatSlice> = (set, 
 
   clearHistory: () => set({ history: [] }),
 
-  clearAll: () => set({ messages: [], history: [] }),
+  clearAll: () => set({ messages: [], history: [], shownSkillIds: new Set<string>() }),
+
+  addShownSkillIds: (ids) =>
+    set((s) => {
+      const next = new Set<string>(s.shownSkillIds);
+      for (const id of ids) next.add(id);
+      return { shownSkillIds: next };
+    }),
+
+  resetShownSkillIds: () => set({ shownSkillIds: new Set<string>() }),
 });
