@@ -42,7 +42,18 @@ function replaceExpiredRetrievedResults(messages: AIMessage[]): void {
       .slice(index + 1)
       .some((candidate) => candidate.role !== "tool");
     if (hasLaterMessage) {
+      log.info("[diag:get_tool_result] expiring retrieved content → summary form", {
+        index,
+        beforeChars: message.result.length,
+        afterChars: restored.length,
+        reason: "laterNonToolMessageExists",
+      });
       message.result = restored;
+    } else {
+      log.info("[diag:get_tool_result] preserving active retrieved content", {
+        index,
+        chars: message.result.length,
+      });
     }
   }
 }
@@ -60,13 +71,26 @@ function normalizeContextMessages(messages: AIMessage[], budget: ContextBudget):
     // AI が明示的に全文を求めた直後の 1 ターン限定で渡す想定で、
     // 次ターン以降は replaceExpiredRetrievedResults が要約形へ戻す。
     if (message.result.startsWith(ACTIVE_RETRIEVED_RESULT_PREFIX)) {
+      log.info("[diag:get_tool_result] bypass truncate (active)", {
+        index,
+        chars: message.result.length,
+        maxToolResultChars: budget.maxToolResultChars,
+      });
       continue;
     }
 
-    messages[index] = {
-      ...message,
-      result: truncateToolResult(message.result, budget.maxToolResultChars),
-    };
+    const before = message.result.length;
+    const truncated = truncateToolResult(message.result, budget.maxToolResultChars);
+    if (before !== truncated.length) {
+      log.info("[diag:tool_result_truncate] applied", {
+        index,
+        toolName: message.toolName,
+        beforeChars: before,
+        afterChars: truncated.length,
+        maxToolResultChars: budget.maxToolResultChars,
+      });
+    }
+    messages[index] = { ...message, result: truncated };
   }
 
   replaceExpiredRetrievedResults(messages);

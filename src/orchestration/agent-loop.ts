@@ -506,7 +506,16 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
 
         let resultForHistory = fullResult;
         if (name === "get_tool_result" && toolResult.ok) {
-          resultForHistory = formatRetrievedToolResult(toolResult.value as GetToolResultValue);
+          const retrieved = toolResult.value as GetToolResultValue;
+          resultForHistory = formatRetrievedToolResult(retrieved);
+          log.info("[diag:get_tool_result] retrieved from store", {
+            key: retrieved.key,
+            originalTool: retrieved.toolName,
+            fullValueChars: retrieved.fullValue.length,
+            summaryChars: retrieved.summary.length,
+            historyMessageChars: resultForHistory.length,
+            turn,
+          });
         } else {
           const summary = summarizeToolResult({
             toolName: name,
@@ -536,6 +545,13 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
                 fullValue: fullResult,
                 summary,
                 turnIndex: turn,
+              });
+              log.info("[diag:tool_result_store] saved", {
+                key,
+                toolName: name,
+                fullValueChars: fullResult.length,
+                summaryChars: summary.length,
+                turn,
               });
               resultForHistory = formatStoredToolResultSummary(name, summary, key);
             } catch (error) {
