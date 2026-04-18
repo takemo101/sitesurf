@@ -1,5 +1,7 @@
 # ツール結果コンテキスト管理 v2
 
+> ⚠️ **HISTORICAL** — 本ドキュメントが述べる Layer 3（`ToolResultStore` / `get_tool_result` の pull-retrieval）は、実運用で pi-mono 方式（LLM による auto-compaction）へ方針変更した結果、Phase 2 rollback で削除されました。Layer 1/2 の考え方は `src/orchestration/context-compressor.ts` とその周辺に残っています。
+>
 > 初期検討版から構造をリファクタして、**層構造 + 段階リリース**に整理したもの。設計思想・個別判断の多くは初期検討を踏襲。
 
 ## 1. 概要

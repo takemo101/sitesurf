@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { manageContextMessages, trimMessagesToThreshold } from "../context-manager";
-import { formatRetrievedToolResult } from "@/features/tools/result-summarizer";
 import type { ContextBudget } from "@/features/ai/context-budget";
 import type { AIMessage } from "@/ports/ai-provider";
 
@@ -11,7 +10,6 @@ const budget: ContextBudget = {
   maxToolResultChars: 1000,
   compressionThreshold: 15000,
   trimThreshold: 20000,
-  useToolResultStore: true,
 };
 
 describe("context-manager", () => {
@@ -19,73 +17,43 @@ describe("context-manager", () => {
     vi.restoreAllMocks();
   });
 
-  it("replaces old get_tool_result full content with the stored summary form", () => {
+  it("tool メッセージを maxToolResultChars で truncate する", () => {
+    const longResult = "X".repeat(budget.maxToolResultChars + 500);
     const messages: AIMessage[] = [
-      {
-        role: "tool",
-        toolCallId: "tool-1",
-        toolName: "get_tool_result",
-        result: formatRetrievedToolResult({
-          key: "tc_1",
-          toolName: "read_page",
-          fullValue: "FULL CONTENT",
-          summary: "Body preview: hello",
-        }),
-      },
-      { role: "assistant", content: [{ type: "text", text: "I used it." }] },
+      { role: "tool", toolCallId: "tool-1", toolName: "read_page", result: longResult },
     ];
 
     manageContextMessages(messages, budget);
 
-    expect((messages[0] as Extract<AIMessage, { role: "tool" }>).result).toContain(
-      'Use get_tool_result("tc_1") for full content.',
-    );
-    expect((messages[0] as Extract<AIMessage, { role: "tool" }>).result).not.toContain(
-      "FULL CONTENT",
-    );
+    const result = (messages[0] as Extract<AIMessage, { role: "tool" }>).result as string;
+    expect(result).toContain("... (truncated)");
+    expect(result.length).toBeLessThanOrEqual(budget.maxToolResultChars + "\n... (truncated)".length);
   });
 
-  it("keeps the latest fetched full content available until a later turn exists", () => {
+  it("maxToolResultChars 未満の tool メッセージは改変しない", () => {
     const messages: AIMessage[] = [
-      {
-        role: "tool",
-        toolCallId: "tool-1",
-        toolName: "get_tool_result",
-        result: formatRetrievedToolResult({
-          key: "tc_1",
-          toolName: "read_page",
-          fullValue: "FULL CONTENT",
-          summary: "Body preview: hello",
-        }),
-      },
-    ];
-
-    manageContextMessages(messages, budget);
-
-    expect((messages[0] as Extract<AIMessage, { role: "tool" }>).result).toContain("FULL CONTENT");
-  });
-
-  it("does not truncate active get_tool_result content larger than maxToolResultChars", () => {
-    const hugeFullValue = "X".repeat(budget.maxToolResultChars * 5);
-    const messages: AIMessage[] = [
-      {
-        role: "tool",
-        toolCallId: "tool-1",
-        toolName: "get_tool_result",
-        result: formatRetrievedToolResult({
-          key: "tc_1",
-          toolName: "read_page",
-          fullValue: hugeFullValue,
-          summary: "Body preview: hello",
-        }),
-      },
+      { role: "tool", toolCallId: "tool-1", toolName: "read_page", result: "small result" },
     ];
 
     manageContextMessages(messages, budget);
 
     const result = (messages[0] as Extract<AIMessage, { role: "tool" }>).result;
-    expect(result).toContain(hugeFullValue);
-    expect(result).not.toContain("... (truncated)");
+    expect(result).toBe("small result");
+  });
+
+  it("data:image/... を含む tool メッセージは screenshot captured プレースホルダに置換する", () => {
+    const messages: AIMessage[] = [
+      {
+        role: "tool",
+        toolCallId: "tool-1",
+        toolName: "screenshot",
+        result: "data:image/png;base64,AAA",
+      },
+    ];
+
+    manageContextMessages(messages, budget);
+
+    expect((messages[0] as Extract<AIMessage, { role: "tool" }>).result).toBe("[screenshot captured]");
   });
 
   it("logs when trimThreshold is reached and reports splicedMessageCount", () => {

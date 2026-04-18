@@ -13,7 +13,6 @@ export interface VisitedUrlEntry {
 export interface SystemPromptOptions {
   includeSkills?: boolean;
   skills?: SkillMatch[];
-  includeToolResultStore?: boolean;
   locale?: string;
   visitedUrls?: VisitedUrlEntry[];
 }
@@ -117,18 +116,7 @@ export function getSystemPromptV2(options: SystemPromptOptions): string {
     base = skillsSection ? `${baseSections}\n\n${skillsSection}` : baseSections;
     cache.set(key, base);
   }
-  const toolResultSection = options.includeToolResultStore
-    ? [
-        "# Stored Tool Results",
-        "",
-        "When a tool result includes `Stored: tool_result://<key>`, only a summary is in context.",
-        'Use `get_tool_result({"key": "<key>"})` when you need the full content.',
-        "The retrieved full content automatically returns to summary form after 1 turn, so only re-fetch it when immediately needed.",
-      ].join("\n")
-    : "";
   const visitedSection = generateVisitedUrlsSection(options.visitedUrls ?? []);
-  const sections = [base, toolResultSection, visitedSection].filter(
-    (section) => section.length > 0,
-  );
+  const sections = [base, visitedSection].filter((section) => section.length > 0);
   return sections.join("\n\n");
 }

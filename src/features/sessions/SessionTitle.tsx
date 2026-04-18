@@ -37,7 +37,6 @@ export function SessionTitle() {
       const currentWindowId = useStore.getState().windowId;
       const storeDeps: SessionStoreDeps = {
         sessionStorage: deps.sessionStorage,
-        toolResultStore: deps.toolResultStore,
         acquireLock: async (sessionId: string) => {
           try {
             const r = await port.sendMessage(

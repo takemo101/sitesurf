@@ -1,7 +1,6 @@
 import "fake-indexeddb/auto";
 import { describe, expect, it } from "vitest";
 import { IndexedDBSessionStorage } from "../indexeddb-session-storage";
-import { IndexedDBToolResultStore } from "../indexeddb-tool-result-store";
 import type { Session, SessionMeta } from "@/ports/session-types";
 
 function createSession(id: string): Session {
@@ -61,6 +60,37 @@ function createLegacyV1Database(
   });
 }
 
+function createLegacyV2Database(name: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(name, 2);
+
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      db.createObjectStore("sessions", { keyPath: "id" });
+      const metadata = db.createObjectStore("sessions-metadata", { keyPath: "id" });
+      metadata.createIndex("lastModified", "lastModified");
+      const toolResults = db.createObjectStore("tool-results", { keyPath: "key" });
+      toolResults.createIndex("sessionId", "sessionId", { unique: false });
+      toolResults.createIndex("sessionId_createdAt", ["sessionId", "createdAt"], { unique: false });
+      toolResults.put({
+        key: "tc_legacy",
+        sessionId: "legacy-session",
+        toolName: "read_page",
+        fullValue: "legacy",
+        summary: "legacy",
+        turnIndex: 0,
+        createdAt: Date.now(),
+      });
+    };
+
+    req.onsuccess = () => {
+      req.result.close();
+      resolve();
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
 function openDatabase(name: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(name);
@@ -70,23 +100,6 @@ function openDatabase(name: string): Promise<IDBDatabase> {
 }
 
 describe("tandemweb indexeddb schema", () => {
-  it("lets session storage open the same database after tool-result storage created it", async () => {
-    const dbName = createDbName("shared");
-    const toolStore = new IndexedDBToolResultStore(dbName);
-
-    await toolStore.save("session-1", {
-      key: "tc_shared",
-      toolName: "read_page",
-      fullValue: "full result",
-      summary: "summary",
-      turnIndex: 0,
-    });
-
-    const sessionStorage = new IndexedDBSessionStorage(dbName);
-
-    await expect(sessionStorage.getLatestSessionId()).resolves.toBeNull();
-  });
-
   it("upgrades a legacy v1 database with session data without losing records", async () => {
     const dbName = createDbName("legacy-with-data");
 
@@ -96,37 +109,24 @@ describe("tandemweb indexeddb schema", () => {
     });
 
     const sessionStorage = new IndexedDBSessionStorage(dbName);
-    const toolStore = new IndexedDBToolResultStore(dbName);
 
     await expect(sessionStorage.getSession("legacy-session")).resolves.toEqual(
       createSession("legacy-session"),
     );
-
-    await toolStore.save("legacy-session", {
-      key: "tc_legacy",
-      toolName: "read_page",
-      fullValue: "full result",
-      summary: "summary",
-      turnIndex: 1,
-    });
-
-    await expect(toolStore.get("legacy-session", "tc_legacy")).resolves.toMatchObject({
-      key: "tc_legacy",
-      sessionId: "legacy-session",
-    });
   });
 
-  it("upgrades an empty legacy v1 database to include tool-results store on first session open", async () => {
-    const dbName = createDbName("legacy-empty");
+  it("drops the legacy v2 tool-results store during v3 migration", async () => {
+    const dbName = createDbName("legacy-v2-tool-results");
+    await createLegacyV2Database(dbName);
 
-    await createLegacyV1Database(dbName);
-
+    // Trigger the v3 upgrade by opening the database through SessionStorage.
     const sessionStorage = new IndexedDBSessionStorage(dbName);
-
     await expect(sessionStorage.getLatestSessionId()).resolves.toBeNull();
 
     const db = await openDatabase(dbName);
-    expect(Array.from(db.objectStoreNames)).toContain("tool-results");
+    expect(Array.from(db.objectStoreNames)).not.toContain("tool-results");
+    expect(Array.from(db.objectStoreNames)).toContain("sessions");
+    expect(Array.from(db.objectStoreNames)).toContain("sessions-metadata");
     db.close();
   });
 });

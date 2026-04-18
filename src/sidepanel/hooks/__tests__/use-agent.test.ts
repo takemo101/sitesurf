@@ -10,7 +10,6 @@ import { initStore, useStore } from "@/store";
 import {
   InMemoryArtifactStorage,
   InMemoryStorage,
-  InMemoryToolResultStore,
 } from "@/adapters/storage/in-memory-storage";
 import { SkillRegistry } from "@/shared/skill-registry";
 import type { AIProvider, StreamTextParams } from "@/ports/ai-provider";
@@ -139,7 +138,6 @@ function createDeps(storage: InMemoryStorage): AppDeps {
     storage,
     sessionStorage: new NoopSessionStorage(),
     artifactStorage: new InMemoryArtifactStorage(),
-    toolResultStore: new InMemoryToolResultStore(),
   };
 }
 

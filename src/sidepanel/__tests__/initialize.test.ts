@@ -5,7 +5,6 @@ import { initStore, useStore } from "@/store";
 import {
   InMemoryArtifactStorage,
   InMemoryStorage,
-  InMemoryToolResultStore,
 } from "@/adapters/storage/in-memory-storage";
 import type { AppDeps } from "@/shared/deps-context";
 import type { AIProvider, StreamTextParams } from "@/ports/ai-provider";
@@ -105,7 +104,6 @@ function createDeps(storage: InMemoryStorage): AppDeps {
     storage,
     sessionStorage: new NoopSessionStorage(),
     artifactStorage: new InMemoryArtifactStorage(),
-    toolResultStore: new InMemoryToolResultStore(),
   };
 }
 

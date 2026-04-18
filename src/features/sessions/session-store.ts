@@ -105,12 +105,6 @@ export async function deleteSession(
 
   await deps.sessionStorage.deleteSession(id);
 
-  try {
-    await deps.toolResultStore.deleteSession(id);
-  } catch (error) {
-    log.warn("tool result cleanup failed after session delete; continuing", { id, error });
-  }
-
   const list = await deps.sessionStorage.listSessions();
   store.setSessionList(list);
 }

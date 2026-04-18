@@ -4,7 +4,6 @@ import type { ContextBudget } from "@/features/ai/context-budget";
 import type { ProviderId } from "@/shared/constants";
 import { createLogger } from "@/shared/logger";
 import { estimateTokens } from "@/shared/token-utils";
-import { restoreRetrievedToolResultToSummary } from "@/features/tools/result-summarizer";
 
 import { compressMessagesIfNeeded, stripStructuredSummaryMessage } from "./context-compressor";
 
@@ -26,74 +25,17 @@ function truncateToolResult(result: string, maxChars: number): string {
   return `${result.slice(0, maxChars)}\n... (truncated)`;
 }
 
-function replaceExpiredRetrievedResults(messages: AIMessage[]): void {
-  for (let index = 0; index < messages.length; index++) {
-    const message = messages[index];
-    if (message?.role !== "tool" || typeof message.result !== "string") {
-      continue;
-    }
-
-    const restored = restoreRetrievedToolResultToSummary(message.result);
-    if (!restored) {
-      continue;
-    }
-
-    const hasLaterMessage = messages
-      .slice(index + 1)
-      .some((candidate) => candidate.role !== "tool");
-    if (hasLaterMessage) {
-      log.info("[diag:get_tool_result] expiring retrieved content → summary form", {
-        index,
-        beforeChars: message.result.length,
-        afterChars: restored.length,
-        reason: "laterNonToolMessageExists",
-      });
-      message.result = restored;
-    } else {
-      log.info("[diag:get_tool_result] preserving active retrieved content", {
-        index,
-        chars: message.result.length,
-      });
-    }
-  }
-}
-
-const ACTIVE_RETRIEVED_RESULT_PREFIX = "[get_tool_result]\nRestored:";
-
 function normalizeContextMessages(messages: AIMessage[], budget: ContextBudget): void {
   for (let index = 0; index < messages.length; index++) {
     const message = messages[index];
     if (message.role !== "tool" || typeof message.result !== "string") {
       continue;
     }
-
-    // 復元中の get_tool_result は maxToolResultChars で切り詰めない。
-    // AI が明示的に全文を求めた直後の 1 ターン限定で渡す想定で、
-    // 次ターン以降は replaceExpiredRetrievedResults が要約形へ戻す。
-    if (message.result.startsWith(ACTIVE_RETRIEVED_RESULT_PREFIX)) {
-      log.info("[diag:get_tool_result] bypass truncate (active)", {
-        index,
-        chars: message.result.length,
-        maxToolResultChars: budget.maxToolResultChars,
-      });
-      continue;
-    }
-
-    const before = message.result.length;
-    const truncated = truncateToolResult(message.result, budget.maxToolResultChars);
-    if (before !== truncated.length) {
-      log.info("[diag:tool_result_truncate] applied", {
-        index,
-        toolName: message.toolName,
-        beforeChars: before,
-        afterChars: truncated.length,
-        maxToolResultChars: budget.maxToolResultChars,
-      });
-    }
-    messages[index] = { ...message, result: truncated };
+    messages[index] = {
+      ...message,
+      result: truncateToolResult(message.result, budget.maxToolResultChars),
+    };
   }
-
-  replaceExpiredRetrievedResults(messages);
 }
 
 export function manageContextMessages(messages: AIMessage[], budget: ContextBudget): void {
