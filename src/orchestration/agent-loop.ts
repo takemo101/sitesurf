@@ -18,7 +18,6 @@ import { buildReplToolDef } from "@/features/tools/repl";
 import { generateVisitedUrlsSection, type VisitedUrlEntry } from "@/features/ai";
 import { prepareMessagesForTurn, trimMessagesToThreshold } from "./context-manager";
 import type { SkillRegistry } from "@/shared/skill-registry";
-import { useStore } from "@/store/index";
 import type { ProviderId } from "@/shared/constants";
 import {
   detectUrlChangeAfterNavTool,
@@ -86,6 +85,25 @@ export interface Settings {
   reasoningLevel?: string;
   maxTokens?: number;
   autoCompact?: boolean;
+  /** true なら tool 出力を Security middleware に通す。未指定時は true と見なす */
+  enableSecurityMiddleware?: boolean;
+}
+
+/**
+ * artifact ストレージから最新 artifact 一覧を取得し、repl 実行前後の差分
+ * 検出 / 自動選択 / 自動パネル展開を行う UI 層側フック。
+ *
+ * agent-loop 本体は UI state（Zustand store）を直接触らない。必要な副作用
+ * はこのコールバックを通じて sidepanel 側から注入される。
+ */
+export interface ArtifactAutoExpandHook {
+  /** repl 呼び出し直前の既知 artifact 名集合を返す */
+  snapshotNames(): Set<string>;
+  /**
+   * ストレージの最新状態を store に再読込し、snapshot 時点になかった
+   * artifact を検出したら選択・（プレビュー可能形式なら）パネル展開する。
+   */
+  onReplCompleted(prevNames: Set<string>): Promise<void>;
 }
 
 export interface AgentLoopParams {
@@ -100,6 +118,16 @@ export interface AgentLoopParams {
   skillRegistry: SkillRegistry;
   credentials?: AuthCredentials;
   onCredentialsUpdate?: (creds: AuthCredentials | null) => void;
+  /**
+   * context-compressor が session.summary を更新したとき、UI 側の active
+   * session snapshot に同期するためのコールバック。未指定なら何もしない。
+   */
+  onSessionSummaryUpdate?: (session: Session) => void;
+  /**
+   * repl 実行後に artifact の差分を反映するためのフック。未指定なら
+   * repl による自動 artifact 反映は行わない。
+   */
+  artifactAutoExpand?: ArtifactAutoExpandHook;
 }
 
 export type { ToolExecutor } from "@/ports/tool-executor";
@@ -278,7 +306,9 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
 
         // repl 実行後に artifact の差分を検出するため、事前スナップショットを取る
         const replPrevNames =
-          name === "repl" ? new Set(useStore.getState().artifacts.map((a) => a.name)) : null;
+          name === "repl" && params.artifactAutoExpand
+            ? params.artifactAutoExpand.snapshotNames()
+            : null;
 
         // --- 3) Security / screenshot / bg_fetch SPA 警告は pipeline 内で処理 ---
         const consoleHooks = makeReplConsoleHooks(id);
@@ -289,7 +319,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
             browser: deps.browserExecutor,
             toolExecutor,
             securityMiddleware,
-            securityEnabled: useStore.getState().settings.enableSecurityMiddleware,
+            securityEnabled: settings.enableSecurityMiddleware ?? true,
             sessionId: session.id,
             spaDetectedDomains,
             onConsoleStart: consoleHooks.onConsoleStart,
@@ -337,19 +367,9 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
           isError: !toolResult.ok,
         });
 
-        // --- 7) repl 後に新規 artifact を検出して UI に反映 ---
-        if (name === "repl" && toolResult.ok && replPrevNames) {
-          await useStore.getState().loadArtifacts();
-          const { artifacts } = useStore.getState();
-          const newArtifact = artifacts.find((a) => !replPrevNames.has(a.name));
-          if (newArtifact) {
-            useStore.getState().selectArtifact(newArtifact.name);
-            // プレビュー価値の高い HTML/Markdown だけ自動でパネルを開く。
-            // JSON/画像/テキスト等は選択のみ行い、既存のパネル状態を維持する。
-            if (newArtifact.type === "html" || newArtifact.type === "markdown") {
-              useStore.getState().setArtifactPanelOpen(true);
-            }
-          }
+        // --- 7) repl 後に新規 artifact があれば UI に反映（UI state 操作はフック経由） ---
+        if (name === "repl" && toolResult.ok && replPrevNames && params.artifactAutoExpand) {
+          await params.artifactAutoExpand.onReplCompleted(replPrevNames);
         }
       };
 
@@ -372,19 +392,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
         messages = contextResult.messages;
         if (contextResult.summary) {
           session.summary = contextResult.summary;
-          const storeState = useStore.getState() as {
-            activeSessionSnapshot?: Session | null;
-            setActiveSession?: (nextSession: Session) => void;
-          };
-          if (
-            storeState.activeSessionSnapshot?.id === session.id &&
-            typeof storeState.setActiveSession === "function"
-          ) {
-            storeState.setActiveSession({
-              ...storeState.activeSessionSnapshot,
-              summary: contextResult.summary,
-            });
-          }
+          params.onSessionSummaryUpdate?.(session);
         }
         const turnBudget = {
           ...budget,
@@ -602,10 +610,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
   } finally {
     log.info("streamText 終了");
     if (currentSession.summary) {
-      const { activeSessionSnapshot, setActiveSession } = useStore.getState();
-      if (activeSessionSnapshot?.id === currentSession.id) {
-        setActiveSession({ ...activeSessionSnapshot, summary: currentSession.summary });
-      }
+      params.onSessionSummaryUpdate?.(currentSession);
     }
     chatStore.syncHistory(toPersistedHistory(messages, currentSession.summary?.text));
     chatStore.setStreaming(false);
