@@ -32,20 +32,9 @@ export class FetchProvider implements RuntimeProvider {
   readonly actions = ["bgFetch"] as const;
 
   getDescription(): string {
-    return `## bgFetch(url, options?) — REPL 内で任意 URL を fetch
+    return `## bgFetch(url, options?)
 
-外部 URL を background service worker 経由で取得する。CORS 制約なし、
-アクティブタブを汚さず、結果は AI のコンテキストを経由せず repl 戻り値や
-artifact に直接渡せる（トークン効率◎）。
-
-### When to Use
-- 5 URL 以上の並列／連続取得
-- 結果を \`createOrUpdateArtifact()\` に保存したいとき
-- JSON API / GitHub raw / 静的ドキュメント
-
-### Do NOT Use For
-- 1〜2 URL だけ取得して AI が直接内容を読みたい場合 → top-level \`bg_fetch\` を使う
-- SPA/CSR サイト → \`navigate()\` + \`browserjs()\` を使う（bgFetch も JS 実行後の内容は取れない）
+詳しい使い分けは top-level \`bg_fetch\` tool description を参照。\`enableBgFetch\` トグルも top-level \`bg_fetch\` と共有し、無効時は \`bgFetch\` も使えない。
 
 ### Signature
 
@@ -66,21 +55,6 @@ bgFetch(url: string, options?: {
   redirected?: boolean,
   redirectUrl?: string,
 }>
-\`\`\`
-
-\`\`\`javascript
-// ✅ 多 URL を 1 ツールコールで畳む
-const contents = {};
-for (const url of urls) {
-  try {
-    const { body } = await bgFetch(url, { responseType: 'readability' });
-    contents[url] = body.content;
-  } catch (e) {
-    contents[url] = 'Error: ' + e.message;
-  }
-}
-await createOrUpdateArtifact('docs.json', contents);
-return \`Collected \${Object.keys(contents).length} pages\`;
 \`\`\``;
   }
 

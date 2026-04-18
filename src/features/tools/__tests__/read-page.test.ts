@@ -28,8 +28,10 @@ describe("readPageToolDef", () => {
     expect((readPageToolDef.parameters as Record<string, unknown>).required).toEqual([]);
   });
 
-  it("description に軽量抽出について言及", () => {
+  it("description に軽量抽出と簡潔な repl 誘導を含む", () => {
     expect(readPageToolDef.description).toContain("軽量");
+    expect(readPageToolDef.description).toContain("複数ページを跨ぐ場合は `repl` で loop 制御");
+    expect(readPageToolDef.description).not.toContain("```javascript");
   });
 });
 

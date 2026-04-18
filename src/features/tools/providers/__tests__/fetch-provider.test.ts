@@ -41,11 +41,13 @@ describe("FetchProvider", () => {
     expect(code).toContain("action: 'bgFetch'");
   });
 
-  it("getDescription は bgFetch の When/Do NOT を含む", () => {
+  it("getDescription は bgFetch の signature と top-level 参照のみを含む", () => {
     const description = new FetchProvider().getDescription();
-    expect(description).toContain("bgFetch");
-    expect(description).toContain("When to Use");
-    expect(description).toContain("Do NOT Use For");
+    expect(description).toContain("bgFetch(url, options?)");
+    expect(description).toContain("top-level `bg_fetch` tool description");
+    expect(description).not.toContain("When to Use");
+    expect(description).not.toContain("Do NOT Use For");
+    expect(description).not.toContain("Collected ");
   });
 
   it("url 欠落時は tool_script_error を返す", async () => {

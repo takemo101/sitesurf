@@ -2,20 +2,22 @@ import { describe, expect, it } from "vitest";
 import { assembleReplDescriptionSections } from "../repl-description-sections";
 
 describe("assembleReplDescriptionSections", () => {
-  it("デフォルト (enableBgFetch 省略) では bgFetch セクションを含む", () => {
+  it("デフォルト (enableBgFetch 省略) では bgFetch の signature と参照を含む", () => {
     const out = assembleReplDescriptionSections(["AVAILABLE_FUNCTIONS"]);
     expect(out).toContain("bgFetch(url, options?)");
-    expect(out).toContain("Multi-URL fetch");
+    expect(out).toContain("詳しい使い分けは top-level `bg_fetch` tool description を参照");
+    expect(out).not.toContain("Fetch an external URL via the background service worker");
     // sentinel 行は出力に残してはいけない
     expect(out).not.toContain("BG_FETCH_SECTION_START");
     expect(out).not.toContain("BG_FETCH_SECTION_END");
   });
 
-  it("enableBgFetch=true でも同様に bgFetch セクションを含む", () => {
+  it("enableBgFetch=true でも同様に bgFetch の signature と参照を含む", () => {
     const out = assembleReplDescriptionSections(["AVAILABLE_FUNCTIONS"], {
       enableBgFetch: true,
     });
     expect(out).toContain("bgFetch(url, options?)");
+    expect(out).toContain("詳しい使い分けは top-level `bg_fetch` tool description を参照");
     expect(out).not.toContain("BG_FETCH_SECTION_START");
   });
 
