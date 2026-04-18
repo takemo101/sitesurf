@@ -52,19 +52,30 @@ describe("getSystemPromptV2", () => {
     expect(prompt).not.toContain("Skills: Site-Specific Extraction");
   });
 
-  it("includes skills section when includeSkills is true and skills have available extractors", () => {
+  it("includes skill metadata and runtime usage when includeSkills is true and skills have available extractors", () => {
+    const extractor = {
+      ...mockSkillMatch.skill.extractors[0],
+      id: "getVideoInfo",
+    };
     const skillMatch: SkillMatch = {
       ...mockSkillMatch,
-      skill: { ...mockSkillMatch.skill, name: "YouTube" },
-      availableExtractors: mockSkillMatch.skill.extractors,
+      skill: {
+        ...mockSkillMatch.skill,
+        id: "youtube",
+        name: "YouTube",
+        extractors: [extractor],
+      },
+      availableExtractors: [extractor],
       confidence: 85,
     };
     const prompt = getSystemPromptV2({ includeSkills: true, skills: [skillMatch] });
     expect(prompt).toContain("Skills: Site-Specific Extraction");
     expect(prompt).toContain("YouTube");
-    expect(prompt).toContain("Run extractor.code by reconstructing it first:");
-    expect(prompt).toContain('const code = skills["test-skill"].extractors["ext-1"].code;');
-    expect(prompt).toContain("const fn = new Function(`return (${code})`)();");
+    expect(prompt).toContain("- getVideoInfo(): string — Extracts test data");
+    expect(prompt).toContain("const info = await browserjs(() => window.youtube.getVideoInfo());");
+    expect(prompt).not.toContain("Run extractor.code by reconstructing it first:");
+    expect(prompt).not.toContain("function () { return document.title; }");
+    expect(prompt).not.toContain("new Function(`return (${code})`)();");
   });
 
   it("includes global skills in a separate section", () => {

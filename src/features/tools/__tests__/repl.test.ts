@@ -19,4 +19,11 @@ describe("buildReplToolDef", () => {
     expect(def.description).toContain("# Common Patterns");
     expect(def.description).toContain("Research & Document");
   });
+
+  it("skills guidance uses runtime-injected window extractors", () => {
+    const def = buildReplToolDef({ enableBgFetch: true });
+
+    expect(def.description).toContain("window.youtube.getVideoInfo()");
+    expect(def.description).not.toContain("new Function(`return (${code})`)()");
+  });
 });
