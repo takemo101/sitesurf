@@ -272,7 +272,7 @@ export function SettingsPanel() {
                         ? "ローカルモデルでは必要時に自動圧縮されます。クラウド向け設定は保存のみ行います"
                         : settings.autoCompact
                           ? "長い会話で構造化要約を自動生成します。追加の LLM コストが発生します"
-                          : "デフォルトはOFFです。長期セッションで情報保持を優先したい場合のみ有効にしてください"
+                          : "OFF の間はコンテキスト超過時に古いメッセージを削除します。情報の欠落を避けたい場合は ON を推奨"
                     }
                     checked={settings.autoCompact}
                     onChange={(e) => setSettings({ autoCompact: e.currentTarget.checked })}

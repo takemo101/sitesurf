@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { runAgentLoop, trackVisitedUrl, pruneVisitedUrls } from "../agent-loop";
+import { runAgentLoop, trackVisitedUrl, pruneVisitedUrls, toPersistedHistory } from "../agent-loop";
+import { STRUCTURED_SUMMARY_MESSAGE_PREFIX } from "../context-compressor";
 import type { AgentLoopParams, ChatActions } from "../agent-loop";
 import type { VisitedUrlEntry } from "@/features/ai/system-prompt-v2";
 import type { Session } from "@/ports/session-types";
@@ -1343,5 +1344,66 @@ describe("visited URLs in system prompt", () => {
 
     const firstCall = streamTextCalls[0] as { systemPrompt: string };
     expect(firstCall.systemPrompt).not.toContain("## Current Session: Visited URLs");
+  });
+});
+
+describe("toPersistedHistory", () => {
+  it("圧縮直後に残った [構造化要約] メッセージを先頭から除去する", () => {
+    const messages = [
+      {
+        role: "user" as const,
+        content: [
+          {
+            type: "text" as const,
+            text: `${STRUCTURED_SUMMARY_MESSAGE_PREFIX}\n## Goal\n前回の要約`,
+          },
+        ],
+      },
+      {
+        role: "user" as const,
+        content: [{ type: "text" as const, text: "直近のユーザ発話" }],
+      },
+    ];
+
+    const result = toPersistedHistory(messages);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBe(messages[1]);
+  });
+
+  it("[構造化要約] と [過去の会話の要約] の両方が先頭にある場合も重複せず除去する", () => {
+    const summaryText = "## Goal\nテスト";
+    const messages = [
+      {
+        role: "user" as const,
+        content: [
+          { type: "text" as const, text: `${STRUCTURED_SUMMARY_MESSAGE_PREFIX}\n${summaryText}` },
+        ],
+      },
+      {
+        role: "user" as const,
+        content: [{ type: "text" as const, text: `[過去の会話の要約]\n${summaryText}` }],
+      },
+      {
+        role: "user" as const,
+        content: [{ type: "text" as const, text: "次の発話" }],
+      },
+    ];
+
+    const result = toPersistedHistory(messages, summaryText);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBe(messages[2]);
+  });
+
+  it("要約マーカーのないメッセージ列はそのまま返す", () => {
+    const messages = [
+      { role: "user" as const, content: [{ type: "text" as const, text: "hello" }] },
+      { role: "assistant" as const, content: [{ type: "text" as const, text: "hi" }] },
+    ];
+
+    const result = toPersistedHistory(messages, "ignored");
+
+    expect(result).toEqual(messages);
   });
 });
