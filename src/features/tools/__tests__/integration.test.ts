@@ -147,9 +147,10 @@ describe("2段階抽出ワークフロー", () => {
       expect(new Set(names).size).toBe(names.length);
     });
 
-    it("read_page の description が軽量抽出と repl 誘導を含む", () => {
+    it("read_page の description が軽量抽出と簡潔な repl 誘導を含む", () => {
       expect(readPageToolDef.description).toContain("軽量");
-      expect(readPageToolDef.description).toContain("repl");
+      expect(readPageToolDef.description).toContain("複数ページを跨ぐ場合は `repl` で loop 制御");
+      expect(readPageToolDef.description).not.toContain("```javascript");
     });
 
     it("全ツール定義が parameters.type を持つ", () => {

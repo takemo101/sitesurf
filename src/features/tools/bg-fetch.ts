@@ -14,6 +14,7 @@ export const bgFetchToolDef: ToolDefinition = {
     "readabilityモードでは本文テキストに加え、ページ内リンク一覧も返すのでドキュメント探索に活用できる。" +
     "注意: SPA/CSRサイト（React, Vue, Next.js等）ではJSレンダリング後のコンテンツを取得できない。" +
     "SPA/CSRサイトの場合はnavigateでページを開いてからread_pageやbrowserjs()を使うこと。" +
+    "repl 内 helper の bgFetch() も同じ使い分けに従う。" +
     "また **5URL以上を取得する場合、または結果をartifactに保存したい場合は、bg_fetchではなく " +
     "repl 内の bgFetch() ループ + createOrUpdateArtifact() を使うこと**。" +
     "bg_fetch の結果は必ず AI コンテキストを経由するのでトークン効率が悪く、MAX_TURNS も消費する。",
