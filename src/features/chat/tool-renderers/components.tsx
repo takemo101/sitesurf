@@ -925,6 +925,73 @@ export const extractImageToolRenderer: ToolRenderer = {
   }),
 };
 
+function InspectGenericFallbackView({ toolCall }: ToolRendererContext) {
+  const args = toolCall.args && typeof toolCall.args === "object" ? toolCall.args : {};
+  const argsStr = Object.keys(args).length > 0 ? JSON.stringify(args, null, 2) : null;
+  const resultStr =
+    typeof toolCall.result === "string"
+      ? toolCall.result
+      : toolCall.result !== undefined
+        ? JSON.stringify(toolCall.result, null, 2)
+        : null;
+
+  return (
+    <>
+      {argsStr && (
+        <ScrollableResult maxHeight={150}>
+          <Code block style={{ fontSize: 13 }}>
+            {argsStr}
+          </Code>
+        </ScrollableResult>
+      )}
+      {toolCall.isRunning && !resultStr && (
+        <Group gap="xs" mt="xs">
+          <Loader size={14} />
+          <Text size="sm" c="dimmed">
+            Running {toolCall.name}...
+          </Text>
+        </Group>
+      )}
+      {resultStr && (
+        <ScrollableResult maxHeight={200}>
+          <Code block style={{ fontSize: 13 }}>
+            {resultStr}
+          </Code>
+        </ScrollableResult>
+      )}
+    </>
+  );
+}
+
+function InspectRendererView(context: ToolRendererContext) {
+  const args = context.toolCall.args && typeof context.toolCall.args === "object"
+    ? (context.toolCall.args as { action?: string })
+    : {};
+  if (args.action === "extract_image") {
+    return <ExtractImageRendererView {...context} />;
+  }
+  return <InspectGenericFallbackView {...context} />;
+}
+
+export const inspectToolRenderer: ToolRenderer = {
+  renderExecuting: (context) => <InspectRendererView {...context} />,
+  renderSuccess: (context) => <InspectRendererView {...context} />,
+  renderError: (context) => <InspectRendererView {...context} />,
+  renderSummary: createSummaryRenderer((toolCall) => {
+    const args = toolCall.args && typeof toolCall.args === "object" ? toolCall.args : {};
+    const action = typeof (args as { action?: unknown }).action === "string"
+      ? (args as { action: string }).action
+      : null;
+    if (action === "extract_image") {
+      const selector = typeof (args as { selector?: unknown }).selector === "string"
+        ? (args as { selector: string }).selector
+        : toolCall.name;
+      return <Text size="sm">{selector}</Text>;
+    }
+    return <Text size="sm">{action ?? toolCall.name}</Text>;
+  }),
+};
+
 export const artifactsToolRenderer: ToolRenderer = {
   renderExecuting: (context) => <ArtifactsRendererView {...context} />,
   renderSuccess: (context) => <ArtifactsRendererView {...context} />,
