@@ -7,6 +7,10 @@ export interface Logger {
   error(message: string, error?: unknown): void;
 }
 
+export function logStructuredInfo(prefix: string, data?: unknown): void {
+  console.info(prefix, data ?? "");
+}
+
 export function createLogger(module: string): Logger {
   const prefix = `[SiteSurf:${module}]`;
   return {

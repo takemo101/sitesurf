@@ -10,6 +10,10 @@ const budget: ContextBudget = {
   maxToolResultChars: 1000,
   compressionThreshold: 15000,
   trimThreshold: 20000,
+  systemPromptTokens: 0,
+  toolsTokens: 0,
+  historyTokens: 0,
+  toolResultsTokens: 0,
 };
 
 describe("context-manager", () => {
@@ -27,7 +31,9 @@ describe("context-manager", () => {
 
     const result = (messages[0] as Extract<AIMessage, { role: "tool" }>).result as string;
     expect(result).toContain("... (truncated)");
-    expect(result.length).toBeLessThanOrEqual(budget.maxToolResultChars + "\n... (truncated)".length);
+    expect(result.length).toBeLessThanOrEqual(
+      budget.maxToolResultChars + "\n... (truncated)".length,
+    );
   });
 
   it("maxToolResultChars 未満の tool メッセージは改変しない", () => {
@@ -53,7 +59,9 @@ describe("context-manager", () => {
 
     manageContextMessages(messages, budget);
 
-    expect((messages[0] as Extract<AIMessage, { role: "tool" }>).result).toBe("[screenshot captured]");
+    expect((messages[0] as Extract<AIMessage, { role: "tool" }>).result).toBe(
+      "[screenshot captured]",
+    );
   });
 
   it("logs when trimThreshold is reached and reports splicedMessageCount", () => {

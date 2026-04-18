@@ -375,7 +375,7 @@ describe("runAgentLoop", () => {
       deps: {
         createAIProvider: () => createMockAIProvider(),
         browserExecutor,
-        },
+      },
     });
     await runAgentLoop(params);
 
@@ -453,7 +453,7 @@ describe("auth refresh on ai_auth_invalid", () => {
         createAIProvider: () => createMockAIProvider(),
         browserExecutor: {} as BrowserExecutor,
         authProvider: mockAuthProvider,
-        },
+      },
       credentials: createMockCredentials(),
       onCredentialsUpdate,
     });
@@ -493,7 +493,7 @@ describe("auth refresh on ai_auth_invalid", () => {
         createAIProvider: () => createMockAIProvider(),
         browserExecutor: {} as BrowserExecutor,
         authProvider: mockAuthProvider,
-        },
+      },
       credentials: createMockCredentials(),
       onCredentialsUpdate,
     });
@@ -524,7 +524,7 @@ describe("auth refresh on ai_auth_invalid", () => {
         createAIProvider: () => createMockAIProvider(),
         browserExecutor: {} as BrowserExecutor,
         authProvider: mockAuthProvider,
-        },
+      },
     });
 
     await runAgentLoop(params);
@@ -824,7 +824,7 @@ describe("tool execution error", () => {
         createAIProvider: () => createMockAIProvider(),
         browserExecutor: {} as BrowserExecutor,
         securityMiddleware: createSecurityMiddleware({ auditLogger }),
-        },
+      },
     });
     vi.mocked(params.toolExecutor).mockResolvedValueOnce({
       ok: true,
@@ -866,7 +866,7 @@ describe("tool execution error", () => {
         createAIProvider: () => createMockAIProvider(),
         browserExecutor: {} as BrowserExecutor,
         securityMiddleware: createSecurityMiddleware({ auditLogger }),
-        },
+      },
     });
     vi.mocked(params.toolExecutor).mockResolvedValueOnce({
       ok: true,
@@ -1060,6 +1060,64 @@ describe("context budget integration", () => {
       }),
     );
   });
+
+  it("logs [ctx-budget] breakdown and prompt cache metrics", async () => {
+    setStreamEvents([
+      {
+        type: "finish",
+        finishReason: "stop",
+        usage: {
+          promptTokens: 120,
+          completionTokens: 30,
+          totalTokens: 150,
+          reasoningTokens: 9,
+          inputTokenDetails: {
+            cacheReadTokens: 60,
+            cacheWriteTokens: 15,
+          },
+        },
+      },
+    ]);
+
+    const params = createParams({
+      tools: [
+        {
+          name: "read_page",
+          description: "Read the current page",
+          parameters: { type: "object", properties: {} },
+        },
+      ],
+      systemPrompt: "system prompt",
+      chatStore: createMockChatStore({
+        getMessages: vi.fn(() => [
+          {
+            id: "u-1",
+            role: "user" as const,
+            content: "hello world",
+            createdAt: Date.now(),
+            timestamp: Date.now(),
+          },
+        ]),
+      }),
+    });
+
+    await runAgentLoop(params);
+
+    expect(consoleInfoSpy).toHaveBeenCalledWith(
+      "[ctx-budget]",
+      expect.objectContaining({
+        phase: "finish",
+        systemPromptTokens: "system prompt".length,
+        toolsTokens: JSON.stringify(params.tools).length,
+        historyTokens: "hello world".length,
+        toolResultsTokens: 0,
+        reasoningTokens: 9,
+        promptCacheReadTokens: 60,
+        promptCacheWriteTokens: 15,
+        promptCacheHitRate: 0.5,
+      }),
+    );
+  });
 });
 
 describe("trackVisitedUrl", () => {
@@ -1188,7 +1246,7 @@ describe("visited URLs in system prompt", () => {
       deps: {
         createAIProvider: () => createMockAIProvider(),
         browserExecutor,
-        },
+      },
     });
     await runAgentLoop(params);
 

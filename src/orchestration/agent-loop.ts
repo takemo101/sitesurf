@@ -18,7 +18,11 @@ import { convertNavigationForAPI } from "./navigation-converter";
 import { calculateBackoff, isRetryable, RETRY_CONFIG } from "./retry";
 import { estimateTokens } from "./context-compressor";
 import { compressIfNeeded, stripStructuredSummaryMessage } from "./context-compressor";
-import { getContextBudget } from "@/features/ai/context-budget";
+import {
+  buildContextBudgetBreakdown,
+  getContextBudget,
+  logContextBudgetSnapshot,
+} from "@/features/ai/context-budget";
 import { generateVisitedUrlsSection, type VisitedUrlEntry } from "@/features/ai/system-prompt-v2";
 import { prepareMessagesForTurn, trimMessagesToThreshold } from "./context-manager";
 import type { SkillRegistry } from "@/shared/skill-registry";
@@ -309,6 +313,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
   let navFlagTimer: ReturnType<typeof setTimeout> | null = null;
 
   let currentSession = session;
+  let latestTurnToolResultIds = new Set<string>();
   const currentUserMessageCount = chatStore
     .getMessages()
     .filter((message) => message.role === "user" || message.role === "navigation").length;
@@ -574,6 +579,21 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
             });
           }
         }
+        const turnBudget = {
+          ...budget,
+          ...buildContextBudgetBreakdown({
+            systemPrompt: effectiveSystemPrompt,
+            tools,
+            messages,
+            latestToolResultIds: latestTurnToolResultIds,
+          }),
+        };
+        logContextBudgetSnapshot({
+          phase: "request",
+          model: settings.model,
+          turn,
+          budget: turnBudget,
+        });
         chatStore.startNewAssistantMessage();
 
         for await (const event of aiProvider.streamText({
@@ -645,6 +665,13 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
               if (event.usage) {
                 chatStore.setLastMessageUsage(event.usage);
               }
+              logContextBudgetSnapshot({
+                phase: "finish",
+                model: settings.model,
+                turn,
+                budget: turnBudget,
+                usage: event.usage,
+              });
 
               const assistantContent: AssistantContent[] = [];
               if (assistantText) {
@@ -665,6 +692,9 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
               for (const tr of pendingToolResults) {
                 messages.push({ role: "tool", ...tr });
               }
+              latestTurnToolResultIds = new Set(
+                pendingToolResults.map((toolResult) => toolResult.toolCallId),
+              );
               pendingToolCalls.length = 0;
               pendingToolResults.length = 0;
               break;
