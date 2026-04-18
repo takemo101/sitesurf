@@ -15,6 +15,7 @@ import { initStore, useStore } from "@/store/index";
 import { defaultConsoleLogService } from "@/features/chat/services/console-log";
 import type { ArtifactStoragePort } from "@/ports/artifact-storage";
 import { estimateTokens } from "@/shared/token-utils";
+import { buildReplToolDef } from "@/features/tools/repl";
 
 let consoleInfoSpy: ReturnType<typeof vi.spyOn>;
 
@@ -1117,6 +1118,75 @@ describe("context budget integration", () => {
         promptCacheHitRate: 0.5,
       }),
     );
+  });
+
+  it("初回の AI ターンでは repl description に COMMON_PATTERNS を含める", async () => {
+    setStreamEvents([{ type: "finish", finishReason: "stop" }]);
+
+    const params = createParams({
+      tools: [buildReplToolDef({ enableBgFetch: false })],
+    });
+
+    await runAgentLoop(params);
+
+    const firstCall = streamTextCalls[0] as { tools: Array<{ name: string; description: string }> };
+    expect(firstCall.tools[0].name).toBe("repl");
+    expect(firstCall.tools[0].description).toContain("# Common Patterns");
+  });
+
+  it("repl が成功した次ターンでは COMMON_PATTERNS を送らない", async () => {
+    setStreamEvents(
+      [
+        {
+          type: "tool-call",
+          id: "repl-1",
+          name: "repl",
+          args: { code: "return 1;" },
+        },
+        { type: "finish", finishReason: "tool-calls" },
+      ],
+      [{ type: "finish", finishReason: "stop" }],
+    );
+
+    const params = createParams({
+      tools: [buildReplToolDef({ enableBgFetch: false })],
+      toolExecutor: vi.fn().mockResolvedValue({ ok: true, value: { output: "ok" } }),
+    });
+
+    await runAgentLoop(params);
+
+    const firstCall = streamTextCalls[0] as { tools: Array<{ name: string; description: string }> };
+    const secondCall = streamTextCalls[1] as { tools: Array<{ name: string; description: string }> };
+    expect(firstCall.tools[0].description).toContain("# Common Patterns");
+    expect(secondCall.tools[0].description).not.toContain("# Common Patterns");
+  });
+
+  it("直前の repl がエラーだった次ターンでは COMMON_PATTERNS を再送する", async () => {
+    setStreamEvents(
+      [
+        {
+          type: "tool-call",
+          id: "repl-1",
+          name: "repl",
+          args: { code: "throw new Error('boom');" },
+        },
+        { type: "finish", finishReason: "tool-calls" },
+      ],
+      [{ type: "finish", finishReason: "stop" }],
+    );
+
+    const params = createParams({
+      tools: [buildReplToolDef({ enableBgFetch: false })],
+      toolExecutor: vi.fn().mockResolvedValue({
+        ok: false,
+        error: { code: "tool_script_error", message: "boom" },
+      }),
+    });
+
+    await runAgentLoop(params);
+
+    const secondCall = streamTextCalls[1] as { tools: Array<{ name: string; description: string }> };
+    expect(secondCall.tools[0].description).toContain("# Common Patterns");
   });
 });
 

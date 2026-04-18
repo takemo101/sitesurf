@@ -99,13 +99,21 @@ function codeDescription(enableBgFetch: boolean): string {
   return `実行するJavaScriptコード。${fns.join(", ")} が使える。`;
 }
 
-export function buildReplToolDef(options: { enableBgFetch?: boolean } = {}): ToolDefinition {
+export interface BuildReplToolDefOptions {
+  enableBgFetch?: boolean;
+  includeCommonPatterns?: boolean;
+}
+
+export function buildReplToolDef(options: BuildReplToolDefOptions = {}): ToolDefinition {
   const enableBgFetch = options.enableBgFetch ?? true;
+  const includeCommonPatterns = options.includeCommonPatterns ?? false;
+  const descriptionSections = includeCommonPatterns
+    ? (["AVAILABLE_FUNCTIONS", "COMMON_PATTERNS"] as const)
+    : (["AVAILABLE_FUNCTIONS"] as const);
+
   return {
     name: "repl",
-    description: assembleReplDescriptionSections(["AVAILABLE_FUNCTIONS", "COMMON_PATTERNS"], {
-      enableBgFetch,
-    }),
+    description: assembleReplDescriptionSections([...descriptionSections], { enableBgFetch }),
     parameters: {
       ...REPL_PARAMETERS_BASE,
       properties: {
