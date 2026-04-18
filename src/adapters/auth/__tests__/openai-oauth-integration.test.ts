@@ -5,7 +5,6 @@ import type { AuthCallbacks, AuthCredentials } from "@/ports/auth-provider";
 import { runAgentLoop, type AgentLoopParams, type ChatActions } from "@/orchestration/agent-loop";
 import type { Session } from "@/ports/session-types";
 import type { AIProvider, StreamEvent, ProviderConfig } from "@/ports/ai-provider";
-import type { ToolResultStorePort } from "@/ports/tool-result-store";
 import { ok, err } from "@/shared/errors";
 import { SkillRegistry } from "@/shared/skill-registry";
 
@@ -24,13 +23,6 @@ vi.stubGlobal("crypto", {
   },
   subtle: { digest: mockDigest },
 });
-
-const mockToolResultStore: ToolResultStorePort = {
-  save: async () => {},
-  get: async () => null,
-  list: async () => [],
-  deleteSession: async () => {},
-};
 
 function createMockBrowser(overrides: Partial<BrowserExecutor> = {}): BrowserExecutor {
   return {
@@ -591,7 +583,6 @@ describe("OpenAI OAuth Integration Tests", () => {
           createAIProvider: () => mockAIProvider,
           browserExecutor: browser,
           authProvider: mockAuthProvider,
-          toolResultStore: mockToolResultStore,
         },
         chatStore,
         settings: {
@@ -652,7 +643,6 @@ describe("OpenAI OAuth Integration Tests", () => {
           createAIProvider: () => mockAIProvider,
           browserExecutor: browser,
           authProvider: mockAuthProvider,
-          toolResultStore: mockToolResultStore,
         },
         chatStore,
         settings: {

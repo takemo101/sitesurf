@@ -1,5 +1,7 @@
 # 実装計画: ツール結果コンテキスト管理 v2
 
+> ⚠️ **HISTORICAL** — Wave 2（Layer 3）は Phase 2 rollback で削除されました。Wave 1 / Wave 3（要約）は残存しています。
+>
 > 設計書: [`tool-result-context-v2.md`](./tool-result-context-v2.md)  
 > この文書は v2 設計を **AI 実装エージェントが着手可能な issue 粒度** に分解したもの。各 issue は単一セッションで完結できるサイズに絞り、受け入れ条件と参照箇所を明示する。
 

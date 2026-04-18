@@ -58,7 +58,6 @@ function createBudget(overrides: Partial<ContextBudget> = {}): ContextBudget {
     maxToolResultChars: 1_000,
     compressionThreshold: 9_830,
     trimThreshold: 13_926,
-    useToolResultStore: true,
     ...overrides,
   };
 }

@@ -19,7 +19,6 @@ import { calculateBackoff, isRetryable, RETRY_CONFIG } from "./retry";
 import { estimateTokens } from "./context-compressor";
 import { compressIfNeeded, stripStructuredSummaryMessage } from "./context-compressor";
 import { getContextBudget } from "@/features/ai/context-budget";
-import type { ToolResultStorePort } from "@/ports/tool-result-store";
 import { generateVisitedUrlsSection, type VisitedUrlEntry } from "@/features/ai/system-prompt-v2";
 import { prepareMessagesForTurn, trimMessagesToThreshold } from "./context-manager";
 import type { SkillRegistry } from "@/shared/skill-registry";
@@ -30,14 +29,6 @@ import {
   defaultConsoleLogService,
   normalizeConsoleLogEntry,
 } from "@/features/chat/services/console-log";
-import {
-  createToolResultKey,
-  formatRetrievedToolResult,
-  formatStoredToolResultSummary,
-  shouldStore,
-  summarizeToolResult,
-} from "@/features/tools/result-summarizer";
-import type { GetToolResultValue } from "@/features/tools";
 
 const log = createLogger("agent-loop");
 const defaultSecurityMiddleware = createSecurityMiddleware();
@@ -48,7 +39,6 @@ export interface AgentLoopDeps {
   browserExecutor: BrowserExecutor;
   authProvider?: AuthProvider;
   securityMiddleware?: SecurityMiddleware;
-  toolResultStore: ToolResultStorePort;
 }
 
 export interface ChatActions {
@@ -242,10 +232,36 @@ function stripLeadingStructuredSummary(messages: AIMessage[]): AIMessage[] {
   return messages.slice(1);
 }
 
+// Phase 2 で get_tool_result ツールを廃止する前に作られたセッションの履歴には
+// `Stored: tool_result://...` / `Use get_tool_result("...") for full content.` の
+// マーカー行が残り続けており、それを読み取った AI が存在しないツールを呼び出して
+// invalid-tool エラーを起こす。履歴読み込み / 書き戻しのいずれの経路でも
+// マーカーを除去して、ユーザが気づかないうちにセッションを健全化する。
+const LEGACY_STORED_MARKER_RE = /\nStored: tool_result:\/\/[^\n]+\n?/g;
+const LEGACY_USE_MARKER_RE = /\nUse get_tool_result\("[^"]+"\) for full content\.\n?/g;
+
+function stripLegacyToolResultMarkers(messages: AIMessage[]): AIMessage[] {
+  let mutated = false;
+  const next = messages.map((message) => {
+    if (message.role !== "tool" || typeof message.result !== "string") return message;
+    const cleaned = message.result
+      .replace(LEGACY_STORED_MARKER_RE, "\n")
+      .replace(LEGACY_USE_MARKER_RE, "\n");
+    if (cleaned === message.result) return message;
+    mutated = true;
+    return { ...message, result: cleaned };
+  });
+  return mutated ? next : messages;
+}
+
 export function toPersistedHistory(messages: AIMessage[], summaryText?: string): AIMessage[] {
   const withoutSkillMessages = messages.filter((message) => !isSkillDetectionMessage(message));
   const withoutStructuredSummary = stripLeadingStructuredSummary(withoutSkillMessages);
-  return stripLeadingSessionSummaryMessage(withoutStructuredSummary, summaryText);
+  const withoutSessionSummary = stripLeadingSessionSummaryMessage(
+    withoutStructuredSummary,
+    summaryText,
+  );
+  return stripLegacyToolResultMarkers(withoutSessionSummary);
 }
 
 export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
@@ -270,7 +286,6 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
     windowTokens: budget.windowTokens,
     inputBudget: budget.inputBudget,
     maxToolResultChars: budget.maxToolResultChars,
-    useToolResultStore: budget.useToolResultStore,
   });
 
   chatStore.setStreaming(true);
@@ -513,71 +528,11 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
 
         chatStore.updateToolCallResult(id, toolResult);
 
-        let resultForHistory = fullResult;
-        if (name === "get_tool_result" && toolResult.ok) {
-          const retrieved = toolResult.value as GetToolResultValue;
-          resultForHistory = formatRetrievedToolResult(retrieved);
-          log.info("[diag:get_tool_result] retrieved from store", {
-            key: retrieved.key,
-            originalTool: retrieved.toolName,
-            fullValueChars: retrieved.fullValue.length,
-            summaryChars: retrieved.summary.length,
-            historyMessageChars: resultForHistory.length,
-            turn,
-          });
-        } else {
-          const summary = summarizeToolResult({
-            toolName: name,
-            args,
-            fullResult,
-            rawValue: toolResult.ok ? toolResult.value : toolResult.error,
-            isError: !toolResult.ok,
-            currentUrl,
-            consoleTail:
-              name === "repl"
-                ? defaultConsoleLogService
-                    .get(id)
-                    .slice(-3)
-                    .map((entry) => entry.message)
-                : undefined,
-          });
-
-          if (
-            budget.useToolResultStore &&
-            shouldStore({ toolName: name, fullResult, summary, isError: !toolResult.ok })
-          ) {
-            const key = createToolResultKey();
-            try {
-              await deps.toolResultStore.save(session.id, {
-                key,
-                toolName: name,
-                fullValue: fullResult,
-                summary,
-                turnIndex: turn,
-              });
-              log.info("[diag:tool_result_store] saved", {
-                key,
-                toolName: name,
-                fullValueChars: fullResult.length,
-                summaryChars: summary.length,
-                turn,
-              });
-              resultForHistory = formatStoredToolResultSummary(name, summary, key);
-            } catch (error) {
-              log.warn("tool result save failed; falling back to summary-only", {
-                sessionId: session.id,
-                toolName: name,
-                key,
-                error,
-              });
-              resultForHistory = formatStoredToolResultSummary(name, summary);
-            }
-          } else if (budget.useToolResultStore) {
-            resultForHistory = formatStoredToolResultSummary(name, summary);
-          } else {
-            resultForHistory = fullResult;
-          }
-        }
+        // ツール結果はフルサイズで履歴に残す。文脈が溢れそうになったら
+        // compressMessagesIfNeeded（context-compressor）が LLM 要約で古い部分を畳む。
+        // 個別メッセージが極端に大きい場合は context-manager の maxToolResultChars
+        // が安全弁として働く。
+        const resultForHistory = fullResult;
 
         pendingToolResults.push({
           toolCallId: id,
@@ -918,9 +873,11 @@ function buildMessagesForAPI(
   options: { historyUserCount?: number } = {},
 ): AIMessage[] {
   const messages: AIMessage[] = [];
-  const persistedHistory = stripLeadingSessionSummaryMessage(
-    session.history.filter((message) => !isSkillDetectionMessage(message)),
-    session.summary?.text,
+  const persistedHistory = stripLegacyToolResultMarkers(
+    stripLeadingSessionSummaryMessage(
+      session.history.filter((message) => !isSkillDetectionMessage(message)),
+      session.summary?.text,
+    ),
   );
 
   // 1. Session summary (if exists)

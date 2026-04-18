@@ -1,11 +1,9 @@
 const DEFAULT_DB_NAME = "tandemweb";
-const CURRENT_DB_VERSION = 2;
+const CURRENT_DB_VERSION = 3;
 const SESSIONS_STORE = "sessions";
 const METADATA_STORE = "sessions-metadata";
-const TOOL_RESULTS_STORE = "tool-results";
+const LEGACY_TOOL_RESULTS_STORE = "tool-results";
 const LAST_MODIFIED_INDEX = "lastModified";
-const TOOL_RESULTS_SESSION_INDEX = "sessionId";
-const TOOL_RESULTS_SESSION_CREATED_INDEX = "sessionId_createdAt";
 
 export {
   CURRENT_DB_VERSION,
@@ -13,9 +11,6 @@ export {
   LAST_MODIFIED_INDEX,
   METADATA_STORE,
   SESSIONS_STORE,
-  TOOL_RESULTS_SESSION_CREATED_INDEX,
-  TOOL_RESULTS_SESSION_INDEX,
-  TOOL_RESULTS_STORE,
 };
 
 export function upgradeTandemwebDatabase(db: IDBDatabase, oldVersion: number): void {
@@ -30,12 +25,10 @@ export function upgradeTandemwebDatabase(db: IDBDatabase, oldVersion: number): v
     }
   }
 
-  if (oldVersion < 2 && !db.objectStoreNames.contains(TOOL_RESULTS_STORE)) {
-    const toolResultsStore = db.createObjectStore(TOOL_RESULTS_STORE, { keyPath: "key" });
-    toolResultsStore.createIndex(TOOL_RESULTS_SESSION_INDEX, "sessionId", { unique: false });
-    toolResultsStore.createIndex(TOOL_RESULTS_SESSION_CREATED_INDEX, ["sessionId", "createdAt"], {
-      unique: false,
-    });
+  // v2 で追加された tool-results ストアは v3 で廃止。LLM 要約 (auto-compact) に
+  // 置き換えたためストア自体が不要になったので、既存ユーザのデータごと drop する。
+  if (oldVersion < 3 && db.objectStoreNames.contains(LEGACY_TOOL_RESULTS_STORE)) {
+    db.deleteObjectStore(LEGACY_TOOL_RESULTS_STORE);
   }
 }
 

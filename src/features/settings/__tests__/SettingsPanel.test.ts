@@ -34,7 +34,6 @@ function createDeps(storage: InMemoryStorage): AppDeps {
     storage,
     sessionStorage: {} as AppDeps["sessionStorage"],
     artifactStorage: mockArtifactStorage,
-    toolResultStore: {} as AppDeps["toolResultStore"],
   };
 }
 

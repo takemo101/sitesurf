@@ -10,18 +10,13 @@ import {
 import { SkillRegistry, type SkillMatch } from "../skills";
 import type { BrowserExecutor, PageContent } from "@/ports/browser-executor";
 import { ok } from "@/shared/errors";
-import {
-  InMemoryArtifactStorage,
-  InMemoryStorage,
-  InMemoryToolResultStore,
-} from "@/adapters/storage/in-memory-storage";
+import { InMemoryArtifactStorage, InMemoryStorage } from "@/adapters/storage/in-memory-storage";
 
 function createToolExecutor(name: string, args: Record<string, unknown>, browser: BrowserExecutor) {
   return createToolExecutorWithSkills(
     new SkillRegistry(),
     new InMemoryArtifactStorage(),
     new InMemoryStorage(),
-    new InMemoryToolResultStore(),
   )(name, args, browser);
 }
 
@@ -193,10 +188,6 @@ describe("2段階抽出ワークフロー", () => {
       expect(names).not.toContain("skill");
     });
 
-    it("getAgentToolDefs: enableToolResultStore=true で get_tool_result を含む", () => {
-      const names = getAgentToolDefs({ enableToolResultStore: true }).map((t) => t.name);
-      expect(names).toContain("get_tool_result");
-    });
   });
 
   describe("draft ツールの dispatch パス", () => {
@@ -241,7 +232,6 @@ describe("2段階抽出ワークフロー", () => {
         registry,
         new InMemoryArtifactStorage(),
         storage,
-        new InMemoryToolResultStore(),
       );
 
       const createResult = await executor(
@@ -287,7 +277,6 @@ describe("2段階抽出ワークフロー", () => {
         registry,
         new InMemoryArtifactStorage(),
         storage,
-        new InMemoryToolResultStore(),
       );
 
       const createResult = await executor(

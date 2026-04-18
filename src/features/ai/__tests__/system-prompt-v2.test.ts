@@ -106,12 +106,6 @@ describe("getSystemPromptV2", () => {
     expect(prompt).toContain("CRITICAL");
   });
 
-  it("includes stored tool result guidance when enabled", () => {
-    const prompt = getSystemPromptV2({ includeToolResultStore: true });
-    expect(prompt).toContain("Stored Tool Results");
-    expect(prompt).toContain("get_tool_result");
-    expect(prompt).toContain("after 1 turn");
-  });
 });
 
 describe("generateVisitedUrlsSection", () => {

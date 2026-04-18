@@ -14,7 +14,6 @@ import { ok, err } from "@/shared/errors";
 import { initStore, useStore } from "@/store/index";
 import { defaultConsoleLogService } from "@/features/chat/services/console-log";
 import type { ArtifactStoragePort } from "@/ports/artifact-storage";
-import type { ToolResultStorePort } from "@/ports/tool-result-store";
 import { estimateTokens } from "@/shared/token-utils";
 
 let consoleInfoSpy: ReturnType<typeof vi.spyOn>;
@@ -30,13 +29,6 @@ const mockArtifactStorage: ArtifactStoragePort & { setSessionId(id: string | nul
   deleteFile: async () => {},
   clearAll: async () => {},
   setSessionId: () => {},
-};
-
-const mockToolResultStore: ToolResultStorePort = {
-  save: async () => {},
-  get: async () => null,
-  list: async () => [],
-  deleteSession: async () => {},
 };
 
 vi.mock("@/shared/utils", () => ({
@@ -144,7 +136,6 @@ function createParams(overrides?: Partial<AgentLoopParams>): AgentLoopParams {
     deps: {
       createAIProvider: () => createMockAIProvider(),
       browserExecutor: {} as BrowserExecutor,
-      toolResultStore: mockToolResultStore,
     },
     chatStore: createMockChatStore(),
     settings: {
@@ -227,115 +218,6 @@ describe("runAgentLoop", () => {
       ok: true,
       value: { content: "page text" },
     });
-  });
-
-  it("stores large tool results as summaries when tool result store is enabled", async () => {
-    setStreamEvents(
-      [
-        { type: "tool-call", id: "tc-store", name: "read_page", args: {} },
-        { type: "finish", finishReason: "tool-calls" },
-      ],
-      [
-        { type: "text-delta", text: "done" },
-        { type: "finish", finishReason: "stop" },
-      ],
-    );
-
-    const save = vi.fn(async () => undefined);
-    const syncHistory = vi.fn();
-    const params = createParams({
-      settings: {
-        provider: "openai",
-        model: "gpt-4",
-        apiKey: "sk-test",
-        baseUrl: "",
-        enterpriseDomain: "",
-      },
-      deps: {
-        createAIProvider: () => createMockAIProvider(),
-        browserExecutor: {
-          getActiveTab: vi.fn().mockResolvedValue({ url: "https://example.com", title: "Example" }),
-        } as unknown as BrowserExecutor,
-        toolResultStore: { ...mockToolResultStore, save },
-      },
-      chatStore: createMockChatStore({ syncHistory }),
-      toolExecutor: vi.fn().mockResolvedValue({
-        ok: true,
-        value: { text: "A".repeat(1200), simplifiedDom: "" },
-      }),
-    });
-
-    await runAgentLoop(params);
-
-    expect(save).toHaveBeenCalledTimes(1);
-    const [messages] = syncHistory.mock.calls.at(-1) ?? [];
-    expect(messages).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          role: "tool",
-          result: expect.stringContaining("Stored: tool_result://"),
-        }),
-      ]),
-    );
-  });
-
-  it("falls back to summary-only when tool result store save fails", async () => {
-    setStreamEvents(
-      [
-        { type: "tool-call", id: "tc-store-fail", name: "read_page", args: {} },
-        { type: "finish", finishReason: "tool-calls" },
-      ],
-      [
-        { type: "text-delta", text: "done" },
-        { type: "finish", finishReason: "stop" },
-      ],
-    );
-
-    const save = vi.fn(async () => {
-      throw new Error("IndexedDB quota exceeded");
-    });
-    const syncHistory = vi.fn();
-    const params = createParams({
-      settings: {
-        provider: "openai",
-        model: "gpt-4",
-        apiKey: "sk-test",
-        baseUrl: "",
-        enterpriseDomain: "",
-      },
-      deps: {
-        createAIProvider: () => createMockAIProvider(),
-        browserExecutor: {
-          getActiveTab: vi.fn().mockResolvedValue({ url: "https://example.com", title: "Example" }),
-        } as unknown as BrowserExecutor,
-        toolResultStore: { ...mockToolResultStore, save },
-      },
-      chatStore: createMockChatStore({ syncHistory }),
-      toolExecutor: vi.fn().mockResolvedValue({
-        ok: true,
-        value: { text: "A".repeat(1200), simplifiedDom: "" },
-      }),
-    });
-
-    await expect(runAgentLoop(params)).resolves.toBeUndefined();
-
-    const [messages] = syncHistory.mock.calls.at(-1) ?? [];
-    expect(messages).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          role: "tool",
-          result: expect.stringContaining("[read_page]"),
-        }),
-      ]),
-    );
-    expect(messages).toEqual(
-      expect.not.arrayContaining([
-        expect.objectContaining({
-          role: "tool",
-          result: expect.stringContaining("Stored: tool_result://"),
-        }),
-      ]),
-    );
   });
 
   it("repl 実行時は console log callback を渡して realtime log service に反映できる", async () => {
@@ -493,8 +375,7 @@ describe("runAgentLoop", () => {
       deps: {
         createAIProvider: () => createMockAIProvider(),
         browserExecutor,
-        toolResultStore: mockToolResultStore,
-      },
+        },
     });
     await runAgentLoop(params);
 
@@ -572,8 +453,7 @@ describe("auth refresh on ai_auth_invalid", () => {
         createAIProvider: () => createMockAIProvider(),
         browserExecutor: {} as BrowserExecutor,
         authProvider: mockAuthProvider,
-        toolResultStore: mockToolResultStore,
-      },
+        },
       credentials: createMockCredentials(),
       onCredentialsUpdate,
     });
@@ -613,8 +493,7 @@ describe("auth refresh on ai_auth_invalid", () => {
         createAIProvider: () => createMockAIProvider(),
         browserExecutor: {} as BrowserExecutor,
         authProvider: mockAuthProvider,
-        toolResultStore: mockToolResultStore,
-      },
+        },
       credentials: createMockCredentials(),
       onCredentialsUpdate,
     });
@@ -645,8 +524,7 @@ describe("auth refresh on ai_auth_invalid", () => {
         createAIProvider: () => createMockAIProvider(),
         browserExecutor: {} as BrowserExecutor,
         authProvider: mockAuthProvider,
-        toolResultStore: mockToolResultStore,
-      },
+        },
     });
 
     await runAgentLoop(params);
@@ -946,8 +824,7 @@ describe("tool execution error", () => {
         createAIProvider: () => createMockAIProvider(),
         browserExecutor: {} as BrowserExecutor,
         securityMiddleware: createSecurityMiddleware({ auditLogger }),
-        toolResultStore: mockToolResultStore,
-      },
+        },
     });
     vi.mocked(params.toolExecutor).mockResolvedValueOnce({
       ok: true,
@@ -989,8 +866,7 @@ describe("tool execution error", () => {
         createAIProvider: () => createMockAIProvider(),
         browserExecutor: {} as BrowserExecutor,
         securityMiddleware: createSecurityMiddleware({ auditLogger }),
-        toolResultStore: mockToolResultStore,
-      },
+        },
     });
     vi.mocked(params.toolExecutor).mockResolvedValueOnce({
       ok: true,
@@ -1036,7 +912,7 @@ describe("context budget integration", () => {
         baseUrl: "",
         enterpriseDomain: "",
       },
-      toolExecutor: vi.fn().mockResolvedValue({ ok: true, value: { text: "x".repeat(1200) } }),
+      toolExecutor: vi.fn().mockResolvedValue({ ok: true, value: { text: "x".repeat(5_000) } }),
     });
 
     await runAgentLoop(params);
@@ -1046,9 +922,9 @@ describe("context budget integration", () => {
     };
     const toolMessage = secondCall.messages.find((message) => message.role === "tool");
 
+    // gpt-4 の budget では maxToolResultChars=2000 のため履歴側が truncate される。
     expect(toolMessage?.toolName).toBe("read_page");
-    expect(toolMessage?.result).toContain("Stored: tool_result://");
-    expect(toolMessage?.result).toContain("Body preview:");
+    expect(toolMessage?.result).toContain("... (truncated)");
   });
 
   it("retries context overflow after trimming down to budget.compressionThreshold", async () => {
@@ -1163,7 +1039,13 @@ describe("context budget integration", () => {
       }),
       chatStore: createMockChatStore({
         getMessages: vi.fn(() => [
-          { id: "u-1", role: "user", content: "new user message", createdAt: Date.now() },
+          {
+            id: "u-1",
+            role: "user" as const,
+            content: "new user message",
+            createdAt: Date.now(),
+            timestamp: Date.now(),
+          },
         ]),
       }),
     });
@@ -1322,8 +1204,7 @@ describe("visited URLs in system prompt", () => {
       deps: {
         createAIProvider: () => createMockAIProvider(),
         browserExecutor,
-        toolResultStore: mockToolResultStore,
-      },
+        },
     });
     await runAgentLoop(params);
 
@@ -1405,5 +1286,24 @@ describe("toPersistedHistory", () => {
     const result = toPersistedHistory(messages, "ignored");
 
     expect(result).toEqual(messages);
+  });
+
+  it("旧 W2 の Stored: tool_result:// / Use get_tool_result(...) 行を tool メッセージから除去する", () => {
+    const messages = [
+      {
+        role: "tool" as const,
+        toolCallId: "tc-legacy",
+        toolName: "read_page",
+        result:
+          '[read_page]\nBody preview: hello\nStored: tool_result://tc_abc123\nUse get_tool_result("tc_abc123") for full content.',
+      },
+    ];
+
+    const result = toPersistedHistory(messages);
+
+    const cleaned = result[0] as Extract<(typeof messages)[number], { role: "tool" }>;
+    expect(cleaned.result).not.toContain("Stored: tool_result://");
+    expect(cleaned.result).not.toContain("get_tool_result");
+    expect(cleaned.result).toContain("Body preview: hello");
   });
 });

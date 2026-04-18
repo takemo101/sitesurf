@@ -38,17 +38,16 @@ describe("getContextBudget", () => {
     );
   });
 
-  it("200k model × default: maxToolResultChars = 20000, useToolResultStore = false", () => {
+  it("200k model × default: maxToolResultChars = 20000", () => {
     // inputBudget = 200000 - 16384 = 183616 >= 150000
     const budget = getContextBudget(MODEL_200K);
     expect(budget.maxToolResultChars).toBe(20_000);
-    expect(budget.useToolResultStore).toBe(false);
   });
 
-  it("32k model: useToolResultStore = true", () => {
+  it("32k model: maxToolResultChars = 1000", () => {
     const budget = getContextBudget(MODEL_32K);
-    // inputBudget = 16384 < 80000
-    expect(budget.useToolResultStore).toBe(true);
+    // inputBudget = 16384 < 20_000 ブラケット
+    expect(budget.maxToolResultChars).toBe(1_000);
   });
 
   it("unknown model: defaults to 128000 window", () => {

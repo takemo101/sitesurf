@@ -1,5 +1,4 @@
 import type { ArtifactFile, ArtifactStoragePort } from "@/ports/artifact-storage";
-import type { StoredToolResult, ToolResultStorePort } from "@/ports/tool-result-store";
 import type { StoragePort } from "@/ports/storage";
 
 export class InMemoryArtifactStorage implements ArtifactStoragePort {
@@ -68,39 +67,3 @@ export class InMemoryStorage implements StoragePort {
   }
 }
 
-export class InMemoryToolResultStore implements ToolResultStorePort {
-  private results = new Map<string, StoredToolResult>();
-
-  async save(
-    sessionId: string,
-    result: Omit<StoredToolResult, "createdAt" | "sessionId">,
-  ): Promise<void> {
-    this.results.set(result.key, {
-      ...result,
-      sessionId,
-      createdAt: Date.now(),
-    });
-  }
-
-  async get(sessionId: string, key: string): Promise<StoredToolResult | null> {
-    const result = this.results.get(key);
-    if (!result || result.sessionId !== sessionId) {
-      return null;
-    }
-    return result;
-  }
-
-  async list(sessionId: string): Promise<StoredToolResult[]> {
-    return [...this.results.values()]
-      .filter((result) => result.sessionId === sessionId)
-      .sort((left, right) => right.createdAt - left.createdAt);
-  }
-
-  async deleteSession(sessionId: string): Promise<void> {
-    for (const [key, result] of this.results.entries()) {
-      if (result.sessionId === sessionId) {
-        this.results.delete(key);
-      }
-    }
-  }
-}

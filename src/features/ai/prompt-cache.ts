@@ -15,7 +15,6 @@ interface CacheEntry {
 export function createPromptCacheKey(options: SystemPromptOptions): string {
   const parts: string[] = [
     `skills:${options.includeSkills ?? false}`,
-    `tool-results:${options.includeToolResultStore ?? false}`,
     `locale:${options.locale ?? "default"}`,
   ];
 

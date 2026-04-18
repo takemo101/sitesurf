@@ -1,15 +1,5 @@
-import { useEffect, useState } from "react";
-import {
-  Box,
-  Button,
-  Collapse,
-  Code,
-  Loader,
-  Modal,
-  Paper,
-  Text,
-  UnstyledButton,
-} from "@mantine/core";
+import { useState } from "react";
+import { Box, Collapse, Code, Paper, Text, UnstyledButton } from "@mantine/core";
 import {
   ChevronDown,
   ChevronUp,
@@ -19,9 +9,6 @@ import {
   Terminal,
 } from "lucide-react";
 import type { ToolCallInfo } from "@/ports/session-types";
-import { useDeps } from "@/shared/deps-context";
-import { useStore } from "@/store";
-import type { ToolResultStorePort } from "@/ports/tool-result-store";
 import { defaultConsoleLogService } from "./services/console-log";
 import { defaultToolRendererRegistry } from "./tool-renderers";
 import { ImageLightbox, ScrollableResult, ToolMessageContainer } from "./tool-renderers/components";
@@ -86,28 +73,6 @@ export async function downloadImageResource(
 }
 
 const RESULT_MAX_LENGTH = 500;
-
-export function getStoredToolResultKey(result?: string): string | null {
-  if (!result) return null;
-  const match = result.match(/(?:^|\n)Stored: tool_result:\/\/([^\n]+)/);
-  return match?.[1]?.trim() || null;
-}
-
-export async function loadStoredToolResult(
-  store: ToolResultStorePort,
-  sessionId: string,
-  key: string,
-): Promise<{ toolName: string; fullResult: string }> {
-  const stored = await store.get(sessionId, key);
-  if (!stored) {
-    throw new Error("保存済みの完全結果が見つかりませんでした。");
-  }
-
-  return {
-    toolName: stored.toolName,
-    fullResult: stored.fullValue,
-  };
-}
 
 function extractImageUrl(result: string): string | null {
   if (result.startsWith("data:image/")) return result;
@@ -179,84 +144,6 @@ function JsonValueNode({ label, value }: { label?: string; value: unknown }) {
         </Box>
       </Collapse>
     </Box>
-  );
-}
-
-function StoredToolResultButton({ result }: { result?: string }) {
-  const { toolResultStore } = useDeps();
-  const activeSessionId = useStore((s) => s.activeSessionId);
-  const key = getStoredToolResultKey(result);
-  const [opened, setOpened] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [fullResult, setFullResult] = useState<string | null>(null);
-  const [toolName, setToolName] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!opened) return;
-    if (!activeSessionId || !key) {
-      setError("完全結果を開くためのセッション情報が見つかりませんでした。");
-      setLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-
-    void loadStoredToolResult(toolResultStore, activeSessionId, key)
-      .then((stored) => {
-        if (cancelled) return;
-        setFullResult(stored.fullResult);
-        setToolName(stored.toolName);
-      })
-      .catch((cause: unknown) => {
-        if (cancelled) return;
-        setError(cause instanceof Error ? cause.message : String(cause));
-        setFullResult(null);
-        setToolName(null);
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeSessionId, key, opened, toolResultStore]);
-
-  if (!key) return null;
-
-  return (
-    <>
-      <Button size="compact-xs" variant="subtle" mt={8} onClick={() => setOpened(true)}>
-        完全結果を展開
-      </Button>
-      <Modal
-        opened={opened}
-        onClose={() => setOpened(false)}
-        title={toolName ? `${toolName} の完全結果` : "ツール結果の完全版"}
-        size="lg"
-      >
-        {loading ? (
-          <Box py="md" style={{ display: "flex", justifyContent: "center" }}>
-            <Loader size="sm" />
-          </Box>
-        ) : error ? (
-          <Text size="sm" c="red" style={{ whiteSpace: "pre-wrap" }}>
-            {error}
-          </Text>
-        ) : (
-          <ScrollableResult maxHeight={480}>
-            <Code block style={{ fontSize: 12, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-              {fullResult ?? ""}
-            </Code>
-          </ScrollableResult>
-        )}
-      </Modal>
-    </>
   );
 }
 
@@ -368,7 +255,6 @@ export function ToolCallBlock({ tc }: { tc: ToolCallInfo }) {
           </>
         )}
       </ToolMessageContainer>
-      <StoredToolResultButton result={tc.result} />
     </>
   );
 }

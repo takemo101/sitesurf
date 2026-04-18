@@ -11,7 +11,6 @@ export interface ContextBudget {
   maxToolResultChars: number;
   compressionThreshold: number;
   trimThreshold: number;
-  useToolResultStore: boolean;
 }
 
 export function getContextBudget(model: string, settingsMaxTokens?: number): ContextBudget {
@@ -45,6 +44,5 @@ export function getContextBudget(model: string, settingsMaxTokens?: number): Con
               : 1_000,
     compressionThreshold: Math.floor(inputBudget * 0.6),
     trimThreshold: Math.floor(inputBudget * 0.85),
-    useToolResultStore: inputBudget < 80_000,
   };
 }
