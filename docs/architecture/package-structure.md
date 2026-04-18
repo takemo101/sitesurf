@@ -2,321 +2,270 @@
 
 ## 設計方針
 
-**Feature-Sliced で機能単位に縦割りし、外部依存は Ports & Adapters で抽象化する。
-feature間の調整は orchestration/ が担い、feature同士の直接依存を禁止する。**
+**Feature-Sliced で機能単位に切り、外部依存は Ports & Adapters で抽象化する。**
 
-## ディレクトリ構造
+- `features/` は原則として Port と `shared/` に依存する
+- `features/` 同士の直接 import は原則禁止
+- `orchestration/` が feature 間の調停を担う
+- `shared/` は pure な共通部品だけを置く
 
-```
+> Issue #95 時点では一部に既知の例外がある。理想ルールと現状実装を混同しないこと。
+
+## 主要ディレクトリ
+
+```text
 src/
-│
-│  ── Ports (外部依存の抽象) ──────────────────────
-│
 ├── ports/
-│   ├── ai-provider.ts           # AIモデル呼び出しの抽象
-│   ├── artifact-storage.ts      # アーティファクト永続化の抽象
-│   ├── auth-provider.ts         # 認証フロー (OAuth等) の抽象
-│   ├── browser-executor.ts      # ページ操作 + タブ操作の抽象
-│   ├── runtime-provider.ts      # ランタイム情報の抽象
-│   ├── session-storage.ts       # セッション永続化の抽象
-│   ├── session-types.ts         # SessionRecord 等のセッション共通型
-│   ├── storage.ts               # 設定永続化の抽象
-│   └── tool-executor.ts         # ツール実行の抽象
-│
-│  ── Adapters (Portの具体実装) ──────────────────
+│   ├── ai-provider.ts
+│   ├── artifact-storage.ts
+│   ├── auth-provider.ts
+│   ├── browser-executor.ts
+│   ├── runtime-provider.ts
+│   ├── session-storage.ts
+│   ├── session-types.ts
+│   ├── storage.ts
+│   └── tool-executor.ts
 │
 ├── adapters/
 │   ├── ai/
-│   │   ├── vercel-ai-adapter.ts    # AIProvider 実装 (Vercel AI SDK)
-│   │   ├── openai-codex-adapter.ts # OpenAI Codex 向けアダプター
-│   │   ├── converters.ts           # メッセージ形式変換
-│   │   └── provider-factory.ts     # 設定→LanguageModel 生成
-│   │
+│   │   ├── converters.ts
+│   │   ├── openai-codex-adapter.ts
+│   │   ├── provider-factory.ts
+│   │   └── vercel-ai-adapter.ts
 │   ├── auth/
-│   │   ├── openai-auth.ts          # OpenAI PKCE フロー
-│   │   ├── copilot-auth.ts         # GitHub Copilot Device Flow
-│   │   └── noop-auth.ts            # APIキー方式/認証不要のnull実装
-│   │
 │   ├── chrome/
-│   │   └── chrome-browser-executor.ts  # BrowserExecutor 実装 (chrome.tabs/scripting/userScripts を直接呼び出す)
-│   │
+│   │   └── chrome-browser-executor.ts
 │   └── storage/
-│       ├── chrome-storage.ts           # StoragePort 実装 (chrome.storage.local)
-│       ├── indexeddb-session-storage.ts # SessionStorage 実装 (IndexedDB)
-│       ├── artifact-storage.ts         # ArtifactStorage 実装
-│       └── in-memory-storage.ts        # StoragePort/SessionStorage のインメモリ実装 (テスト用)
-│
-│  ── Features (ユーザーから見える機能単位) ──────
 │
 ├── features/
-│   ├── chat/                       # [機能] チャット
-│   │   ├── ChatArea.tsx            #   メッセージ一覧
-│   │   ├── ChatBubble.tsx          #   個別メッセージ (Markdown)
-│   │   ├── MessageBubble.tsx       #   メッセージバブル外枠
-│   │   ├── ToolCallBlock.tsx       #   ツール呼出し結果表示
-│   │   ├── InputArea.tsx           #   入力欄 + アクションボタン
-│   │   ├── NavigationBubble.tsx    #   ナビゲーション結果表示
-│   │   ├── StreamingIndicator.tsx  #   ストリーミング中インジケーター
-│   │   ├── SystemMessage.tsx       #   システムメッセージ表示
-│   │   ├── ElementCard.tsx         #   選択要素カード表示
-│   │   ├── ErrorMessage.tsx        #   エラーメッセージ表示
-│   │   ├── MarkdownContent.tsx     #   Markdownレンダリング
-│   │   ├── WelcomeScreen.tsx       #   初期表示ウェルカム画面
-│   │   ├── sample-prompts.ts       #   サンプルプロンプト一覧
-│   │   ├── system-prompt.ts        #   システムプロンプト生成
-│   │   ├── theme.ts                #   チャット用テーマ定数
-│   │   ├── chat-store.ts           #   Zustand slice (ChatSlice)
-│   │   └── types.ts                #   ChatMessage, ToolCallInfo 等
+│   ├── chat/
+│   │   ├── ChatArea.tsx
+│   │   ├── ChatBubble.tsx
+│   │   ├── ElementCard.tsx
+│   │   ├── ErrorMessage.tsx
+│   │   ├── InputArea.tsx
+│   │   ├── MarkdownContent.tsx
+│   │   ├── MessageBubble.tsx
+│   │   ├── NavigationBubble.tsx
+│   │   ├── StreamingIndicator.tsx
+│   │   ├── SystemMessage.tsx
+│   │   ├── ToolCallBlock.tsx
+│   │   ├── WelcomeScreen.tsx
+│   │   ├── ArtifactToolMessage.tsx
+│   │   ├── TokenUsageDisplay.tsx
+│   │   ├── chat-store.ts
+│   │   ├── sample-prompts.ts
+│   │   ├── services/console-log.ts
+│   │   ├── tool-renderers/
+│   │   │   ├── bg-fetch-renderer.tsx
+│   │   │   ├── components.tsx
+│   │   │   ├── index.ts
+│   │   │   ├── registry.ts
+│   │   │   └── types.ts
+│   │   └── __tests__/
 │   │
-│   ├── sessions/                   # [機能] セッション管理
-│   │   ├── SessionListModal.tsx    #   セッション一覧モーダル
-│   │   ├── SessionTitle.tsx        #   セッションタイトル表示・編集
-│   │   ├── SessionItem.tsx         #   一覧内の個別セッション行
-│   │   ├── DeleteOldMenu.tsx       #   古いセッションの一括削除メニュー
-│   │   ├── EmptyState.tsx          #   セッションなし時の空表示
-│   │   ├── session-store.ts        #   Zustand slice (SessionSlice)
-│   │   ├── session-slice.ts        #   SessionSlice の型・初期値定義
-│   │   ├── auto-save.ts            #   変更検知による自動保存ロジック
-│   │   ├── save-builder.ts         #   SessionRecord 構築ヘルパー
-│   │   ├── format-relative-date.ts #   「3分前」等の相対日時フォーマット
-│   │   └── types.ts                #   SessionState 等の型定義
+│   ├── sessions/
+│   ├── settings/
+│   │   ├── SkillsEditor.tsx
+│   │   ├── provider-visibility.ts
+│   │   ├── settings-store.ts
+│   │   ├── persistence.ts
+│   │   ├── skills-editor-state.ts
+│   │   ├── skills-persistence.ts
+│   │   ├── skills-drafts-state.ts
+│   │   ├── skills-drafts-persistence.ts
+│   │   └── skill-registry-sync.ts
 │   │
-│   ├── settings/                   # [機能] 設定・認証
-│   │   ├── SettingsPanel.tsx       #   設定パネル
-│   │   ├── ProviderSelect.tsx      #   プロバイダー選択
-│   │   ├── OAuthSection.tsx        #   OAuth認証セクション
-│   │   ├── DeviceCodeDisplay.tsx   #   Copilot Device Code表示
-│   │   ├── SkillsEditor.tsx        #   スキルエディター UI
-│   │   ├── provider-visibility.ts  #   プロバイダー表示制御ロジック
-│   │   ├── settings-store.ts       #   Zustand slice (SettingsSlice)
-│   │   ├── persistence.ts          #   StoragePort経由の永続化
-│   │   ├── skills-editor-state.ts  #   スキルエディター状態管理
-│   │   ├── skills-persistence.ts   #   スキル永続化
-│   │   ├── skills-drafts-state.ts  #   スキルドラフト状態管理
-│   │   ├── skills-drafts-persistence.ts # スキルドラフト永続化
-│   │   ├── skill-registry-sync.ts  #   スキルレジストリ同期
-│   │   └── types.ts                #   Settings型
+│   ├── tools/
+│   │   ├── index.ts
+│   │   ├── bg-fetch.ts
+│   │   ├── extract-image.ts
+│   │   ├── navigate.ts
+│   │   ├── pick-element.ts
+│   │   ├── read-page.ts
+│   │   ├── repl.ts
+│   │   ├── screenshot.ts
+│   │   ├── skill.ts
+│   │   ├── definitions/
+│   │   │   └── artifacts-tool.ts
+│   │   ├── handlers/
+│   │   │   ├── artifacts-handler.ts
+│   │   │   └── index.ts
+│   │   ├── providers/
+│   │   │   ├── artifact-provider.ts
+│   │   │   ├── browser-js-provider.ts
+│   │   │   ├── fetch-provider.ts
+│   │   │   ├── index.ts
+│   │   │   ├── native-input-provider.ts
+│   │   │   └── navigate-provider.ts
+│   │   └── skills/
+│   │       ├── index.ts
+│   │       ├── registry.ts
+│   │       ├── skill-loader.ts
+│   │       ├── skill-parser.ts
+│   │       ├── types.ts
+│   │       └── validator.ts
 │   │
-│   ├── tools/                      # [機能] Web操作ツール定義
-│   │   ├── index.ts                #   全ツールのファクトリ
-│   │   ├── providers/              #   ツールプロバイダー
-│   │   ├── handlers/               #   ツールハンドラ
-│   │   ├── definitions/            #   ツール定義 (read_page, repl, navigate 等)
-│   │   └── skills/                 #   スキル連携ツール
+│   ├── ai/
+│   │   ├── context-budget.ts
+│   │   ├── index.ts
+│   │   ├── prompt-cache.ts
+│   │   ├── structured-summary-prompt.ts
+│   │   ├── system-prompt-v2.ts
+│   │   ├── sections/
+│   │   │   ├── completion-principle.ts
+│   │   │   ├── core-identity.ts
+│   │   │   ├── index.ts
+│   │   │   ├── repl-philosophy.ts
+│   │   │   └── security-boundary.ts
+│   │   └── __tests__/
 │   │
-│   ├── ai/                         # [機能] AI プロンプト管理 + コンテキスト予算
-│   │   ├── system-prompt-v2.ts     #   システムプロンプト v2 生成 (VisitedUrl section 含む)
-│   │   ├── system-prompt.ts        #   旧 system-prompt (互換用)
-│   │   ├── prompt-cache.ts         #   プロンプトキャッシュ管理
-│   │   ├── context-budget.ts       #   トークン予算計算 (Wave 1)
-│   │   ├── structured-summary-prompt.ts # 構造化要約プロンプト生成 (Wave 2)
-│   │   ├── index.ts                #   公開API
-│   │   └── sections/               #   プロンプトセクション定義
-│   │       ├── core-identity.ts
-│   │       ├── security-boundary.ts
-│   │       └── completion-principle.ts
-│   │
-│   ├── artifacts/                  # [機能] アーティファクト表示
-│   │   ├── ArtifactPanel.tsx       #   アーティファクトパネル
-│   │   ├── ArtifactPreview.tsx     #   プレビュー表示
-│   │   ├── CodeView.tsx            #   コードビュー
-│   │   ├── ArtifactFileItem.tsx    #   ファイルアイテム表示
-│   │   ├── artifact-slice.ts       #   Zustand slice (ArtifactSlice)
-│   │   └── types.ts                #   Artifact 型定義
-│   │
-│   └── security/                   # [機能] セキュリティ
-│       ├── detection-engine.ts     #   脅威検出エンジン
-│       ├── middleware.ts           #   セキュリティミドルウェア
-│       ├── audit-logger.ts         #   監査ロガー
-│       ├── patterns.ts             #   検出パターン定義
-│       └── types.ts                #   Security 型定義
-│
-│  ── Orchestration (feature間の調整) ───────────
+│   ├── artifacts/
+│   └── security/
 │
 ├── orchestration/
-│   ├── agent-loop.ts              # streamText + ツール実行ループ
-│   ├── context-compressor.ts      # トークン超過時のメッセージ圧縮
-│   ├── context-manager.ts         # コンテキスト予算に基づく圧縮トリガー (Wave 2)
-│   ├── navigation-converter.ts    # ナビゲーション結果の変換
-│   ├── retry.ts                   # エラー時のリトライロジック
-│   ├── security-audit.ts          # セキュリティ監査連携
-│   ├── SecurityAuditSettingsSection.tsx # 監査ログ設定 UI
-│   └── skill-detector.ts          # スキル検出ロジック
-│
-│  ── Store (slice合成 + 型定義) ──────────────────
+│   ├── agent-loop.ts
+│   ├── context-compressor.ts
+│   ├── context-manager.ts
+│   ├── navigation-converter.ts
+│   ├── retry.ts
+│   ├── security-audit.ts
+│   ├── SecurityAuditSettingsSection.tsx
+│   └── skill-detector.ts
 │
 ├── store/
-│   ├── index.ts                   # slice合成 + 永続化関数の組み立て
-│   └── types.ts                   # AppStore 型 + TabInfo 型定義
+│   ├── index.ts
+│   └── types.ts
 │
-│  ── エントリーポイント ─────────────────────────
-│
-├── sidepanel/                     # Side Panel (React mount + DI)
+├── sidepanel/
+│   ├── App.tsx
+│   ├── ErrorBoundary.tsx
+│   ├── Header.tsx
+│   ├── TabBar.tsx
 │   ├── index.html
-│   ├── main.tsx                   #   Adapter生成 + DepsProvider
-│   ├── App.tsx                    #   レイアウト + feature組み合わせ
-│   ├── ErrorBoundary.tsx          #   エラーバウンダリ
-│   ├── Header.tsx                 #   ヘッダー (セッション操作等)
-│   ├── TabBar.tsx                 #   タブバー (Chat / Settings切り替え)
-│   ├── initialize.ts              #   起動時の初期化処理 (設定読み込み等)
-│   ├── ui-store.ts                #   UISlice (settingsOpen, activeTab 等)
-│   ├── skill-registry-runtime.ts  #   スキルレジストリのランタイム管理
-│   ├── hooks/
-│   │   └── use-agent.ts           #   エージェント操作フック
-│   └── styles.css
+│   ├── initialize.ts
+│   ├── main.tsx
+│   ├── skill-registry-runtime.ts
+│   ├── styles.css
+│   ├── ui-store.ts
+│   └── hooks/use-agent.ts
 │
-├── routes/                        # 遅延ロードされるルート/パネル (React.lazy)
-│   └── index.ts                   #   ChatRoute, SettingsRoute, ArtifactsRoute
+├── background/
+│   ├── index.ts
+│   └── handlers/
+│       ├── bg-fetch.ts
+│       ├── native-input.ts
+│       ├── panel-tracker.ts
+│       └── session-lock.ts
 │
-├── hooks/                         # sidepanel 横断の汎用 hook
-│   └── use-progressive-loading.ts #   段階的 UI ロード制御
-│
-├── background/                    # Service Worker
-│   ├── index.ts                   #   Port ベースのルーター (セッションロック + パネル追跡)
-│   └── handlers/                  #   ハンドラ
-│       ├── session-lock.ts        #   セッション排他ロック
-│       ├── panel-tracker.ts       #   サイドパネルの開閉追跡
-│       ├── native-input.ts        #   ネイティブ入力 (debugger API 経由)
-│       └── bg-fetch.ts            #   bg_fetch 実行 (URLバリデーション + fetch + offscreen連携)
-│
-├── offscreen/                     # Offscreen Document (bg_fetch readability 用)
-│   └── index.ts                   #   DOMParser + @mozilla/readability で本文抽出
-│
-│  ── 共通 ────────────────────────────────────────
+├── offscreen/
+│   └── index.ts
 │
 └── shared/
-    ├── deps-context.tsx           # 依存注入の React Context (DepsProvider / useDeps)
-    ├── port.ts                    # Port (長接続) 通信モジュール (acquireLock, getLockedSessions)
-    ├── message-types.ts           # Background⇔SidePanel メッセージ型 (参照用)
-    ├── errors.ts                  # AppError, ToolError, AuthError
-    ├── constants.ts               # ProviderId 等の定数・union型
-    ├── skill-types.ts             # Skill 共通型
-    ├── skill-parser.ts            # Skill Markdown パーサー
-    ├── skill-markdown.ts          # Skill Markdown レンダリング
-    ├── skill-draft-types.ts       # Skill ドラフト型定義
-    ├── skill-draft-preview.ts     # Skill ドラフトプレビュー
-    ├── skill-validation.ts        # Skill バリデーション
-    ├── logger.ts                  # ロガー
-    ├── models.generated.ts        # モデル定義 (自動生成)
-    ├── token-constants.ts         # トークン関連定数
-    ├── token-utils.ts             # トークン計算ユーティリティ
-    ├── utils.ts                   # 汎用ユーティリティ関数
-    └── hljs-theme.css             # highlight.js テーマ
-
-src/artifact-popup/
-└── main.tsx                       # アーティファクトポップアップのエントリー
-
-public/
-├── sandbox.html                   # repl ツール用 sandbox iframe (unsafe-eval 許可)
-└── skills/                        # スキル定義 (Markdown)
+    ├── artifact-types.ts
+    ├── constants.ts
+    ├── deps-context.tsx
+    ├── errors.ts
+    ├── extract-image-core.ts
+    ├── logger.ts
+    ├── markdown.css
+    ├── message-types.ts
+    ├── model-utils.ts
+    ├── models.generated.ts
+    ├── port.ts
+    ├── repl-description-sections.ts
+    ├── skill-draft-preview.ts
+    ├── skill-draft-types.ts
+    ├── skill-markdown.ts
+    ├── skill-parser.ts
+    ├── skill-registry.ts
+    ├── skill-types.ts
+    ├── skill-validation.ts
+    ├── token-constants.ts
+    ├── token-utils.ts
+    ├── truncate-utils.ts
+    └── utils.ts
 ```
+
+## 現在の重要ポイント
+
+### `features/ai/`
+
+- legacy `system-prompt.ts` は存在しない
+- system prompt 本体は `system-prompt-v2.ts`
+- section 本体は `features/ai/sections/`
+- REPL の Common Patterns / Available Functions の正本は `shared/repl-description-sections.ts`
+
+### `features/tools/`
+
+- top-level tool 一覧は `index.ts` の `ALL_TOOL_DEFS`
+- `definitions/` は現在 `artifacts-tool.ts` のみ
+- `read_page`, `navigate`, `pick_element`, `screenshot`, `extract_image`, `skill`, `bg_fetch`, `repl` は直下ファイルで定義する
+- `skill` tool に draft action (`list_drafts`, `create_draft`, `update_draft`, `delete_draft`) を統合済みで、独立した `create_skill_draft` top-level tool はない
+
+### `features/chat/`
+
+Tool result UI は 2 段構え。
+
+- `ToolCallBlock.tsx`: 共通コンテナ + generic fallback
+- `tool-renderers/`: specialized renderer
+
+specialized renderer があるのは次の tool のみ:
+
+- `repl`
+- `extract_image`
+- `artifacts`
+- `bg_fetch`
+
+それ以外は generic fallback で表示する。
 
 ## 依存ルール
 
-### 許可される依存方向
-
-```
-sidepanel/      ──→  features/*, orchestration/, adapters/*, store/*, routes/, hooks/  (DI + 組み立て)
-orchestration/  ──→  ports/*, shared/*,
-                     features/chat (store), features/tools (定義),
-                     features/ai (system-prompt, context-budget),
-                     features/security (middleware)
-features/*      ──→  ports/* (interfaceのみ), shared/*,
-                     store/types (型のみ、AppStore 型参照に限定)
-adapters/*      ──→  ports/* (interfaceを実装), shared/*
-store/index     ──→  features/*/slice, sidepanel/ui-store (slice合成のみ)
-store/types     ──→  features/*/types, sidepanel/ui-store (型のみ)
-background/     ──→  shared/port, shared/message-types (型契約のみ)
-offscreen/      ──→  shared/message-types (型契約のみ)
-routes/, hooks/ ──→  features/*, shared/* (UI レイヤの一部)
-全モジュール     ──→  shared/*
+```text
+sidepanel/      -> features/*, orchestration/*, adapters/*, store/*
+orchestration/  -> ports/*, shared/*, features/* (必要最小)
+features/*      -> ports/*, shared/*, store/types
+adapters/*      -> ports/*, shared/*
+store/index     -> features の slice を合成
+background/     -> shared/* の型契約のみ
+offscreen/      -> shared/* の型契約のみ
 ```
 
-### 禁止される依存
+### 禁止
 
-```
-features/*      ✗→  adapters/*         具体実装を知らない
-features/*      ✗→  features/*         feature間の直接依存禁止
-features/*      ✗→  store/index        slice合成結果への依存禁止 (循環防止)
-ports/*         ✗→  (他の全て)          Portは誰にも依存しない
-shared/*        ✗→  (他の全て)          共通モジュールは誰にも依存しない
-background/     ✗→  features/*         実行コンテキストが異なる
-background/     ✗→  adapters/*         backgroundはPort/Adapterの外
-background/     ✗→  ports/*            backgroundはPort/Adapterの外
-offscreen/      ✗→  features/*, adapters/*, ports/*  offscreenもPort/Adapterの外
-adapters/chrome ✗→  shared/message-types  ツール実行はBackground経由ではなく直接Chrome API
-orchestration/  ✗→  adapters/*         具体実装を知らない
-store/types     ✗→  store/index        型定義ファイルは合成結果に依存しない
+```text
+features/*   X-> adapters/*
+features/*   X-> features/*   (原則)
+shared/*     X-> features/*, adapters/*, orchestration/*
+orchestration/* X-> adapters/*
+ports/*      X-> 他レイヤ
 ```
 
-### 補足: store/ の役割分担
+## 既知の例外（Issue #95 時点）
 
-`store/` はアプリ全体の Zustand ストアを組み立てる薄いレイヤー。
+- `src/features/tools/index.ts` / `src/features/tools/providers/fetch-provider.ts` → `@/store/index`
+- `src/features/artifacts/ArtifactPreview.tsx` → `@/features/chat/MarkdownContent`
 
-- **`store/types.ts`**: `AppStore` 型と `TabInfo` 型を定義する。各 slice の型定義を import して合成するが、実装コードは含まない (型のみ)。
-- **`store/index.ts`**: 各 feature の slice と `sidepanel/ui-store` の slice を `create()` で合成し、外部向けの `useStore` フックを export する。設定の永続化は `features/settings/persistence.ts` が担う。
+このドキュメントの依存ルールは**目標形**であり、上記は別 issue で解消対象になりうる既知の逸脱。
 
-各 feature の slice (`chat-store.ts`, `session-slice.ts` 等) は `AppStore` 型への参照が必要な場合に `store/types` を import できる。ただし `store/index` への依存は循環になるため禁止。
+## `shared/` に置くものの基準
 
-### 依存図
+`shared/` に置くのは次のいずれかに限る。
 
-```
-                    ┌────────────┐
-                    │  shared/   │  (型・定数・エラー・DepsContext)
-                    └─────▲──────┘
-                          │
-        ┌─────────────────┼──────────────────┐
-        │                 │                  │
-   ┌────┴─────┐    ┌──────┴───────┐    ┌─────┴───────┐
-   │  ports/  │    │ features/*   │    │background/  │
-   │(interface)│   │(chat,sessions│    │(SW + handlers)
-   └────▲─────┘    │ settings,    │    └─────────────┘
-        │          │ tools, ai,   │
-        │          │ artifacts,   │
-        │          │ security)    │
-        │          └──────▲───────┘
-        │                 │ uses
-        │          ┌──────┴───────┐
-        │          │orchestration/│
-        │          │(agent-loop,  │
-        │          │ compressor,  │
-        │          │ retry等)     │
-        │          └──────┬───────┘
-        │                 │ uses ports
-        │    ┌────────────┘
-        │    │
-   ┌────┴────▼───────────────┐
-   │      adapters/*          │
-   │  (ai, auth, chrome,     │
-   │   storage)               │
-   └──────────▲───────────────┘
-              │ creates & injects
-   ┌──────────┴──────────────────────┐
-   │    sidepanel/ + store/           │
-   │ (main.tsx が Adapter を生成して  │
-   │  DepsProvider 経由で注入、       │
-   │  store/index で slice を合成)    │
-   └──────────────────────────────────┘
-```
+- feature 横断で使う型
+- pure function / pure constant
+- framework や Chrome API に依存しない utility
+- prompt SSOT のような「単独 feature に閉じない文字列定義」
 
-## ファイル命名規約
+逆に、次は `shared/` に置かない。
 
-| 種別                | 規約                | 例                       |
-| ------------------- | ------------------- | ------------------------ |
-| Reactコンポーネント | PascalCase.tsx      | `ChatArea.tsx`           |
-| Port (interface)    | kebab-case.ts       | `ai-provider.ts`         |
-| Adapter (実装)      | kebab-case.ts       | `vercel-ai-adapter.ts`   |
-| Store slice         | kebab-case-store.ts | `chat-store.ts`          |
-| ロジック            | kebab-case.ts       | `agent-loop.ts`          |
-| feature内型定義     | types.ts            | `features/chat/types.ts` |
-| エラー定義          | errors.ts           | `shared/errors.ts`       |
-| テスト              | \*.test.ts(x)       | `agent-loop.test.ts`     |
+- Zustand state
+- feature 固有 UI
+- orchestration 用の分岐ロジック
+- adapter 依存の処理
 
 ## 関連ドキュメント
 
-- [概要](./overview.md) - アーキテクチャパターンの選定理由
-- [ツール設計](./tools.md) - features/tools/ の詳細
-- [状態管理設計](./state-management.md) - sliceの配置、DI手法
-- [エラーハンドリング](./error-handling.md) - shared/errors.ts
-- [テスト戦略](./testing.md) - テスト時のAdapter差替え
-- [ADR-003](../decisions/003-architecture-pattern.md) - アーキテクチャ選定の経緯
+- [概要](./overview.md)
+- [ツール設計](./tools.md)
+- [AI接続設計](./ai-connection.md)

@@ -1,223 +1,176 @@
-# Sitesurf アーキテクチャ概要
+# SiteSurf アーキテクチャ概要
 
 ## プロダクトの目的
 
-AIと協調してWebページを操作するChrome拡張機能。
-ユーザーが閲覧中のページをAIが読み取り、DOM操作・ナビゲーション・データ抽出を行う。
+AI と協調して Web ページを操作する Chrome 拡張機能。
+ユーザーはレンダリング結果を見て、AI は DOM / ページ状態 / ツール結果を見ながら、ナビゲーション・抽出・自動化・成果物生成を行う。
 
-## 採用アーキテクチャ: Feature-Sliced + Ports & Adapters
+## 採用アーキテクチャ
 
-**機能単位の縦割り (Feature-Sliced)** で構成しつつ、
-各featureの外部依存は **Ports & Adapters** パターンで抽象化する。
+**Feature-Sliced + Ports & Adapters** のハイブリッド。
 
-### なぜこの組み合わせか
+- `features/` はユーザーから見える機能単位で縦に切る
+- 外部依存（AI / Chrome API / Storage）は `ports/` で抽象化し、`adapters/` に閉じ込める
+- feature 間の調停は `orchestration/` が担当する
+- `shared/` は誰にも依存しない共通型・純粋ユーティリティのみを置く
 
-| 課題                    | Feature-Sliced が解決                      | Ports & Adapters が解決               |
-| ----------------------- | ------------------------------------------ | ------------------------------------- |
-| 変更がどこで閉じるか    | 機能ごとの縦割りで変更が1feature内に収まる | -                                     |
-| AI プロバイダーの差替え | -                                          | Port (interface) を通じた差替え可能性 |
-| テスト容易性            | feature単位でのテスト                      | Adapterのモック差替え                 |
-| Chrome API への依存     | -                                          | chrome.\* をAdapterに閉じ込める       |
+## 依存ルール
 
-### 原則
+以下は**目標アーキテクチャ**。Issue #95 時点では一部に既知の逸脱があり、後述の「既知の例外」で管理する。
 
-1. **各featureは自己完結的**: UI + ロジック + 状態を内包する
-2. **外部依存はPortを通じてアクセス**: AI API、Chrome API、Storage に直接依存しない
-3. **Adapterは差替え可能**: テスト時にモック、将来の技術変更に対応
-4. **feature間の依存は一方向**: 依存グラフは非循環。オーケストレーションはアプリケーション層が担う
+### 許可
 
-## 設計の基本原則
+- `sidepanel/` → `features/*`, `orchestration/*`, `adapters/*`, `store/*`
+- `orchestration/` → `ports/*`, `shared/*`, 一部 `features/*`
+- `features/*` → `ports/*`, `shared/*`, `store/types`
+- `adapters/*` → `ports/*`, `shared/*`
+- `background/` / `offscreen/` → `shared/message-types.ts` など型契約のみ
 
-- **シンプルさの優先**: Chrome拡張としての規模感に見合った抽象化。過剰な層分割はしない
-- **関心の分離**: Chrome拡張の実行コンテキスト制約に沿い、物理境界を尊重する
-- **プロバイダー非依存**: AI接続をPortで抽象化し、プロバイダー追加が既存featureに影響しない
-- **テスタビリティ**: Adapter差替えにより、Chrome API やAI APIなしでロジックをテスト可能
+### 禁止
 
-## 実行コンテキストの制約
+- `features/*` → `adapters/*`
+- `features/*` → 他の `features/*`（原則）
+- `shared/*` → `features/*`, `adapters/*`, `orchestration/*`
+- `orchestration/*` → `adapters/*`
 
-Chrome拡張 (Manifest V3) には3つの隔離された実行コンテキストがある。
-これはアーキテクチャの「物理制約」であり、選択ではない。
+## 実行コンテキスト
 
-```
-┌──────────────────────────────────────────────────────────┐
-│  Side Panel (React UI)                                    │
-│  ・ユーザーとの対話、AI API呼び出し、状態管理              │
-│  ・chrome.tabs / chrome.scripting / chrome.userScripts   │
-│    を直接呼び出す (Background 経由不要)                    │
-├──────────────────────────────────────────────────────────┤
-│  Background Service Worker                                │
-│  ・セッションロック (Port 長接続) のみ                     │
-│  ・サイドパネルの開閉追跡                                  │
-│  ※ DOM不可、UI不可、ライフサイクル短い(idle時停止)          │
-├──────────────────────────────────────────────────────────┤
-│  Content Script / Injected Script                         │
-│  ・対象ページのDOMに直接アクセス                            │
-│  ※ chrome.* API制限あり、ページごとに隔離                  │
-└──────────────────────────────────────────────────────────┘
+Chrome 拡張は実行コンテキストが分離されるため、物理境界をそのまま設計に反映している。
 
-通信:
-  Side Panel ──→ chrome.scripting.executeScript ──→ ページ (直接)
-  Side Panel ←─ chrome.runtime.Port (長接続) ──→ Background
-               (セッションロックのみ)
+```text
+Side Panel (React UI)
+  - AI 呼び出し
+  - Zustand state
+  - BrowserExecutor 経由のページ操作
+
+Background Service Worker
+  - セッションロック
+  - panel tracking
+  - native input
+  - bg_fetch
+
+Offscreen Document
+  - bg_fetch readability 抽出
+
+Page Context / Injected Script
+  - browserjs() の実行対象
+  - Skill extractor の実行対象
 ```
 
-## 全体構造
+## ディレクトリの責務
 
-```
+```text
 src/
-├── features/                    # 機能単位の縦割り (ユーザーから見える機能)
-│   ├── chat/                    #   チャット機能 (UI + 状態)
-│   ├── sessions/                #   セッション管理 (UI + 状態)
-│   ├── settings/                #   設定・認証機能 (UI + 状態)
-│   ├── tools/                   #   Web操作ツール定義
-│   │   ├── providers/           #     ツールプロバイダー
-│   │   ├── handlers/            #     ツールハンドラ
-│   │   ├── definitions/         #     ツール定義
-│   │   └── skills/              #     スキル連携
-│   ├── ai/                      #   システムプロンプト v2 + プロンプトキャッシュ + コンテキスト予算 + sections/
-│   ├── artifacts/               #   アーティファクトパネル・プレビュー・コードビュー
-│   └── security/                #   検出エンジン・ミドルウェア・監査ロガー・パターン
-│
-├── orchestration/               # featureの組み合わせ・調整
-│   ├── agent-loop.ts            #   streamText + ツール実行ループ
-│   ├── context-compressor.ts    #   長文圧縮 + 構造化要約
-│   ├── context-manager.ts       #   ContextBudget に基づく圧縮トリガー
-│   ├── navigation-converter.ts  #   ナビゲーション結果の変換
-│   ├── retry.ts                 #   エラー時のリトライロジック
-│   ├── security-audit.ts        #   セキュリティ監査連携
-│   └── skill-detector.ts        #   スキル検出ロジック
-│
-├── ports/                       # 外部依存の抽象 (interface)
-│   ├── ai-provider.ts           #   AI APIの抽象
-│   ├── artifact-storage.ts      #   アーティファクト永続化の抽象
-│   ├── auth-provider.ts         #   認証フローの抽象
-│   ├── browser-executor.ts      #   ページ操作 + タブ操作の抽象
-│   ├── runtime-provider.ts      #   ランタイム情報の抽象
-│   ├── session-storage.ts       #   セッション永続化の抽象
-│   ├── session-types.ts         #   セッション共通型
-│   ├── storage.ts               #   永続化の抽象
-│   └── tool-executor.ts         #   ツール実行の抽象
-│
-├── adapters/                    # Port の具体実装
-│   ├── ai/                      #   Vercel AI SDK 実装 + OpenAI Codex アダプター
-│   ├── auth/                    #   OAuth フロー実装
-│   ├── chrome/                  #   chrome.tabs/scripting/userScripts を直接呼び出す BrowserExecutor 実装
-│   └── storage/                 #   chrome.storage 実装 (ArtifactStorage を含む)
-│
-├── background/                  # Service Worker エントリー + ハンドラ
-│   ├── index.ts                 #   Port ベースのセッションロック + パネルトラッキング + bg_fetch ルーティング
-│   └── handlers/                #   ハンドラ
-│       ├── session-lock.ts      #     セッション排他ロック
-│       ├── panel-tracker.ts     #     サイドパネル開閉追跡
-│       ├── native-input.ts      #     ネイティブ入力 (debugger API 経由)
-│       └── bg-fetch.ts          #     bg_fetch (fetch + offscreen連携)
-│
-├── offscreen/                   # Offscreen Document
-│   └── index.ts                 #   bg_fetch readability の本文抽出
-│
-├── sidepanel/                   # Side Panel エントリー (React mount + DI)
-│   ├── index.html
-│   ├── main.tsx
-│   ├── App.tsx
-│   ├── ErrorBoundary.tsx        #   エラーバウンダリ
-│   ├── skill-registry-runtime.ts #  スキルレジストリのランタイム管理
-│   └── hooks/
-│       └── use-agent.ts         #   エージェント操作フック
-│
-├── routes/                      # 遅延ロードされるルート (React.lazy)
-│   └── index.ts                 #   ChatRoute, SettingsRoute, ArtifactsRoute
-│
-├── hooks/                       # sidepanel 横断の汎用 hook
-│   └── use-progressive-loading.ts #  段階的 UI ロード制御
-│
-├── shared/                      # feature横断の型・定数
-│   ├── deps-context.tsx          #   依存注入の React Context (DepsProvider / useDeps)
-│   ├── port.ts                  #   Port (長接続) 通信モジュール (acquireLock, getLockedSessions)
-│   ├── message-types.ts         #   Background⇔SidePanel メッセージ型 (参照用)
-│   ├── errors.ts                #   エラー型の分類
-│   ├── constants.ts             #   定数
-│   ├── skill-types.ts           #   Skill 共通型 (feature 間共有のため shared に配置)
-│   ├── skill-parser.ts          #   Skill Markdown パーサー (複数 feature で使用)
-│   ├── skill-markdown.ts        #   Skill Markdown レンダリング
-│   ├── skill-draft-types.ts     #   Skill ドラフト型定義
-│   ├── skill-draft-preview.ts   #   Skill ドラフトプレビュー
-│   ├── skill-validation.ts      #   Skill バリデーション
-│   ├── logger.ts                #   ロガー
-│   ├── models.generated.ts      #   モデル定義 (自動生成)
-│   ├── token-constants.ts       #   トークン関連定数
-│   ├── token-utils.ts           #   トークン計算ユーティリティ
-│   ├── utils.ts                 #   汎用ユーティリティ
-│   └── hljs-theme.css           #   highlight.js テーマ
-│
-public/
-├── sandbox.html                 # repl ツール用 sandbox iframe (unsafe-eval 許可)
-└── skills/                      # スキル定義 (Markdown)
+├── features/
+│   ├── chat/         UI 上の会話・ToolCall 表示
+│   ├── sessions/     セッション一覧・保存
+│   ├── settings/     認証・モデル・スキル設定
+│   ├── tools/        top-level tool 定義と REPL helper 実装
+│   ├── ai/           system prompt / prompt cache / context budget
+│   ├── artifacts/    Artifact Panel と preview
+│   └── security/     tool 出力の検査と監査ログ
+├── orchestration/    agent-loop / context 管理 / retry / security audit
+├── ports/            AI・Storage・BrowserExecutor などの抽象
+├── adapters/         Vercel AI SDK / Chrome API / storage 実装
+├── background/       service worker
+├── offscreen/        readability 抽出
+├── sidepanel/        React mount + DI
+├── store/            Zustand slice 合成
+└── shared/           共通型・純粋 utility・prompt section SSOT
 ```
 
-### レイヤ間の関係
+## AI prompt / tool surface の整理
 
-```
-┌────────────────────────────────────────────────────────┐
-│  sidepanel/ (エントリー + DI)                           │
-│  Adapter を生成し、orchestration と features に注入する  │
-└────────┬──────────────────────────────────────────────-─┘
-         │ injects adapters
-         ▼
-┌────────────────────────────────────────────────────────┐
-│  orchestration/ (アプリケーション層)                     │
-│  agent-loop が features を組み合わせてユースケースを実行  │
-│  依存先: ports/, features/chat (store), features/tools  │
-└────────┬──────────────────────────────────────────────-─┘
-         │ uses
-         ▼
-┌────────────────────────────────────────────────────────┐
-│  features/ (機能単位)                                   │
-│  chat, sessions, settings, tools, ai, artifacts,       │
-│  security: 各機能の UI + 状態 + ロジック                │
-│  依存先: ports/ (interfaceのみ), shared/                │
-└────────┬──────────────────────────────────────────────-─┘
-         │ depends on (interface only)
-         ▼
-┌────────────────────────────────────────────────────────┐
-│  ports/ (interface)   │  shared/ (型・定数・エラー)     │
-│  誰にも依存しない      │  誰にも依存しない              │
-└────────▲──────────────┘──────────────────────────────-─┘
-         │ implements
-┌────────┴──────────────────────────────────────────────-┐
-│  adapters/ (具体実装)                                   │
-│  ai/, auth/, chrome/ (直接Chrome API呼び出し), storage/ │
-└────────────────────────────────────────────────────────┘
+Issue #88-#92 以降、AI に見せる情報は次のように分離している。
 
-          ┌──────────────────────────────────────────────┐
-          │  background/ (Service Worker)                 │
-          │  shared/port.ts のみに依存                    │
-          │  Side Panel と Port (長接続) で通信            │
-          │  (セッションロック + パネル追跡のみ)            │
-          └──────────────────────────────────────────────┘
-```
+### 1. System prompt (`src/features/ai/system-prompt-v2.ts`)
 
-**feature は Port に依存し、Adapter には依存しない。**
-**feature 間の直接依存は禁止。orchestration/ が仲介する。**
+毎ターン送る基底 prompt。固定セクションは `src/features/ai/sections/` に分割されている。
 
-## 技術スタック
+- `CORE_IDENTITY`
+- `REPL_PHILOSOPHY`
+- `SECURITY_BOUNDARY`
+- `COMPLETION_PRINCIPLE`
+- 条件付き `Skills` section
+- 条件付き `Visited URLs` section
 
-| カテゴリ       | 技術               | 選定理由                                |
-| -------------- | ------------------ | --------------------------------------- |
-| ビルド         | vite-plus          | Viteベースの統一ツールチェーン          |
-| UI             | React + Mantine v9 | コンポーネント充実、ダークテーマ対応    |
-| 状態管理       | Zustand            | 軽量、Chrome拡張のコンテキストに適合    |
-| AI接続         | Vercel AI SDK      | プロバイダー統一API、ストリーミング対応 |
-| アイコン       | Lucide React       | 軽量、tree-shakable                     |
-| アニメーション | Framer Motion      | 宣言的API                               |
-| Markdown       | react-markdown     | AI応答の表示                            |
-| 言語           | TypeScript         | 型安全性                                |
+### 2. REPL description SSOT (`src/shared/repl-description-sections.ts`)
+
+REPL tool description の正本。
+
+- `COMMON_PATTERNS`
+- `AVAILABLE_FUNCTIONS`
+- `bgFetch()` helper の表示/非表示 (`enableBgFetch`)
+
+**重要:** Tool Philosophy / Common Patterns / Available Functions を複数箇所に重複定義しない。
+REPL から呼べる関数やワークフロー文言は `src/shared/repl-description-sections.ts` を編集する。
+
+### 3. Tool definitions (`src/features/tools/index.ts`)
+
+`ALL_TOOL_DEFS` は top-level tool の唯一の一覧。
+
+現在の定義:
+
+- `read_page`
+- `repl`
+- `navigate`
+- `pick_element`
+- `screenshot`
+- `extract_image`
+- `skill`
+- `artifacts`
+- `bg_fetch`
+
+エージェントに実際に公開する一覧は `getAgentToolDefs({ enableBgFetch })` で作る。
+`enableBgFetch=false` のとき `bg_fetch` と REPL helper `bgFetch()` の両方を AI から隠す。
+
+## スキル注入の設計
+
+スキルは 2 つの面を持つ。
+
+1. **system prompt にはメタデータだけを載せる**
+   - skill 名
+   - description
+   - 利用可能 extractor の signature / output schema
+   - `window.skillId.extractorId()` で呼べること
+2. **実行コードは sandbox にだけ渡す**
+   - `formatSkillsForSandbox()` が `extractor.code` を含む runtime object を作る
+   - `executeRepl()` が sandbox へ渡す
+   - `browserjs(() => window.youtube.getVideoInfo())` のように呼ぶ
+
+つまり **`extractor.code` は prompt には出さず、runtime にのみ存在する**。
+
+## UI 表示
+
+ツール実行結果の UI は `features/chat/ToolCallBlock.tsx` を入口にし、
+`features/chat/tool-renderers/` で specialized renderer を登録する。
+
+- specialized: `repl`, `extract_image`, `artifacts`, `bg_fetch`
+- generic fallback: `read_page`, `navigate`, `pick_element`, `screenshot`, `skill`
+
+`pick_element` / `screenshot` は generic fallback で十分なため専用 renderer を持たない。
+
+## 既知の例外（Issue #95 時点）
+
+- `src/features/tools/index.ts` と `src/features/tools/providers/fetch-provider.ts` は `@/store/index` に依存しており、理想の `features/* -> store/types` ルールから外れている
+- `src/features/artifacts/ArtifactPreview.tsx` は `@/features/chat/MarkdownContent` を import しており、feature 間依存の例外になっている
+
+この issue では **違反を解消したのではなく、最終レビューで可視化した**。必要なら follow-up issue で解消する。
+
+## テスタビリティ
+
+この構造により以下を維持する。
+
+- feature 単位でテスト可能
+- BrowserExecutor / Storage / AIProvider をモックに差し替え可能
+- prompt 生成は pure function として検証可能
+- UI renderer は server-side render でも検証可能
 
 ## 関連ドキュメント
 
-- [AI接続設計](./ai-connection.md) - プロバイダー抽象化、OAuth、ストリーミング
-- [ツール設計](./tools.md) - ツール定義、実行フロー、拡張方針
-- [状態管理設計](./state-management.md) - Zustand store構造、永続化
-- [パッケージ構成](./package-structure.md) - ディレクトリ構造と依存ルール
-- [エラーハンドリング](./error-handling.md) - エラー分類と伝搬方針
-- [テスト戦略](./testing.md) - テストレベルとモック戦略
-- [ADR-003: アーキテクチャ選定](../decisions/003-architecture-pattern.md) - 選定の経緯
+- [パッケージ構成](./package-structure.md)
+- [ツール設計](./tools.md)
+- [AI接続設計](./ai-connection.md)
+- [状態管理設計](./state-management.md)
+- [テスト戦略](./testing.md)
+- [システムプロンプト設計](../design/system-prompt.md)

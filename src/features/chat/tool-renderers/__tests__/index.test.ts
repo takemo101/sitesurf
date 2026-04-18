@@ -8,5 +8,8 @@ describe("createDefaultToolRendererRegistry", () => {
     expect(registry.get("repl")).toBeDefined();
     expect(registry.get("extract_image")).toBeDefined();
     expect(registry.get("artifacts")).toBeDefined();
+    expect(registry.get("bg_fetch")).toBeDefined();
+    expect(registry.get("pick_element")).toBeUndefined();
+    expect(registry.get("screenshot")).toBeUndefined();
   });
 });
