@@ -1,6 +1,10 @@
 import type { SkillMatch } from "@/shared/skill-types";
-import { assembleSections, type SectionKey } from "./sections";
-import { PromptCache, createPromptCacheKey } from "./prompt-cache";
+import {
+  CORE_IDENTITY,
+  TOOL_PHILOSOPHY,
+  SECURITY_BOUNDARY,
+  COMPLETION_PRINCIPLE,
+} from "@/shared/prompt-sections";
 
 export interface VisitedUrlEntry {
   url: string;
@@ -19,16 +23,12 @@ export interface SystemPromptOptions {
   enableBgFetch?: boolean;
 }
 
-const cache = new PromptCache();
 
 // TOOL_PHILOSOPHY は prompt cache 対象に載せるため system prompt 側へ移動。
 // REPL description 側には COMMON_PATTERNS / AVAILABLE_FUNCTIONS のみを残す。
-const BASE_SECTIONS: SectionKey[] = [
-  "CORE_IDENTITY",
-  "REPL_PHILOSOPHY",
-  "SECURITY_BOUNDARY",
-  "COMPLETION_PRINCIPLE",
-];
+const BASE_PROMPT = [CORE_IDENTITY, TOOL_PHILOSOPHY, SECURITY_BOUNDARY, COMPLETION_PRINCIPLE].join(
+  "\n\n",
+);
 
 function formatPropertyAccess(value: string): string {
   return /^[$A-Z_a-z][0-9A-Z_a-z$]*$/u.test(value) ? `.${value}` : `[${JSON.stringify(value)}]`;
@@ -124,26 +124,15 @@ export function generateVisitedUrlsSection(entries: VisitedUrlEntry[]): string {
 }
 
 export function getSystemPromptV2(options: SystemPromptOptions): string {
-  // Cache only the static base sections (not skills, which vary by shownSkillIds)
-  const baseKey = createPromptCacheKey(options);
-  const cachedBase = cache.get(baseKey);
-
-  const baseSections =
-    cachedBase ??
-    (() => {
-      const result = assembleSections(BASE_SECTIONS);
-      cache.set(baseKey, result);
-      return result;
-    })();
-
-  // Skills section is always regenerated (shownSkillIds changes per turn)
+  // BASE_PROMPT is a module-level constant, so no cache needed for the base.
+  // Skills section is always regenerated (shownSkillIds changes per turn).
   const skillsSection =
     options.includeSkills && options.skills
       ? generateSkillsSection(options.skills, options.shownSkillIds)
       : "";
 
   const visitedSection = generateVisitedUrlsSection(options.visitedUrls ?? []);
-  const sections = [baseSections, skillsSection, visitedSection].filter(
+  const sections = [BASE_PROMPT, skillsSection, visitedSection].filter(
     (section) => section.length > 0,
   );
   return sections.join("\n\n");
