@@ -108,7 +108,13 @@ function browserjs(fn, ...args) {
         return err(result.error);
       }
 
-      return ok(result.value);
+      // browser.executeScript は `Result<ScriptResult, ToolError>` を返し、
+      // ScriptResult は `{ value: unknown }` でユーザの戻り値を内部ラップする。
+      // ここでさらに ok(result.value) としてしまうと、sandbox 側で
+      // `await browserjs(() => ({ foo: 1 }))` の結果が `{ value: { foo: 1 } }`
+      // となり、AI が `.value.foo` / `.foo` の使い分けに迷う。unwrap して
+      // ユーザの直接戻り値だけを渡す。
+      return ok(result.value.value);
     } catch (e: unknown) {
       return err({
         code: "tool_script_error",
