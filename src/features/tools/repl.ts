@@ -71,29 +71,59 @@ export function formatSkillsForSandbox(matches: readonly SkillMatch[]): SandboxS
   return result;
 }
 
-export const replToolDef: ToolDefinition = {
-  name: "repl",
-  description: assembleReplDescriptionSections([
-    "TOOL_PHILOSOPHY",
-    "AVAILABLE_FUNCTIONS",
-    "COMMON_PATTERNS",
-  ]),
-  parameters: {
-    type: "object",
-    properties: {
-      title: {
-        type: "string",
-        description: "コードが行うことの簡潔な説明（例: 'ページタイトルを取得'）",
-      },
-      code: {
-        type: "string",
-        description:
-          "実行するJavaScriptコード。browserjs(), navigate(), bgFetch(), skills, Artifact Functions, File Functions, Native Input Functions (nativeClick, nativeDoubleClick, nativeRightClick, nativeHover, nativeFocus, nativeBlur, nativeScroll, nativeSelectText, nativeType, nativePress, nativeKeyDown, nativeKeyUp) が使える。",
+const REPL_PARAMETERS_BASE = {
+  type: "object" as const,
+  properties: {
+    title: {
+      type: "string" as const,
+      description: "コードが行うことの簡潔な説明（例: 'ページタイトルを取得'）",
+    },
+    code: {
+      type: "string" as const,
+      description: "",
+    },
+  },
+  required: ["code"] as const,
+};
+
+function codeDescription(enableBgFetch: boolean): string {
+  const fns = [
+    "browserjs()",
+    "navigate()",
+    ...(enableBgFetch ? ["bgFetch()"] : []),
+    "skills",
+    "Artifact Functions",
+    "File Functions",
+    "Native Input Functions (nativeClick, nativeDoubleClick, nativeRightClick, nativeHover, nativeFocus, nativeBlur, nativeScroll, nativeSelectText, nativeType, nativePress, nativeKeyDown, nativeKeyUp)",
+  ];
+  return `実行するJavaScriptコード。${fns.join(", ")} が使える。`;
+}
+
+export function buildReplToolDef(options: { enableBgFetch?: boolean } = {}): ToolDefinition {
+  const enableBgFetch = options.enableBgFetch ?? true;
+  return {
+    name: "repl",
+    description: assembleReplDescriptionSections(
+      ["TOOL_PHILOSOPHY", "AVAILABLE_FUNCTIONS", "COMMON_PATTERNS"],
+      { enableBgFetch },
+    ),
+    parameters: {
+      ...REPL_PARAMETERS_BASE,
+      properties: {
+        ...REPL_PARAMETERS_BASE.properties,
+        code: {
+          ...REPL_PARAMETERS_BASE.properties.code,
+          description: codeDescription(enableBgFetch),
+        },
       },
     },
-    required: ["code"],
-  },
-};
+  };
+}
+
+// 静的なデフォルト（bgFetch あり）。テストや ALL_TOOL_DEFS に載せる用。
+// 実行時は use-agent.ts 経由で buildReplToolDef({ enableBgFetch }) を使うので、
+// 設定が OFF の時は AI には bgFetch が見えない description が渡る。
+export const replToolDef: ToolDefinition = buildReplToolDef({ enableBgFetch: true });
 
 export interface UsedSkillInfo {
   skillId: string;
