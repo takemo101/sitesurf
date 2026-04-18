@@ -23,6 +23,7 @@ import {
   getContextBudget,
   logContextBudgetSnapshot,
 } from "@/features/ai/context-budget";
+import { buildReplToolDef } from "@/features/tools/repl";
 import { generateVisitedUrlsSection, type VisitedUrlEntry } from "@/features/ai";
 import { prepareMessagesForTurn, trimMessagesToThreshold } from "./context-manager";
 import type { SkillRegistry } from "@/shared/skill-registry";
@@ -105,6 +106,26 @@ export type { ToolExecutor } from "@/ports/tool-executor";
 
 const MAX_TURNS = 25;
 const MAX_VISITED_URLS = 20;
+
+function shouldIncludeCommonPatternsOnTurn(messages: AIMessage[], lastTurnHadReplError: boolean): boolean {
+  const hasAssistantTurn = messages.some((message) => message.role === "assistant");
+  return !hasAssistantTurn || lastTurnHadReplError;
+}
+
+function buildToolsForTurn(
+  tools: ToolDefinition[],
+  options: { includeCommonPatterns: boolean },
+): ToolDefinition[] {
+  const enableBgFetch = tools.some((tool) => tool.name === "bg_fetch");
+
+  return tools.map((tool) => {
+    if (tool.name !== "repl") return tool;
+    return buildReplToolDef({
+      enableBgFetch,
+      includeCommonPatterns: options.includeCommonPatterns,
+    });
+  });
+}
 
 /** 末尾スラッシュを除去してURLを正規化する */
 function normalizeUrl(url: string): string {
@@ -314,6 +335,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
 
   let currentSession = session;
   let latestTurnToolResultIds = new Set<string>();
+  let lastTurnHadReplError = false;
   const currentUserMessageCount = chatStore
     .getMessages()
     .filter((message) => message.role === "user" || message.role === "navigation").length;
@@ -334,6 +356,10 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
     let aiProvider = deps.createAIProvider(settings);
 
     for (let turn = 0; turn < MAX_TURNS; turn++) {
+      const turnTools = buildToolsForTurn(tools, {
+        includeCommonPatterns: shouldIncludeCommonPatternsOnTurn(messages, lastTurnHadReplError),
+      });
+
       log.info("turn start", {
         turn,
         estimateTokens: estimateTokens(messages),
@@ -583,7 +609,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
           ...budget,
           ...buildContextBudgetBreakdown({
             systemPrompt: effectiveSystemPrompt,
-            tools,
+            tools: turnTools,
             messages,
             latestToolResultIds: latestTurnToolResultIds,
           }),
@@ -600,7 +626,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
           model: settings.model,
           systemPrompt: effectiveSystemPrompt,
           messages,
-          tools,
+          tools: turnTools,
           maxTokens: settings.maxTokens,
           reasoningEffort: settings.reasoningLevel as
             | "none"
@@ -694,6 +720,9 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
               }
               latestTurnToolResultIds = new Set(
                 pendingToolResults.map((toolResult) => toolResult.toolCallId),
+              );
+              lastTurnHadReplError = pendingToolResults.some(
+                (toolResult) => toolResult.toolName === "repl" && toolResult.isError,
               );
               pendingToolCalls.length = 0;
               pendingToolResults.length = 0;
