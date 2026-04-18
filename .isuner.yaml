@@ -278,6 +278,86 @@ workflows:
           - 関連ドキュメントへのリンクを含めること
       - merge
 
+  # 整合性・アーキテクチャレビュー（Review → Fix → Re-Review → Merge）
+  audit:
+    description: Issue 記載スコープのレビュー → 修正 → 再レビュー → マージ
+    agent:
+      type: 'claude'
+      args: ['--model', 'claude-opus-4-7']
+    steps:
+      - agent: review
+        instruction: 'preset:review'
+        context: |
+          Issue に記載されたスコープに対して、コードベース・ドキュメントのレビューを実施してください。
+
+          ## レビュー方針
+          - Issue 本文の全チェックボックス項目を1つずつ検証する
+          - 根拠となるファイル・行番号を明示する
+          - 「問題なし」の項目と「要修正」の項目を明確に分ける
+          - 要修正の項目は、修正方針（どのファイルをどう変えるか）まで提示する
+
+          ## 必須参照
+          - AGENTS.md — 実装ガイドライン、依存ルール、コーディング規約
+          - docs/architecture/overview.md — 全体構造、レイヤ関係
+          - docs/architecture/package-structure.md — ディレクトリ構成、依存ルール
+          - docs/architecture/tools.md — tool 一覧
+          - docs/architecture/ai-connection.md — AI 接続仕様
+          - docs/architecture/error-handling.md — Result型、エラー分類
+
+          ## 依存ルール（必ず検証）
+          - features/ は ports/ にのみ依存（adapters/ に直接依存しない）
+          - feature間の直接依存は禁止（orchestration/ が仲介）
+          - background/ は shared/message-types のみに依存
+
+          ## 出力形式
+          - verdict: `needs_fix` または `approved`
+          - 要修正リスト（ファイルパス・現状・あるべき姿・対応方針）
+        rules:
+          - condition: needs_fix
+            next: implement
+          - condition: approved
+            next: merge
+      - agent: implement
+        instruction: 'preset:implement'
+        context: |
+          前ステップのレビューで指摘された項目を修正してください。
+
+          ## 必須参照
+          - AGENTS.md — コーディング規約、依存ルール
+          - docs/architecture/ — アーキテクチャドキュメント（更新対象の場合はここを書き換える）
+
+          ## コーディング規約
+          - TypeScript strict モード
+          - Mantine: ハードコード禁止 (dark.7 等)、CSS変数を使う
+          - Zustand: 個別セレクター、getState() でstale closure回避
+          - エラー: 回復可能は Result型、回復不能は例外
+
+          ## 修正方針
+          - レビューで指摘された項目のみを修正する（スコープ外の変更は禁止）
+          - 依存ルール違反は最優先で解消する
+          - ドキュメント更新が必要な場合は docs/architecture/ 配下を実装に合わせて修正する
+      - run: 'vp check'
+        description: 'format + lint + 型チェック'
+      - run: 'vp build'
+        description: 'ビルド確認'
+      - name: review
+        max_loops: 3
+        rules:
+          - condition: needs_fix
+            next: implement
+          - condition: approved
+            next: merge
+        context: |
+          修正内容の再レビューを行ってください。
+
+          ## チェック項目
+          - 初回レビューで指摘した全項目が解消されているか
+          - スコープ外の変更が混入していないか（diff を確認）
+          - 依存ルール（features/ → ports/、feature間直接依存禁止）に違反がないか
+          - docs/architecture/ と実装にズレがないか
+          - Result型・エラーハンドリングが設計通りか
+      - merge
+
   # 軽微な修正
   quick:
     description: 軽微な修正（typo・設定値・コメント等）

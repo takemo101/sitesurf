@@ -6,8 +6,8 @@ describe("buildReplToolDef", () => {
     const def = buildReplToolDef({ enableBgFetch: true });
 
     expect(def.description).not.toContain("# Common Patterns");
-    expect(def.description).toContain("# Tool Philosophy");
     expect(def.description).toContain("# Available Functions");
+    expect(def.description).not.toContain("# Tool Philosophy");
   });
 
   it("includeCommonPatterns=true の時だけ COMMON_PATTERNS を含める", () => {

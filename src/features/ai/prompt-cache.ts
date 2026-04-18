@@ -16,7 +16,6 @@ export function createPromptCacheKey(options: SystemPromptOptions): string {
   const parts: string[] = [
     `skills:${options.includeSkills ?? false}`,
     `locale:${options.locale ?? "default"}`,
-    `bgFetch:${options.enableBgFetch ?? true}`,
   ];
 
   if (options.includeSkills && options.skills) {

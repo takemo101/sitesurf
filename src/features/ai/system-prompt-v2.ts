@@ -20,11 +20,11 @@ export interface SystemPromptOptions {
 
 const cache = new PromptCache();
 
-// SSOT: TOOL_PHILOSOPHY / AVAILABLE_FUNCTIONS / COMMON_PATTERNS は repl ツールの
-// description 側（`buildReplToolDef`）でのみ保持し、system prompt には載せない。
-// 二重送信で ~4,700 tok/ターン浪費していたのを排除するため。
+// TOOL_PHILOSOPHY は prompt cache 対象に載せるため system prompt 側へ移動。
+// REPL description 側には COMMON_PATTERNS / AVAILABLE_FUNCTIONS のみを残す。
 const BASE_SECTIONS: SectionKey[] = [
   "CORE_IDENTITY",
+  "REPL_PHILOSOPHY",
   "SECURITY_BOUNDARY",
   "COMPLETION_PRINCIPLE",
 ];

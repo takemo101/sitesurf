@@ -108,8 +108,8 @@ export function buildReplToolDef(options: BuildReplToolDefOptions = {}): ToolDef
   const enableBgFetch = options.enableBgFetch ?? true;
   const includeCommonPatterns = options.includeCommonPatterns ?? false;
   const descriptionSections = includeCommonPatterns
-    ? (["TOOL_PHILOSOPHY", "AVAILABLE_FUNCTIONS", "COMMON_PATTERNS"] as const)
-    : (["TOOL_PHILOSOPHY", "AVAILABLE_FUNCTIONS"] as const);
+    ? (["AVAILABLE_FUNCTIONS", "COMMON_PATTERNS"] as const)
+    : (["AVAILABLE_FUNCTIONS"] as const);
 
   return {
     name: "repl",
