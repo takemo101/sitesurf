@@ -16,10 +16,17 @@ AI → tool call: bg_fetch({ urls: [...], response_type: "readability" })
   → createToolExecutorWithSkills: case "bg_fetch"
   → executeBgFetch(args)
   → chrome.runtime.sendMessage<BgFetchMessage, BgFetchResponse>(...)
-  → background/handlers/bg-fetch.ts: handleBgFetch()
+  → background/handlers/bg-fetch.ts: fetchOneWithBgInfra()
   → fetch(url)  ※CORS回避（host_permissions: <all_urls>）
   → (readability時) chrome.runtime.sendMessage → offscreen/index.ts
   → レスポンスを返却
+
+REPL 内からは同じ background インフラを FetchProvider 経由で利用する：
+AI → tool call: repl({ code: "await sandboxFetch(url, { responseType: 'readability' })" })
+  → sandbox.html の sandboxFetch() → postMessage
+  → repl.ts handleSandboxRequest → FetchProvider.handleRequest
+  → chrome.runtime.sendMessage<BgFetchMessage, BgFetchResponse>(...)
+  → background/handlers/bg-fetch.ts: fetchOneWithBgInfra() （同じ関数）
 ```
 
 ### 設計判断: 独立tool vs REPL sandbox関数
