@@ -547,8 +547,10 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
               });
               resultForHistory = formatStoredToolResultSummary(name, summary);
             }
-          } else {
+          } else if (budget.useToolResultStore) {
             resultForHistory = formatStoredToolResultSummary(name, summary);
+          } else {
+            resultForHistory = fullResult;
           }
         }
 
