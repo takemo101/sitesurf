@@ -1,7 +1,6 @@
 import type { SkillMatch } from "@/shared/skill-types";
 import { assembleSections, type SectionKey } from "./sections";
 import { PromptCache, createPromptCacheKey } from "./prompt-cache";
-import { stripBgFetchSections } from "@/shared/repl-description-sections";
 
 export interface VisitedUrlEntry {
   url: string;
@@ -21,11 +20,11 @@ export interface SystemPromptOptions {
 
 const cache = new PromptCache();
 
+// SSOT: TOOL_PHILOSOPHY / AVAILABLE_FUNCTIONS / COMMON_PATTERNS は repl ツールの
+// description 側（`buildReplToolDef`）でのみ保持し、system prompt には載せない。
+// 二重送信で ~4,700 tok/ターン浪費していたのを排除するため。
 const BASE_SECTIONS: SectionKey[] = [
   "CORE_IDENTITY",
-  "TOOL_PHILOSOPHY",
-  "AVAILABLE_FUNCTIONS",
-  "COMMON_PATTERNS",
   "SECURITY_BOUNDARY",
   "COMPLETION_PRINCIPLE",
 ];
@@ -112,11 +111,7 @@ export function getSystemPromptV2(options: SystemPromptOptions): string {
   if (cached !== null) {
     base = cached;
   } else {
-    // BASE_SECTIONS の中には <!-- BG_FETCH_SECTION_* --> マーカで囲まれた
-    // bgFetch 関連の記述があるので、設定に応じて剥がす。true でもマーカは
-    // 必ず取り除くので、sentinel が AI に漏れることはない。
-    const rawBaseSections = assembleSections(BASE_SECTIONS);
-    const baseSections = stripBgFetchSections(rawBaseSections, options.enableBgFetch ?? true);
+    const baseSections = assembleSections(BASE_SECTIONS);
     const skillsSection =
       options.includeSkills && options.skills ? generateSkillsSection(options.skills) : "";
     base = skillsSection ? `${baseSections}\n\n${skillsSection}` : baseSections;

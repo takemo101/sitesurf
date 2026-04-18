@@ -87,50 +87,31 @@ describe("getSystemPromptV2", () => {
     expect(prompt).not.toContain("Skills: Site-Specific Extraction");
   });
 
-  it("contains core v2 sections", () => {
+  it("contains remaining core sections (tool guidance は repl description 側に移動)", () => {
     const prompt = getSystemPromptV2({});
-    expect(prompt).toContain("Tool Philosophy");
-    expect(prompt).toContain("Available Functions");
     expect(prompt).toContain("Security Boundary");
     expect(prompt).toContain("Completion Principles");
+    // Tool Philosophy / Available Functions / Common Patterns は
+    // 重複排除のため repl ツールの description 側のみに保持する
+    expect(prompt).not.toContain("Tool Philosophy");
+    expect(prompt).not.toContain("Available Functions");
+    expect(prompt).not.toContain("Common Patterns");
   });
 
-  it("contains repl and navigate references", () => {
+  it("contains strong directives (NEVER clauses via SECURITY_BOUNDARY)", () => {
     const prompt = getSystemPromptV2({});
-    expect(prompt).toContain("REPL");
-    expect(prompt).toContain("navigate");
+    expect(prompt).toContain("NEVER");
   });
 
-  it("contains CRITICAL rules", () => {
-    const prompt = getSystemPromptV2({});
-    expect(prompt).toContain("CRITICAL");
-  });
-
-
-  it("enableBgFetch=false の時は system prompt から bgFetch の記述を全削除する", () => {
-    const prompt = getSystemPromptV2({ enableBgFetch: false });
-    // AVAILABLE_FUNCTIONS / COMMON_PATTERNS 経由で system prompt に漏れていた
-    // bgFetch 関連記述が残っていないこと
-    expect(prompt).not.toContain("bgFetch(url, options?)");
-    expect(prompt).not.toContain("Multi-URL fetch that bypasses");
-    expect(prompt).not.toContain("Multi-URL Fetch (static");
-    // sentinel も絶対に残さない
-    expect(prompt).not.toContain("BG_FETCH_SECTION_START");
-    expect(prompt).not.toContain("BG_FETCH_SECTION_END");
-  });
-
-  it("enableBgFetch=true の時は system prompt に bgFetch 記述が含まれる", () => {
-    const prompt = getSystemPromptV2({ enableBgFetch: true });
-    expect(prompt).toContain("bgFetch(url, options?)");
-    // sentinel は常に剥がす
-    expect(prompt).not.toContain("BG_FETCH_SECTION_START");
-  });
-
-  it("enableBgFetch オプション省略時 (未設定) は true 相当として扱う", () => {
-    const prompt = getSystemPromptV2({});
-    // legacy 呼び出しで bgFetch が見えることに依存しているテストを壊さない
-    expect(prompt).toContain("bgFetch(url, options?)");
-    expect(prompt).not.toContain("BG_FETCH_SECTION_START");
+  it("system prompt は bgFetch の記述を含まない (repl description 側で管理)", () => {
+    for (const enableBgFetch of [true, false, undefined]) {
+      const prompt = getSystemPromptV2(
+        enableBgFetch === undefined ? {} : { enableBgFetch },
+      );
+      expect(prompt).not.toContain("bgFetch(url, options?)");
+      expect(prompt).not.toContain("BG_FETCH_SECTION_START");
+      expect(prompt).not.toContain("BG_FETCH_SECTION_END");
+    }
   });
 });
 
