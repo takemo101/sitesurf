@@ -3,6 +3,7 @@ import {
   compressIfNeeded,
   compressMessagesIfNeeded,
   estimateTokens,
+  splitByKeepRecentTokens,
   STRUCTURED_SUMMARY_MESSAGE_PREFIX,
 } from "../context-compressor";
 import type { AIProvider, AIMessage, StreamEvent } from "@/ports/ai-provider";
@@ -245,6 +246,94 @@ describe("compressIfNeeded", () => {
 
     const result = await compressIfNeeded(provider, session, budget, "llama3.2", "local");
     expect(result.session.messages).toBe(messages);
+  });
+});
+
+describe("splitByKeepRecentTokens", () => {
+  it("空配列で toCompress/toKeep ともに空を返す", () => {
+    const result = splitByKeepRecentTokens([], 100);
+    expect(result.toCompress).toEqual([]);
+    expect(result.toKeep).toEqual([]);
+  });
+
+  it("全てが keepTokens 未満の場合は全てを toKeep として保持する", () => {
+    const messages: AIMessage[] = [createUserMessage("a"), createUserMessage("b")];
+    const result = splitByKeepRecentTokens(messages, 100);
+    expect(result.toCompress).toEqual([]);
+    expect(result.toKeep).toEqual(messages);
+  });
+
+  it("cut point が tool メッセージに当たった場合は直前の assistant(tool-call) まで後退する", () => {
+    const assistantWithCall: AIMessage = {
+      role: "assistant",
+      content: [
+        { type: "text", text: "calling" },
+        { type: "tool-call", id: "tc1", name: "read_page", args: {} },
+      ],
+    };
+    const toolResult: AIMessage = {
+      role: "tool",
+      toolCallId: "tc1",
+      toolName: "read_page",
+      result: "x".repeat(50),
+    };
+    const tailUser = createUserMessage("y".repeat(60));
+    const messages: AIMessage[] = [
+      createUserMessage("u".repeat(200)),
+      assistantWithCall,
+      toolResult,
+      tailUser,
+    ];
+    // tailUser だけでは 100 に届かず、tool を取り込むとそこが cut point になるが、
+    // tool 直前の assistant(tool-call) まで後退して一緒に保持されなければならない。
+    const result = splitByKeepRecentTokens(messages, 100);
+    expect(result.toCompress).toEqual([messages[0]]);
+    expect(result.toKeep).toEqual([assistantWithCall, toolResult, tailUser]);
+  });
+
+  it("並列 tool 実行 (assistant 1 つに対し tool 複数) の pair も分断しない", () => {
+    const assistantWithTwoCalls: AIMessage = {
+      role: "assistant",
+      content: [
+        { type: "tool-call", id: "tc1", name: "navigate", args: {} },
+        { type: "tool-call", id: "tc2", name: "read_page", args: {} },
+      ],
+    };
+    const toolA: AIMessage = {
+      role: "tool",
+      toolCallId: "tc1",
+      toolName: "navigate",
+      result: "a".repeat(30),
+    };
+    const toolB: AIMessage = {
+      role: "tool",
+      toolCallId: "tc2",
+      toolName: "read_page",
+      result: "b".repeat(30),
+    };
+    const messages: AIMessage[] = [createUserMessage("u".repeat(200)), assistantWithTwoCalls, toolA, toolB];
+    const result = splitByKeepRecentTokens(messages, 50);
+    expect(result.toKeep[0]).toBe(assistantWithTwoCalls);
+    expect(result.toKeep).toHaveLength(3);
+  });
+
+  it("画像を含むメッセージは 6000 chars 相当としてトークン計算される", () => {
+    const messageWithImage: AIMessage = {
+      role: "user",
+      content: [
+        { type: "text", text: "hi" },
+        { type: "image", mimeType: "image/png", data: "base64..." },
+      ],
+    };
+    const messages: AIMessage[] = [
+      createUserMessage("u".repeat(1_000)),
+      createUserMessage("v".repeat(1_000)),
+      messageWithImage,
+    ];
+    const result = splitByKeepRecentTokens(messages, 5_000);
+    // 画像 1 枚で ~6000 相当 → tail 1 件で keepTokens を満たす。
+    expect(result.toKeep).toEqual([messageWithImage]);
+    expect(result.toCompress).toHaveLength(2);
   });
 });
 

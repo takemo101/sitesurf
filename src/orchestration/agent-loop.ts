@@ -17,7 +17,7 @@ import { createSecurityMiddleware, type SecurityMiddleware } from "@/features/se
 import { convertNavigationForAPI } from "./navigation-converter";
 import { calculateBackoff, isRetryable, RETRY_CONFIG } from "./retry";
 import { estimateTokens } from "./context-compressor";
-import { compressIfNeeded } from "./context-compressor";
+import { compressIfNeeded, stripStructuredSummaryMessage } from "./context-compressor";
 import { getContextBudget } from "@/features/ai/context-budget";
 import type { ToolResultStorePort } from "@/ports/tool-result-store";
 import { generateVisitedUrlsSection, type VisitedUrlEntry } from "@/features/ai/system-prompt-v2";
@@ -232,11 +232,20 @@ function stripLeadingSessionSummaryMessage(
   return messages.slice(1);
 }
 
-function toPersistedHistory(messages: AIMessage[], summaryText?: string): AIMessage[] {
-  return stripLeadingSessionSummaryMessage(
-    messages.filter((message) => !isSkillDetectionMessage(message)),
-    summaryText,
-  );
+// 構造化要約メッセージ（[構造化要約]\n...）は圧縮直後の in-memory messages 先頭に
+// 残るが、セッション永続化の履歴には session.summary として別途保持するため
+// 重複送信・残骸蓄積を避けるために先頭から外しておく。
+function stripLeadingStructuredSummary(messages: AIMessage[]): AIMessage[] {
+  if (stripStructuredSummaryMessage(messages[0]) === undefined) {
+    return messages;
+  }
+  return messages.slice(1);
+}
+
+export function toPersistedHistory(messages: AIMessage[], summaryText?: string): AIMessage[] {
+  const withoutSkillMessages = messages.filter((message) => !isSkillDetectionMessage(message));
+  const withoutStructuredSummary = stripLeadingStructuredSummary(withoutSkillMessages);
+  return stripLeadingSessionSummaryMessage(withoutStructuredSummary, summaryText);
 }
 
 export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
