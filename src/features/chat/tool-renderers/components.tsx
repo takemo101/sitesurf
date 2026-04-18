@@ -568,13 +568,24 @@ function ExtractImageRendererView({ toolCall }: ToolRendererContext) {
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
+  const args = toolCall.args && typeof toolCall.args === "object" ? toolCall.args : {};
+  const action =
+    typeof (args as { action?: unknown }).action === "string"
+      ? ((args as { action: string }).action as "screenshot" | "extract_image" | string)
+      : null;
+  const isScreenshot = action === "screenshot";
+  const runningLabel = isScreenshot ? "Capturing screenshot..." : "Extracting image...";
+  const failureLabel = isScreenshot ? "Failed to capture screenshot" : "Failed to extract image";
+  const successLabel = isScreenshot ? "Screenshot captured" : "Image extracted";
+  const lightboxAlt = isScreenshot ? "Screenshot" : "Extracted image";
+
   if (toolCall.isRunning) {
     return (
       <Box p="md" style={{ background: "var(--mantine-color-default-hover)", borderRadius: 4 }}>
         <Group gap="xs">
           <Loader size={14} />
           <Text size="sm" c="dimmed">
-            Extracting image...
+            {runningLabel}
           </Text>
         </Group>
       </Box>
@@ -588,7 +599,7 @@ function ExtractImageRendererView({ toolCall }: ToolRendererContext) {
           <XCircle size={16} color="var(--mantine-color-red-5)" />
           <Box>
             <Text size="sm" c="red">
-              Failed to extract image
+              {failureLabel}
             </Text>
             {errorText && (
               <Text size="xs" c="dimmed" style={{ whiteSpace: "pre-wrap" }}>
@@ -615,7 +626,7 @@ function ExtractImageRendererView({ toolCall }: ToolRendererContext) {
           <ImageIcon size={20} color="var(--mantine-color-green-5)" />
           <Box>
             <Text size="sm" fw={600}>
-              Image extracted
+              {successLabel}
             </Text>
             {info.selector && (
               <Text size="xs" c="dimmed" style={{ fontFamily: "monospace" }}>
@@ -632,7 +643,7 @@ function ExtractImageRendererView({ toolCall }: ToolRendererContext) {
         mt="xs"
         style={{ overflow: "hidden", maxWidth: "100%", position: "relative" }}
       >
-        <ImageLightbox src={imageUrl} alt="Extracted image" />
+        <ImageLightbox src={imageUrl} alt={lightboxAlt} />
 
         <ActionIcon
           variant="filled"
@@ -967,9 +978,11 @@ function InspectRendererView(context: ToolRendererContext) {
   const args = context.toolCall.args && typeof context.toolCall.args === "object"
     ? (context.toolCall.args as { action?: string })
     : {};
-  if (args.action === "extract_image") {
+  // screenshot と extract_image は同じ画像プレビュー UI を使う
+  if (args.action === "extract_image" || args.action === "screenshot") {
     return <ExtractImageRendererView {...context} />;
   }
+  // pick_element は generic fallback (args + result JSON 表示) で十分
   return <InspectGenericFallbackView {...context} />;
 }
 
