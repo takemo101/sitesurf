@@ -30,10 +30,7 @@ import type { SkillRegistry } from "@/shared/skill-registry";
 import { buildSkillDetectionMessage, isSkillDetectionMessage } from "./skill-detector";
 import { useStore } from "@/store/index";
 import type { ProviderId } from "@/shared/constants";
-import {
-  defaultConsoleLogService,
-  normalizeConsoleLogEntry,
-} from "@/features/chat/services/console-log";
+import { normalizeConsoleLogEntry, defaultConsoleLogService } from "@/shared/console-log-types";
 
 const log = createLogger("agent-loop");
 const defaultSecurityMiddleware = createSecurityMiddleware();
