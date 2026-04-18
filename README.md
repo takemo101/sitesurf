@@ -7,11 +7,17 @@ AIと一緒にWebページを操作するChrome拡張機能。
 ## 機能
 
 - **📄 ページ読取** - 現在のページのテキスト・DOM構造をAIに送信
-- **🔧 DOM操作** - AIがJavaScriptでページ要素を操作（クリック、入力、抽出）
-- **🧭 ナビゲーション** - AIが指定URLへ移動
+- **🔧 DOM操作** - AIがJavaScriptでページ要素を操作（ネイティブ入力イベント / `isTrusted: true`）
+- **🧭 ナビゲーション** - AIが指定URLへ移動、訪問URLは自動追跡してsystem promptに反映
+- **🌐 バックグラウンドフェッチ** - `bg_fetch` ツール / REPL `bgFetch()` ヘルパでCORS制限を回避し外部URLを取得（Readability本文抽出対応、設定で ON）
+- **🧪 REPL実行環境** - sandbox内で `browserjs / navigate / native* / artifact関数` を組み合わせたマルチステップ自動化
+- **🎁 アーティファクト** - REPLが生成したJSON/HTML/CSV等をパネルに保存・配信
 - **🎯 要素選択** - ページ上の要素をクリックして選択、AIに渡す
 - **📸 スクリーンショット** - ページのスクリーンショットをAIに送信
 - **💬 セッション管理** - 会話履歴をIndexedDBに自動保存・復元
+- **🧠 自動コンテキスト圧縮** - 長い会話を構造化要約（Goal / Progress / Decisions）でローリング更新（クラウドはデフォルトON、ローカルは常時ON）
+- **🛡️ プロンプトインジェクション検知** - ツール出力を毎回スキャンし、不審な指示文字列を AI に渡る前に要約に置き換え
+- **🛠️ スキルシステム** - サイト別の抽出パターンを `markdown` で定義し、REPLから呼び出し
 - **🔒 マルチウィンドウ対応** - セッションロックで競合を防止
 
 ## 対応AIプロバイダー
@@ -229,6 +235,33 @@ public/
 - `background/*` → `shared/message-types.ts` のみ
 
 → 詳細: [docs/architecture/](docs/architecture/)
+
+## ドキュメントマップ
+
+設計と運用上の判断は `docs/` 配下に集約。実装前にまず関連ドキュメントを確認する。
+
+### アーキテクチャ（方針レベル）
+
+- [overview](docs/architecture/overview.md) — 全体構造とレイヤ関係
+- [package-structure](docs/architecture/package-structure.md) — ディレクトリ配置と依存ルール
+- [state-management](docs/architecture/state-management.md) — Zustand slice 構成と永続化（autoCompact / enableBgFetch / enableSecurityMiddleware を含む）
+- [tools](docs/architecture/tools.md) — BrowserExecutor Port とツール実行
+- [error-handling](docs/architecture/error-handling.md) — `Result<T,E>` と例外の使い分け
+
+### 主要な詳細設計
+
+- [system-prompt](docs/design/system-prompt.md) — system prompt と REPL description の SSOT 分離
+- [agent-loop-detail](docs/design/agent-loop-detail.md) — ターン進行 / コンテキスト整形 / セキュリティミドルウェア
+- [tool-result-context-v2](docs/design/tool-result-context-v2.md) §5.5 — 現行のコンテキスト管理（ContextBudget / 構造化要約 / autoCompact）
+- [bg-fetch](docs/design/bg-fetch.md) — `bg_fetch` ツールと REPL `bgFetch()` の二経路
+- [security-middleware-design](docs/design/security-middleware-design.md) — プロンプトインジェクション検知と監査ログ
+- [skill-system](docs/design/skill-system.md) — サイト別抽出スキルの定義と注入
+
+### 設計判断（ADR）
+
+- [ADR-006](docs/decisions/006-context-management-llm-compaction.md) — Layer 3 (`get_tool_result`) を廃止し LLM 圧縮で一本化（PR #69 / #66）
+
+その他の ADR と設計詳細の一覧は [docs/design/README.md](docs/design/README.md) を参照。
 
 ## ライセンス
 

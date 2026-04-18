@@ -4,7 +4,20 @@
 
 独立したAI toolとして `bg_fetch` を追加し、background service worker経由でCORS制限を回避して任意URLのコンテンツを取得する。複数URLの一括並列取得と、HTMLページからの本文+リンク抽出（Readability）に対応する。
 
+REPL 内からは同名のヘルパ `bgFetch(url, options?)` として再エクスポートされ、ループで複数URLを取得した結果を **AI コンテキストに載せず** `createOrUpdateArtifact` に直接保存できる。
+
 **GitHub Issue**: #7
+
+## 設定トグル: `enableBgFetch`
+
+設定 → システム → 「バックグラウンドフェッチを有効にする」で ON/OFF できる。**デフォルトは OFF**（PR #56 の MCP 削除と同タイミングで導入された保守的デフォルト）。
+
+| 設定値                | 上位 `bg_fetch` ツール                    | REPL `bgFetch()` ヘルパ                                                                                                      |
+| --------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `enableBgFetch=true`  | ツール一覧に登録され description も完全形 | sandbox に注入され、`<!-- BG_FETCH_SECTION_START/END -->` で囲まれた説明が REPL description に残る                           |
+| `enableBgFetch=false` | ツール定義から除外（AI から不可視）       | `FetchProvider.handleRequest` が `bgFetch is disabled in settings` で拒否、REPL description からも該当セクションが除去される |
+
+OFF 時に AI へ偶発的に bgFetch を案内しないため、**system prompt / REPL description / ツール一覧の三箇所すべてから記述を消す**ように `stripBgFetchSections` と `getAgentToolDefs` で集中管理している（PR #73, #74）。
 
 ## アーキテクチャ
 

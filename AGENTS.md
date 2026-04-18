@@ -141,13 +141,34 @@ vp lint --fix     # lint 修正
 ### docs/decisions/
 
 - 技術選定の経緯、設計判断の理由を記録
-- 既存: [001-tech-stack](docs/decisions/001-tech-stack.md), [002-dev-workflow](docs/decisions/002-chrome-extension-dev-workflow.md), [003-architecture](docs/decisions/003-architecture-pattern.md)
+- 既存:
+  - [001-tech-stack](docs/decisions/001-tech-stack.md)
+  - [002-dev-workflow](docs/decisions/002-chrome-extension-dev-workflow.md)
+  - [003-architecture](docs/decisions/003-architecture-pattern.md)
+  - [004-browserjs-script-execution](docs/decisions/004-browserjs-script-execution.md)
+  - [005-extension-page-csp-constraints](docs/decisions/005-extension-page-csp-constraints.md)
+  - [006-context-management-llm-compaction](docs/decisions/006-context-management-llm-compaction.md)
 
 ## 既知の制約
 
 - Mantine v9: `Collapse` は `expanded` prop (`in` ではない)。`Select` に `creatable` なし → [v9 変更点](docs/references/mantine/changelog/version-v900.md)
 - Chrome拡張: サイドパネルでは `vp dev` (HMR) は使えない → `vp build --watch` を使用 → [ADR-002](docs/decisions/002-chrome-extension-dev-workflow.md)
 - Anthropic API: ブラウザから直接呼ぶには `anthropic-dangerous-direct-browser-access` ヘッダーが必要
+- Extension Pages の CSP: サイドパネル等では `new Function()` / `eval()` は使えない → [ADR-005](docs/decisions/005-extension-page-csp-constraints.md)
+
+## 主要な機能トグルとデフォルト
+
+| 設定                       | デフォルト | 効果                                                                                |
+| -------------------------- | ---------- | ----------------------------------------------------------------------------------- |
+| `autoCompact`              | `true`     | クラウドでも構造化要約による自動コンテキスト圧縮を行う（ローカル/Ollama は常時 ON） |
+| `enableBgFetch`            | `false`    | `bg_fetch` ツールと REPL `bgFetch()` ヘルパを有効化（OFF 時は AI から完全に隠す）   |
+| `enableSecurityMiddleware` | `true`     | ツール出力をプロンプトインジェクション検知にかけ、検出時は AI に安全な要約を返す    |
+
+新機能を追加する際は、これらのトグルとの相互作用（特に `enableBgFetch=false` 時の prompt / tool list 一貫性）を必ず確認すること。詳細は [ADR-006](docs/decisions/006-context-management-llm-compaction.md) と [bg-fetch.md](docs/design/bg-fetch.md)。
+
+## システムプロンプトと REPL description の SSOT
+
+PR #79 以降、Tool Philosophy / Common Patterns / Available Functions は **`src/shared/repl-description-sections.ts` のみが正本**。`src/features/ai/sections/` には CORE_IDENTITY / SECURITY_BOUNDARY / COMPLETION_PRINCIPLE のみ。AI が REPL から呼べる関数を追加・変更する場合は repl-description-sections.ts を編集し、system prompt 側に同じ内容を書かないこと → [system-prompt.md](docs/design/system-prompt.md)
 
 ## モデル一覧の更新
 
