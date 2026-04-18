@@ -214,6 +214,124 @@ describe("extractPageContentLightweight", () => {
     expect(result.text).not.toContain("u975eu8868u793au30b3u30f3u30c6u30f3u30c4");
   });
 
+  it("複数の article を集約し method は単一セレクタ名のまま", () => {
+    setupDOM(`
+      <html>
+        <head><title>複数 article</title></head>
+        <body>
+          <article><h2>セクションA</h2><p>Aの本文です。これはテスト用の十分な長さのコンテンツです。テストが正常に動作することを確認するためのテキスト。</p></article>
+          <article><h2>セクションB</h2><p>Bの本文です。これはテスト用の十分な長さのコンテンツです。テストが正常に動作することを確認するためのテキスト。</p></article>
+        </body>
+      </html>
+    `);
+
+    const result = extractPageContentLightweight();
+
+    expect(result.method).toBe("article");
+    expect(result.text).toContain("Aの本文");
+    expect(result.text).toContain("Bの本文");
+  });
+
+  it("article と main の両方にマッチしたら method はカンマ区切り", () => {
+    setupDOM(`
+      <html>
+        <head><title>article + main</title></head>
+        <body>
+          <article><p>記事領域の本文です。これはテスト用の十分な長さのコンテンツです。テストが正常に動作することを確認するため。</p></article>
+          <main><p>メイン領域の本文です。これはテスト用の十分な長さのコンテンツです。テストが正常に動作することを確認するため。</p></main>
+        </body>
+      </html>
+    `);
+
+    const result = extractPageContentLightweight();
+
+    expect(result.method).toBe("article,main");
+    expect(result.text).toContain("記事領域");
+    expect(result.text).toContain("メイン領域");
+  });
+
+  it("ネストした main/article は重複集約しない", () => {
+    setupDOM(`
+      <html>
+        <head><title>ネスト</title></head>
+        <body>
+          <article><p>外側 article の本文です。これはテスト用の十分な長さのコンテンツです。テストが正常に動作することを確認するため。</p><main><p>内側 main の本文</p></main></article>
+        </body>
+      </html>
+    `);
+
+    const result = extractPageContentLightweight();
+
+    expect(result.method).toBe("article");
+    const occurrences = result.text.split("内側 main の本文").length - 1;
+    expect(occurrences).toBe(1);
+  });
+
+  it("outline に h1/h2/h3 を level 付きで抽出する", () => {
+    setupDOM(`
+      <html>
+        <head><title>アウトライン</title></head>
+        <body>
+          <h1>トップ見出し</h1>
+          <article>
+            <h2>セクション1</h2>
+            <h3>サブ1-1</h3>
+            <h2>セクション2</h2>
+            <p>テスト用の十分な長さの本文コンテンツです。テストが正常に動作することを確認するため。</p>
+          </article>
+        </body>
+      </html>
+    `);
+
+    const result = extractPageContentLightweight();
+
+    expect(result.outline).toEqual([
+      { level: 1, text: "トップ見出し" },
+      { level: 2, text: "セクション1" },
+      { level: 3, text: "サブ1-1" },
+      { level: 2, text: "セクション2" },
+    ]);
+  });
+
+  it("outline は nav / aside 配下の見出しを除外する", () => {
+    setupDOM(`
+      <html>
+        <head><title>ナビ除外</title></head>
+        <body>
+          <nav><h2>ナビ見出し</h2></nav>
+          <aside><h3>サイド見出し</h3></aside>
+          <article>
+            <h1>本文見出し</h1>
+            <p>テスト用の十分な長さの本文コンテンツです。テストが正常に動作することを確認するため。</p>
+          </article>
+        </body>
+      </html>
+    `);
+
+    const result = extractPageContentLightweight();
+
+    expect(result.outline.map((o) => o.text)).toEqual(["本文見出し"]);
+  });
+
+  it("outline は最大30件で打ち切る", () => {
+    const headings = Array.from({ length: 40 }, (_, i) => `<h2>見出し${i}</h2>`).join("");
+    setupDOM(`
+      <html>
+        <head><title>多数の見出し</title></head>
+        <body>
+          <article>
+            ${headings}
+            <p>テスト用の十分な長さの本文コンテンツです。テストが正常に動作することを確認するため。</p>
+          </article>
+        </body>
+      </html>
+    `);
+
+    const result = extractPageContentLightweight();
+
+    expect(result.outline.length).toBe(30);
+  });
+
   it("h1 u3092u62bdu51fau3059u308b", () => {
     setupDOM(`
       <html>

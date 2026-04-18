@@ -97,10 +97,16 @@ export class ChromeBrowserExecutor implements BrowserExecutor {
 
       const data = results[0]?.result as LightweightExtraction;
       const text = data.h1 ? `${data.h1}\n\n${data.text}` : data.text;
+      const outlineBlock =
+        data.outline.length > 0
+          ? "Outline:\n" +
+            data.outline.map((o) => `${"  ".repeat(o.level - 1)}- ${o.text}`).join("\n")
+          : "";
       const simplifiedDom = [
         `[Extraction: ${data.method}]`,
         data.description ? `Meta: ${data.description}` : "",
         data.h1 ? `H1: ${data.h1}` : "",
+        outlineBlock,
       ]
         .filter(Boolean)
         .join("\n");
