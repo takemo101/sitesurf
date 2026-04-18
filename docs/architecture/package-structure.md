@@ -192,16 +192,21 @@ src/
 ### `features/ai/`
 
 - legacy `system-prompt.ts` は存在しない
-- system prompt 本体は `system-prompt-v2.ts`
-- section 本体は `features/ai/sections/`
-- REPL の Common Patterns / Available Functions の正本は `shared/repl-description-sections.ts`
+- system prompt 本体は `system-prompt-v2.ts`、`BASE_PROMPT` は module-level 定数
+- **prompt section 本体はすべて `src/shared/prompt-sections/` に集約** (Issue #111)
+  - `core-identity.ts`, `tool-philosophy.ts`, `security-boundary.ts`, `completion-principle.ts`
+  - `repl-available-functions.ts`, `repl-common-patterns.ts`, `bg-fetch-helper.ts`
+- `src/shared/repl-description-sections.ts` は上記を組み立てる薄い shim
+- skill section は **差分注入** (`shownSkillIds` を参照し、既出は 1 行の short format、新規は full format、Issue #91)
 
 ### `features/tools/`
 
-- top-level tool 一覧は `index.ts` の `ALL_TOOL_DEFS`
+- top-level tool 一覧は `index.ts` の `ALL_TOOL_DEFS` (6 本)
+  - `repl`, `navigate`, `inspect`, `skill`, `artifacts`, `bg_fetch`
+- `inspect` は `action: "pick_element" | "screenshot" | "extract_image"` で分岐 (Issue #93)
+- `skill` は draft 系 action も含む統合 tool (Issue #85)
+- `read_page` は top-level tool として存在しない。repl の `readPage()` helper で呼ぶ (Issue #94)
 - `definitions/` は現在 `artifacts-tool.ts` のみ
-- `read_page`, `navigate`, `pick_element`, `screenshot`, `extract_image`, `skill`, `bg_fetch`, `repl` は直下ファイルで定義する
-- `skill` tool に draft action (`list_drafts`, `create_draft`, `update_draft`, `delete_draft`) を統合済みで、独立した `create_skill_draft` top-level tool はない
 
 ### `features/chat/`
 
@@ -209,15 +214,29 @@ Tool result UI は 2 段構え。
 
 - `ToolCallBlock.tsx`: 共通コンテナ + generic fallback
 - `tool-renderers/`: specialized renderer
+- Markdown レンダリングは `src/shared/ui/MarkdownContent.tsx` を使う (Issue #109 で chat から移動)
 
 specialized renderer があるのは次の tool のみ:
 
 - `repl`
-- `extract_image`
+- `inspect` — dispatching renderer。`action=extract_image` は画像プレビュー、他は generic fallback
 - `artifacts`
 - `bg_fetch`
 
 それ以外は generic fallback で表示する。
+
+### `orchestration/`
+
+agent-loop は Issue #110 で以下に分離:
+
+- `agent-loop.ts` — streamText ループ (644行、`useStore.getState()` の直叩きなし)
+- `tool-execution-pipeline.ts` — ツール実行 + callback 経由の副作用通知
+- `messages-builder.ts` — AI API 用メッセージ組み立て
+- `visited-url-tracker.ts` — tool 結果から URL 追跡 (純関数)
+
+UI state (artifact panel / session snapshot / shownSkillIds) の更新は
+`AgentLoopParams` の callback (`artifactAutoExpand` / `onSessionSummaryUpdate` /
+`getShownSkillIds` / `onSkillsShown`) で注入する。
 
 ## 依存ルール
 
@@ -241,12 +260,16 @@ orchestration/* X-> adapters/*
 ports/*      X-> 他レイヤ
 ```
 
-## 既知の例外（Issue #95 時点）
+## 既知の例外
 
 - `src/features/tools/index.ts` / `src/features/tools/providers/fetch-provider.ts` → `@/store/index`
-- `src/features/artifacts/ArtifactPreview.tsx` → `@/features/chat/MarkdownContent`
 
-このドキュメントの依存ルールは**目標形**であり、上記は別 issue で解消対象になりうる既知の逸脱。
+過去に検出された以下の違反は Epic #83 で解消済み:
+
+- ~~`src/features/artifacts/ArtifactPreview.tsx` → `@/features/chat/MarkdownContent`~~ → `@/shared/ui/MarkdownContent` (#109)
+- ~~`src/orchestration/agent-loop.ts` → `@/features/chat/services/console-log`~~ → `@/shared/console-log-types` (#108)
+- ~~`src/orchestration/agent-loop.ts` の `useStore.getState()` 直叩き~~ → callback 経由に変更 (#110)
+- ~~`src/features/tools/__tests__/skill.test.ts` → `@/features/settings/*`~~ → `@/shared/test-fixtures/skills` (#109)
 
 ## `shared/` に置くものの基準
 
