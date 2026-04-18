@@ -79,9 +79,18 @@ export function ToolMessageContainer({
     toolCall.isRunning || (defaultExpanded === true && !isComplete),
   );
 
+  // 実行中は自動展開 → 完了した瞬間に自動で畳む。ユーザが完了後に手動で
+  // 展開した状態は、次の running → complete 遷移まで維持する。
+  const wasRunningRef = useRef(toolCall.isRunning);
   useEffect(() => {
     if (toolCall.isRunning) {
       setExpanded(true);
+      wasRunningRef.current = true;
+      return;
+    }
+    if (wasRunningRef.current) {
+      setExpanded(false);
+      wasRunningRef.current = false;
     }
   }, [toolCall.isRunning]);
 
