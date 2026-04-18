@@ -94,7 +94,7 @@ private migrateToolResultMessages(messages: AgentMessage[]): AgentMessage[] {
 }
 ```
 
-**TandemWeb では両方のアプローチを併用する:**
+**Sitesurf では両方のアプローチを併用する:**
 
 1. **スキーマ変更** (ObjectStore / Index の追加・削除): `onupgradeneeded` で逐次適用
 2. **データ形式変更** (フィールドの追加・リネーム): 読み込み時に変換 (lazy migration)

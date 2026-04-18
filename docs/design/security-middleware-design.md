@@ -430,7 +430,7 @@ interface SecuritySettings {
 
 ## Comparison with 既存拡張
 
-| Feature            | 既存拡張                | TandemWeb             |
+| Feature            | 既存拡張                | Sitesurf             |
 | ------------------ | ----------------------- | --------------------- |
 | Detection          | Pattern-based in prompt | Dedicated middleware  |
 | Alert              | Text warning            | Inline visual warning |
@@ -453,4 +453,4 @@ interface SecuritySettings {
 ## References
 
 - System prompt v2 security section: `docs/design/system-prompt-v2-design.md`
-- 既存拡張 analysis: `docs/analysis/既存拡張-VS-TANDEMWEB.md`
+- 既存拡張 analysis: `docs/analysis/既存拡張-VS-SITESURF.md`

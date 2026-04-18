@@ -383,6 +383,16 @@ const info = await browserjs(fn);
 **BrowserExecutor は不使用** — ブラウザ操作ではなくネットワークリクエストのため。
 `chrome.runtime.sendMessage` でbackgroundに直接通信する（NativeInput と同パターン）。
 
+**配置（3 箇所に分散）**:
+
+| ファイル                                  | 責務                                                                |
+| ----------------------------------------- | ------------------------------------------------------------------- |
+| `features/tools/bg-fetch.ts`              | ToolDefinition + `executeBgFetch()` (sidepanel 側エントリ)          |
+| `background/handlers/bg-fetch.ts`         | URL バリデーション + fetch 実行 + セマフォ + キャッシュ             |
+| `offscreen/index.ts`                      | `response_type: "readability"` 時の DOMParser + @mozilla/readability |
+
+REPL からは `bgFetch(urls, options)` ヘルパー経由で呼び出され、`enableBgFetch` 設定が無効なら REPL プロンプトから隠される。
+
 詳細: [bg_fetch 設計](../design/bg-fetch.md)
 
 ### 将来拡張候補

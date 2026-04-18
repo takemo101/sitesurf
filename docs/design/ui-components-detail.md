@@ -142,7 +142,7 @@ function ModelLabel() {
 
 ## SessionList (モーダルダイアログ)
 
-既存拡張 はモーダルダイアログでセッション一覧を表示。TandemWeb もこの方式を採用。
+既存拡張 はモーダルダイアログでセッション一覧を表示。Sitesurf もこの方式を採用。
 (前回のドロップダウン方式から変更)
 
 ### 構成
@@ -312,7 +312,7 @@ function WelcomeScreen({ onPromptSelect }: { onPromptSelect: (prompt: string) =>
       <Stack align="center" gap={4}>
         <Globe size={40} color="var(--mantine-color-indigo-5)" />
         <Title order={2} size="h3">
-          TandemWeb
+          Sitesurf
         </Title>
         <Text size="sm" c="dimmed">
           AIと一緒にWebを操作しよう
@@ -1442,7 +1442,7 @@ function ThemeToggle() {
     const nextScheme = next[colorScheme] ?? "auto";
     setColorScheme(nextScheme);
     // chrome.storage に永続化
-    deps.storage.set("tandemweb_theme", nextScheme);
+    deps.storage.set("sitesurf_theme", nextScheme);
   };
 
   const icons: Record<string, React.ReactNode> = {

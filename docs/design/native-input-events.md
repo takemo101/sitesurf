@@ -2,7 +2,7 @@
 
 ## 概要
 
-既存拡張 の `nativeClick`, `nativeType`, `nativePress`, `nativeKeyDown`, `nativeKeyUp` を tandemweb に移植する。
+既存拡張 の `nativeClick`, `nativeType`, `nativePress`, `nativeKeyDown`, `nativeKeyUp` を sitesurf に移植する。
 
 ## 技術的背景
 

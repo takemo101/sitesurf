@@ -141,7 +141,8 @@ Settings の永続化は settings feature の関心事であるため。
 // features/settings/persistence.ts
 import type { StoragePort } from "@/ports/storage";
 
-const STORAGE_KEY = "tandemweb_settings";
+const STORAGE_KEY = "sitesurf_settings";
+const LEGACY_STORAGE_KEY = "tandemweb_settings"; // 後方互換用
 
 export async function loadSettings(storage: StoragePort): Promise<SettingsData | null> {
   return storage.get<SettingsData>(STORAGE_KEY);

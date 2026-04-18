@@ -2,7 +2,7 @@
 
 ## 概要
 
-TandemWeb で HTML アーティファクトのプレビューを表示する際に採用している方式。
+Sitesurf で HTML アーティファクトのプレビューを表示する際に採用している方式。
 
 ## 採用方式: SandboxedIframe with Runtime Message Bridge
 

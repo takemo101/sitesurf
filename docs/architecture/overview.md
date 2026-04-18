@@ -1,4 +1,4 @@
-# TandemWeb アーキテクチャ概要
+# Sitesurf アーキテクチャ概要
 
 ## プロダクトの目的
 
@@ -74,12 +74,16 @@ src/
 │   │   ├── handlers/            #     ツールハンドラ
 │   │   ├── definitions/         #     ツール定義
 │   │   └── skills/              #     スキル連携
-│   ├── ai/                      #   システムプロンプト v2 + プロンプトキャッシュ + sections/
+│   ├── ai/                      #   システムプロンプト v2 + プロンプトキャッシュ + コンテキスト予算 + sections/
 │   ├── artifacts/               #   アーティファクトパネル・プレビュー・コードビュー
 │   └── security/                #   検出エンジン・ミドルウェア・監査ロガー・パターン
 │
 ├── orchestration/               # featureの組み合わせ・調整
 │   ├── agent-loop.ts            #   streamText + ツール実行ループ
+│   ├── context-compressor.ts    #   長文圧縮 + 構造化要約
+│   ├── context-manager.ts       #   ContextBudget に基づく圧縮トリガー
+│   ├── navigation-converter.ts  #   ナビゲーション結果の変換
+│   ├── retry.ts                 #   エラー時のリトライロジック
 │   ├── security-audit.ts        #   セキュリティ監査連携
 │   └── skill-detector.ts        #   スキル検出ロジック
 │
@@ -101,11 +105,15 @@ src/
 │   └── storage/                 #   chrome.storage 実装 (ArtifactStorage を含む)
 │
 ├── background/                  # Service Worker エントリー + ハンドラ
-│   ├── index.ts                 #   Port ベースのセッションロック + パネルトラッキングのみ
+│   ├── index.ts                 #   Port ベースのセッションロック + パネルトラッキング + bg_fetch ルーティング
 │   └── handlers/                #   ハンドラ
 │       ├── session-lock.ts      #     セッション排他ロック
 │       ├── panel-tracker.ts     #     サイドパネル開閉追跡
-│       └── native-input.ts      #     ネイティブ入力 (debugger API 経由)
+│       ├── native-input.ts      #     ネイティブ入力 (debugger API 経由)
+│       └── bg-fetch.ts          #     bg_fetch (fetch + offscreen連携)
+│
+├── offscreen/                   # Offscreen Document
+│   └── index.ts                 #   bg_fetch readability の本文抽出
 │
 ├── sidepanel/                   # Side Panel エントリー (React mount + DI)
 │   ├── index.html
@@ -115,6 +123,12 @@ src/
 │   ├── skill-registry-runtime.ts #  スキルレジストリのランタイム管理
 │   └── hooks/
 │       └── use-agent.ts         #   エージェント操作フック
+│
+├── routes/                      # 遅延ロードされるルート (React.lazy)
+│   └── index.ts                 #   ChatRoute, SettingsRoute, ArtifactsRoute
+│
+├── hooks/                       # sidepanel 横断の汎用 hook
+│   └── use-progressive-loading.ts #  段階的 UI ロード制御
 │
 ├── shared/                      # feature横断の型・定数
 │   ├── deps-context.tsx          #   依存注入の React Context (DepsProvider / useDeps)
