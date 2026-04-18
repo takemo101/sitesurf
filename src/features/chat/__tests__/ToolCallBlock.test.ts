@@ -4,7 +4,12 @@ import { MantineProvider } from "@mantine/core";
 import { describe, expect, it, vi } from "vitest";
 import type { ToolCallInfo } from "@/ports/session-types";
 import { DepsProvider, type AppDeps } from "@/shared/deps-context";
-import { ToolCallBlock, downloadImageResource, formatArgs } from "../ToolCallBlock";
+import {
+  GenericToolResult,
+  ToolCallBlock,
+  downloadImageResource,
+  formatArgs,
+} from "../ToolCallBlock";
 
 const testDeps: AppDeps = {
   createAIProvider: vi.fn(),
@@ -115,6 +120,39 @@ describe("downloadImageResource", () => {
   });
 });
 
+describe("GenericToolResult", () => {
+  it("pick_element の完了結果を構造化表示する", () => {
+    const markup = renderWithProviders(
+      createElement(GenericToolResult, {
+        toolCall: createToolCall({
+          name: "pick_element",
+          success: true,
+          result: JSON.stringify({ selector: "button.submit", tagName: "BUTTON" }),
+        }),
+      }),
+    );
+
+    expect(markup).toContain("Result");
+    expect(markup).toContain("button.submit");
+    expect(markup).toContain("BUTTON");
+  });
+
+  it("screenshot の完了結果を画像プレビュー表示する", () => {
+    const markup = renderWithProviders(
+      createElement(GenericToolResult, {
+        toolCall: createToolCall({
+          name: "screenshot",
+          success: true,
+          result: JSON.stringify({ dataUrl: "data:image/png;base64,abc" }),
+        }),
+      }),
+    );
+
+    expect(markup).toContain("data:image/png;base64,abc");
+    expect(markup).toContain("img");
+  });
+});
+
 describe("ToolCallBlock", () => {
   it("specialized repl renderer を使って実行中表示を出す", () => {
     const markup = renderWithProviders(
@@ -150,4 +188,78 @@ describe("ToolCallBlock", () => {
     expect(markup).toContain("plain result");
   });
 
+  it("pick_element は実行中に汎用フォールバック本文を展開して表示する", () => {
+    const markup = renderWithProviders(
+      createElement(ToolCallBlock, {
+        tc: createToolCall({
+          name: "pick_element",
+          isRunning: true,
+          args: { message: "操作したい要素をクリックしてください" },
+        }),
+      }),
+    );
+
+    expect(markup).toContain("pick_element");
+    expect(markup).toContain('aria-expanded="true"');
+    expect(markup).toContain("操作したい要素をクリックしてください");
+  });
+
+  it("screenshot は実行中に汎用フォールバック本文を展開する", () => {
+    const markup = renderWithProviders(
+      createElement(ToolCallBlock, {
+        tc: createToolCall({
+          name: "screenshot",
+          isRunning: true,
+          args: {},
+        }),
+      }),
+    );
+
+    expect(markup).toContain("screenshot");
+    expect(markup).toContain('aria-expanded="true"');
+  });
+
+  it("bg_fetch は specialized renderer で進行状況を表示する", () => {
+    const markup = renderWithProviders(
+      createElement(ToolCallBlock, {
+        tc: createToolCall({
+          name: "bg_fetch",
+          isRunning: true,
+          args: {
+            urls: ["https://example.com", "https://example.org"],
+            response_type: "readability",
+          },
+        }),
+      }),
+    );
+
+    expect(markup).toContain("bg_fetch");
+    expect(markup).toContain('aria-expanded="true"');
+    expect(markup).toContain("readability");
+    expect(markup).toContain("2 URLs を取得中");
+    expect(markup).toContain("example.com");
+    expect(markup).toContain("example.org");
+  });
+
+  it("extract_image は ToolCallBlock 経由で specialized renderer を使う", () => {
+    const markup = renderWithProviders(
+      createElement(ToolCallBlock, {
+        tc: createToolCall({
+          name: "extract_image",
+          isRunning: true,
+          args: { selector: ".hero-image" },
+          result: JSON.stringify({
+            dataUrl: "data:image/png;base64,xyz",
+            info: { selector: ".hero-image", resizedWidth: 640, resizedHeight: 360 },
+          }),
+        }),
+      }),
+    );
+
+    expect(markup).toContain("extract_image");
+    expect(markup).toContain('aria-expanded="true"');
+    expect(markup).toContain(".hero-image");
+    expect(markup).toContain("Extracting image...");
+    expect(markup).not.toContain('"selector"');
+  });
 });

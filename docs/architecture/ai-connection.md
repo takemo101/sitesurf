@@ -2,43 +2,25 @@
 
 ## 設計方針
 
-**AI接続は `ports/ai-provider.ts` で抽象化し、具体実装を `adapters/ai/` に閉じ込める。**
-**認証フローは `ports/auth-provider.ts` で抽象化し、具体実装を `adapters/auth/` に閉じ込める。**
+- AI 呼び出しは `ports/ai-provider.ts` で抽象化する
+- 認証は `ports/auth-provider.ts` で抽象化する
+- orchestration 層が `AIProvider` と tools / store をつなぐ
+- system prompt と tool list は毎ターン **同じ条件**で組み立てる
 
 ## AIProvider Port
 
-Portはドメインの要件（AIエージェントとしてテキスト生成する）から導出する。
-Vercel AI SDK の API 形状に引きずられない。
-
-```typescript
+```ts
 export interface AIProvider {
   streamText(params: StreamTextParams): AsyncIterable<StreamEvent>;
 }
 ```
 
-- `streamText` は `tool-call` イベントを返すだけ (ツール実行は orchestration 層)
-- `onToolCall` コールバックは Port に含めない (SDK 実装パターンへの依存を避ける)
-- **完全な型定義**: [AI Provider 詳細設計](../design/ai-provider-detail.md) を参照
-
-### StreamTextParams と ReasoningEffort
-
-```typescript
-export type ReasoningEffort = "none" | "low" | "medium" | "high";
-
-export interface StreamTextParams {
-  model: string;
-  messages: ChatMessage[];
-  tools?: ToolDefinition[];
-  reasoningEffort?: ReasoningEffort;
-}
-```
-
-`reasoningEffort` はプロバイダーが対応している場合に「思考レベル」を指定する。
-Settings store の `reasoningLevel` フィールドに対応し、UIのセレクトから設定できる。
+`streamText` は text / reasoning / tool-call 系イベントを返すだけで、
+実際のツール実行は orchestration 層が担当する。
 
 ## AuthProvider Port
 
-```typescript
+```ts
 export interface AuthProvider {
   login(
     callbacks: AuthCallbacks,
@@ -47,190 +29,161 @@ export interface AuthProvider {
   refresh(credentials: AuthCredentials): Promise<Result<AuthCredentials, AuthError>>;
   isValid(credentials: AuthCredentials): boolean;
 }
-
-export interface LoginOptions {
-  enterpriseDomain?: string;
-}
-
-export interface AuthCallbacks {
-  /** Device Flow 用: ユーザーに表示するコード */
-  onDeviceCode?: (info: { userCode: string; verificationUri: string }) => void;
-}
-
-export interface AuthCredentials {
-  providerId: string;
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number;
-  metadata?: Record<string, string>; // accountId 等
-}
 ```
 
-- `login()` の第2引数 `LoginOptions` はオプショナル。`enterpriseDomain` は GitHub Enterprise 向け
-- **完全な型定義**: [トークン管理 詳細設計](../design/token-management-detail.md) を参照
+OAuth 実装や HTTP 通信は `adapters/auth/` に閉じ込める。
 
-## Adapter実装
+## Adapter 実装
 
-### AI Adapter
+### AI
 
-```
-adapters/ai/
-├── vercel-ai-adapter.ts  # AIProvider の Vercel AI SDK 実装
-└── provider-factory.ts   # 設定に応じた LanguageModel 生成
-```
+- `adapters/ai/vercel-ai-adapter.ts`
+- `adapters/ai/provider-factory.ts`
+- `adapters/ai/converters.ts`
+- `adapters/ai/openai-codex-adapter.ts`
 
-`ProviderConfig` 型は `ports/ai-provider.ts` で定義されている。
-`provider-factory.ts` はそれを re-export しつつ、設定 (ProviderId, apiKey, oauthToken, baseUrl) を受け取り
-Vercel AI SDK の `LanguageModel` を返す。プロバイダー固有のヘッダーやURL差異はここに閉じる。
+### Auth
 
-| ProviderId  | SDK関数                    | 主な設定                                                                                                                                      |
-| ----------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `anthropic` | `createAnthropic`          | `apiKey`, `anthropic-dangerous-direct-browser-access` ヘッダー                                                                                |
-| `openai`    | `createOpenAI`             | `apiKey` or OAuth token                                                                                                                       |
-| `google`    | `createGoogleGenerativeAI` | `apiKey`                                                                                                                                      |
-| `copilot`   | `createOpenAI`             | `baseURL: copilotEndpoint`, `apiKey: copilotToken`, Copilot headers, `client.chat(model)` で Chat Completions API を強制 (Responses API 回避) |
-| `local`     | `createOpenAI`             | `baseURL: ollamaEndpoint`, `apiKey: "dummy"`                                                                                                  |
+- `adapters/auth/openai-auth.ts`
+- `adapters/auth/copilot-auth.ts`
+- `adapters/auth/noop-auth.ts`
 
-**Copilot のモデル ID**: Gemini モデルは `-preview` サフィックスが必要 (例: `gemini-2.0-flash-preview`)。
+## agent-loop の責務
 
-### Auth Adapter
+`src/orchestration/agent-loop.ts` が次をまとめて行う。
 
-```
-adapters/auth/
-├── openai-auth.ts   # OpenAI PKCE フロー (AuthProvider実装)
-├── copilot-auth.ts  # GitHub Copilot Device Flow (AuthProvider実装)
-└── noop-auth.ts     # APIキー方式・認証不要のnull実装
-```
+1. system prompt を組み立てる
+2. agent に公開する tool list を組み立てる
+3. `aiProvider.streamText()` を呼ぶ
+4. tool-call を受けて `ToolExecutor` を実行する
+5. tool 結果を messages に戻して次ターンへ進む
+6. context budget / compaction / retry / security middleware を適用する
 
-OAuthフローはChrome APIへの依存（`chrome.tabs.create`, `chrome.tabs.onUpdated`）と
-HTTP通信（`fetch`）を含むため、**features/ ではなく adapters/ に配置する**。
+## system prompt と tool surface の整合性
 
-`features/settings/` は `ports/auth-provider` 経由でログインを実行する。
+現在は次の 3 つを揃えて組み立てる。
 
-**OAuth の対応状況**:
+### system prompt
 
-- GitHub Copilot OAuth (Device Flow): 有効
-- OpenAI OAuth (PKCE): 有効 → [詳細設計](../design/openai-oauth-detail.md)
+`src/features/ai/system-prompt-v2.ts`
 
-Store は Port の `AuthCredentials` 型をそのまま使用する（別途ストア型を定義しない）。
+- base sections: `CORE_IDENTITY`, `REPL_PHILOSOPHY`, `SECURITY_BOUNDARY`, `COMPLETION_PRINCIPLE`
+- optional skills section
+- optional visited URLs section
 
-OAuth 成功時は `saveSettings()` で自動的にストレージへ永続化する。
-ログアウト (Disconnect) 時も `saveSettings()` で永続化する。
+### tool list
 
-### OpenAI PKCE フロー (`adapters/auth/openai-auth.ts`)
+`src/features/tools/index.ts`
 
-1. PKCE (code_verifier, code_challenge) を生成
-2. `ports/browser-executor` 経由で認証URLのタブを開く
-3. タブURL変更を監視しリダイレクトを検出
-4. Token Endpoint に code + code_verifier を送信 (fetch)
-5. `AuthCredentials` を返す
+- `ALL_TOOL_DEFS`
+- `getAgentToolDefs({ enableBgFetch })`
 
-### GitHub Copilot Device Flow (`adapters/auth/copilot-auth.ts`)
+### REPL description
 
-1. `github.com/login/device/code` に POST → device_code, user_code 取得
-2. `callbacks.onDeviceCode()` で UIに通知
-3. `ports/browser-executor` 経由で verification_uri を新タブで開く
-4. ポーリングで GitHub access_token を取得
-5. Copilot token に交換
-6. `AuthCredentials` を返す
+`src/features/tools/repl.ts` + `src/shared/repl-description-sections.ts`
 
-### トークンリフレッシュ
+- `AVAILABLE_FUNCTIONS`
+- optional `COMMON_PATTERNS`
+- `bgFetch()` に関する行内説明の表示/非表示
 
-- `handleSend` が AI 呼び出し前に `isValid()` を確認 (プロアクティブリフレッシュ)
-- 無効なら `AuthProvider.refresh()` → 新トークンを `ports/storage` に保存
-- リフレッシュ失敗時は `AppError` (type: `auth_expired`) を返し、UIが再ログインを促す
+**重要:** `enableBgFetch` が効くのは **tool list と REPL description** であり、system prompt 本文はこのフラグで変化しない。
 
-## ストリーミングとエージェントループ
+- `bg_fetch` tool を agent へ公開するか
+- REPL description 内で `bgFetch()` を見せるか
 
-`orchestration/agent-loop.ts` が AIProvider と features を仲介する。
+この 2 つを必ず同時に切り替える。
 
-エージェントループは **自己管理の while ループ**として実装されている (SDK の `maxSteps` は使わない)。
+## skills 注入方式
 
-```
-orchestration/agent-loop.ts
-│
-│ (1) ports/ai-provider.streamText()
-▼
-AsyncIterable<StreamEvent>
-│
-├─ text-delta           → features/chat の store: メッセージ内容を逐次更新
-│
-├─ tool-input-start     → ツール呼び出し開始 (execute なしツールのバッファリング開始)
-├─ tool-input-delta     → ツール引数の逐次受信・バッファ更新
-│
-├─ tool-call (finish)   → features/tools で定義を参照
-│                          → ports/browser-executor でツール実行
-│                          → 結果を ToolResultMessage として messages に追加
-│                          → (1) に戻って streamText を再呼び出し
-│
-├─ reasoning-delta      → 思考テキストの逐次更新 (thinking)
-│
-├─ finish               → features/chat の store: ストリーミング完了
-│
-└─ error                → features/chat の store: エラー表示
-```
+Issue #91 / #92 以降、skills は 2 層で扱う。
 
-### fullStream イベントの扱い
+### 1. prompt への注入
 
-Vercel AI SDK の `fullStream` から受け取るイベントは以下の点に注意する:
+`getSystemPromptV2({ includeSkills: true, skills })`
 
-- **text-delta**: テキスト断片は `part.text` で取得する (`part.textDelta` ではない)
-- **tool-input-start / tool-input-delta**: `execute` なしツールの呼び出しをバッファリングし、`finish` 後にまとめて実行する
-- **reasoning-delta**: 思考テキスト (Claude の extended thinking 等) の逐次更新
+system prompt には以下のみを出す。
 
-### マルチターンループ
+- skill 名
+- description
+- 利用可能 extractor の signature
+- output schema
+- `window.skillId.extractorId()` の使用例
 
-```typescript
-while (true) {
-  for await (const event of aiProvider.streamText({ model, messages, tools })) {
-    if (event.type === "text-delta")      → chatStore に追記
-    if (event.type === "tool-input-start") → ツールバッファ初期化
-    if (event.type === "tool-input-delta") → ツールバッファ更新
-    if (event.type === "tool-call")        → ツール実行、結果を messages に追加
-    if (event.type === "reasoning-delta")  → 思考テキスト更新
-    if (event.type === "finish")           → break
-    if (event.type === "error")            → エラー処理、break
-  }
-  if (最後のターンでツール呼び出しがなければ) break; // ループ終了
-}
-```
+**出さないもの**
 
-### コンテキスト管理 (Wave 1-4)
+- `extractor.code`
+- `new Function(...)` による再構築例
 
-コンテキスト超過を防ぐために以下の層で管理する:
+### 2. sandbox runtime への注入
 
-1. **ContextBudget (`features/ai/context-budget.ts`)**: モデルごとの最大コンテキスト長から、システムプロンプト + ツール結果 + 履歴の予算を計算する。`estimateTokens` で text / tool / image / tool-call を個別にカウントする。
-2. **ツール出力の静的切り詰め**: `maxToolResultChars` を超えるツール結果は送信前に切り詰める (`shared/truncate-utils`)。
-3. **事前圧縮 (`orchestration/context-manager.ts` + `context-compressor.ts`)**: ContextBudget の閾値を超えると、古いメッセージを構造化要約 (`features/ai/structured-summary-prompt.ts`) に置き換える。要約済み部分は履歴から除去され、`[構造化要約]` マーカー付きでセッションに保存される。
-4. **オーバーフローエラー回復 (`orchestration/retry.ts`)**: `isContextOverflowError()` で「token exceeds limit」系エラーを検出し、追加圧縮してリトライする。
+`src/features/tools/repl.ts`
 
-`autoCompact` 設定が有効 (デフォルト) の場合、事前圧縮は自動で走る。keep-recent の閾値は文字数ではなくトークン数で管理する (Wave 2 で変更)。
+- `formatSkillsForSandbox(matches)` が runtime object を構築
+- ここでは `extractor.code` を保持する
+- `executeRepl()` が sandbox に渡す
+- page 側では `window.youtube.getVideoInfo()` のように呼べる
 
-## Chrome拡張固有の制約
+この分離により、**prompt から実装コードを外しつつ runtime capability は維持**している。
 
-### CORS
+## fullStream イベント処理
 
-| エンドポイント        | CORS      | 対応                                                 |
-| --------------------- | --------- | ---------------------------------------------------- |
-| Anthropic API         | 制限あり  | `anthropic-dangerous-direct-browser-access` ヘッダー |
-| OpenAI Token Endpoint | 有効      | 直接呼び出し                                         |
-| GitHub API            | 有効      | 直接呼び出し                                         |
-| ローカルLLM           | localhost | 問題なし                                             |
+Vercel AI SDK の `fullStream` から受け取る代表的なイベント:
 
-### Service Worker の寿命
+- `text-delta`
+- `reasoning-delta`
+- `tool-input-start`
+- `tool-input-delta`
+- `tool-call`
+- `finish`
+- `error`
 
-- AI API呼び出しは Side Panel (常駐) から行い、Background は経由しない
-- ストリーミング中にService Workerが停止しても影響なし
+agent-loop は `tool-input-start/delta` をバッファし、完成した引数で tool を実行する。
+
+## context 管理
+
+### 1. ContextBudget
+
+`features/ai/context-budget.ts`
+
+- モデルごとの最大コンテキスト長を基に予算を配分
+- text / image / tool-result を見積もる
+
+### 2. 事前 compaction
+
+`orchestration/context-manager.ts` + `context-compressor.ts`
+
+- 古い履歴を構造化要約に置換
+- unsummarized turn の tool 結果は再取得しない前提で使う
+
+### 3. overflow retry
+
+`orchestration/retry.ts`
+
+- token overflow 系エラーを検出
+- 追加圧縮して再試行
+
+## security middleware
+
+ツール出力（`read_page`, `repl`, `bg_fetch` など）は AI に返す前に security middleware を通る。
+
+- prompt injection らしき文字列を検出
+- 検出時は安全な要約に変換
+- `enableSecurityMiddleware` 設定で制御
+
+## テスタビリティ
+
+この構成により次を保つ。
+
+- `AIProvider` をモックに差し替えて stream イベントを再現できる
+- prompt 生成を pure function としてテストできる
+- tool list の gating と prompt 文言の一致を unit test で固定できる
+- auth adapter を feature から切り離して検証できる
 
 ## 関連ドキュメント
 
-- [概要](./overview.md) - 全体アーキテクチャ
-- [パッケージ構成](./package-structure.md) - adapters/ の配置
-- [状態管理設計](./state-management.md) - 認証情報の永続化
-- [ツール設計](./tools.md) - ストリーミング中のツール呼び出し
-- [エラーハンドリング](./error-handling.md) - `AppError` 型
-
-### 詳細設計
-
-- [AI Provider 詳細設計](../design/ai-provider-detail.md) - Port型定義、Adapter内部、provider-factory
-- [トークン管理 詳細設計](../design/token-management-detail.md) - AuthProvider実装、ライフサイクル、連携フロー
+- [概要](./overview.md)
+- [パッケージ構成](./package-structure.md)
+- [ツール設計](./tools.md)
+- [システムプロンプト設計](../design/system-prompt.md)
+- [AI Provider 詳細設計](../design/ai-provider-detail.md)
+- [トークン管理 詳細設計](../design/token-management-detail.md)

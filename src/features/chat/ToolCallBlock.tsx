@@ -147,7 +147,7 @@ function JsonValueNode({ label, value }: { label?: string; value: unknown }) {
   );
 }
 
-function GenericToolResult({ toolCall }: { toolCall: ToolCallInfo }) {
+export function GenericToolResult({ toolCall }: { toolCall: ToolCallInfo }) {
   const isSuccess = toolCall.success === true;
   const isError = toolCall.success === false;
   const imageUrl = !isError && toolCall.result ? extractImageUrl(toolCall.result) : null;
