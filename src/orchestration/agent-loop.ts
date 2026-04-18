@@ -100,7 +100,6 @@ export interface AgentLoopParams {
 export type { ToolExecutor } from "@/ports/tool-executor";
 
 const MAX_TURNS = 25;
-const URL_REVISIT_THRESHOLD = 6;
 const MAX_VISITED_URLS = 20;
 
 /** 末尾スラッシュを除去してURLを正規化する */
@@ -117,13 +116,20 @@ function extractHostname(url: string): string {
   }
 }
 
-/** 訪問済みURLの再訪問警告メッセージを生成する（再訪問でなければ null） */
+/**
+ * 訪問済み URL をトラッキングする。system prompt の "Current Session: Visited URLs"
+ * セクションに反映されるほか、重複ログの抑制にも使う。
+ *
+ * 以前は `visitCount >= URL_REVISIT_THRESHOLD` で警告を返却していたが、
+ * 同一 URL を正当に何度も参照するワークフロー（ドキュメント参照、状態確認等）
+ * があるため撤廃。必要なら AI は履歴から前回の取得結果を直接参照できる。
+ */
 export function trackVisitedUrl(
   visitedUrls: Map<string, VisitedUrlEntry>,
   url: string,
   title: string,
   method: VisitedUrlEntry["lastMethod"],
-): string | null {
+): void {
   const normalized = normalizeUrl(url);
   const existing = visitedUrls.get(normalized);
   const entry: VisitedUrlEntry = {
@@ -144,11 +150,6 @@ export function trackVisitedUrl(
       visitCount: entry.visitCount,
     });
   }
-
-  if (entry.visitCount >= URL_REVISIT_THRESHOLD) {
-    return `\n\n⚠️ WARNING: This URL has already been visited ${entry.visitCount} time(s) in this session. Do NOT navigate to it again. Use the information you already collected from previous visits. If you have enough information, proceed to analysis/response instead of collecting more pages.`;
-  }
-  return null;
 }
 
 /** MAX_VISITED_URLS を超えたとき、訪問回数が少なく古いエントリを削除する */
@@ -464,17 +465,11 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
 
         // --- ツール別ポスト処理: 訪問追跡・SPA検出・スキル再構築 ---
 
-        let loopWarningEmitted = false;
-
         if (name === "navigate" && toolResult.ok) {
           const navResult = toolResult.value as { finalUrl?: string; title?: string };
           if (navResult.finalUrl) {
             const title = navResult.title || extractHostname(navResult.finalUrl);
-            const warning = trackVisitedUrl(visitedUrls, navResult.finalUrl, title, "navigate");
-            if (warning) {
-              fullResult += warning;
-              loopWarningEmitted = true;
-            }
+            trackVisitedUrl(visitedUrls, navResult.finalUrl, title, "navigate");
           }
         }
 
@@ -498,11 +493,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
             // navigate ツール直接呼び出しは上で追跡済みなのでここでは repl のみ。
             if (name === "repl" && newUrl) {
               const title = tab.title || extractHostname(newUrl);
-              const warning = trackVisitedUrl(visitedUrls, newUrl, title, "navigate");
-              if (warning) {
-                fullResult += warning;
-                loopWarningEmitted = true;
-              }
+              trackVisitedUrl(visitedUrls, newUrl, title, "navigate");
             }
             if (newUrl && newUrl !== currentUrl) {
               currentUrl = newUrl;
@@ -517,13 +508,6 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
           } catch {
             // Ignore error
           }
-        }
-
-        // ループ警告が出た場合、ユーザーにもシステムメッセージで通知
-        if (loopWarningEmitted) {
-          chatStore.addSystemMessage(
-            "⚠️ 同じページへの繰り返しアクセスを検出しました。AIに収集を終えて分析に移るよう指示しています。",
-          );
         }
 
         chatStore.updateToolCallResult(id, toolResult);

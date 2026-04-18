@@ -1083,22 +1083,6 @@ describe("trackVisitedUrl", () => {
     expect(map.get("https://example.com")?.visitCount).toBe(2);
   });
 
-  it("returns null for first visits below threshold", () => {
-    const map = makeMap();
-    const result = trackVisitedUrl(map, "https://example.com", "Example", "navigate");
-    expect(result).toBeNull();
-  });
-
-  it("returns warning string at revisit threshold", () => {
-    const map = makeMap();
-    for (let i = 0; i < 5; i++) {
-      trackVisitedUrl(map, "https://example.com", "Example", "navigate");
-    }
-    const warning = trackVisitedUrl(map, "https://example.com", "Example", "navigate");
-    expect(warning).toContain("WARNING");
-    expect(warning).toContain("6 time(s)");
-  });
-
   it("logs visitedUrl revisit count when revisiting a URL", () => {
     trackVisitedUrl(makeMap(), "https://warmup.example", "Warmup", "navigate");
     consoleInfoSpy.mockClear();
