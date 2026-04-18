@@ -6,7 +6,7 @@ import { err } from "@/shared/errors";
 export const readPageToolDef: ToolDefinition = {
   name: "read_page",
   description:
-    "ページの主要コンテンツを軽量に抽出する。タイトル、本文（プレーンテキスト）、メタ情報を返す。より詳細な抽出が必要な場合は、replツールでbrowserjs()を使用してください。",
+    "現在のアクティブタブ **1ページのみ** の主要コンテンツを軽量抽出する。タイトル、本文（プレーンテキスト）、メタ情報を返す。\n\n**2ページ以上を順に収集する用途ではこのツールを使わないこと。** ループで呼ぶと毎ページ分の本文が AI コンテキストに積み上がってトークンを浪費する。代わりに `repl` 内で以下のようにループし、結果は artifact に保存する:\n\n```javascript\nconst results = {};\nfor (const url of urls) {\n  await navigate({ url });\n  results[url] = await browserjs(() => document.body.innerText.substring(0, 3000));\n}\nawait createOrUpdateArtifact('pages.json', results);\n```\n\nより詳細な抽出が必要な場合も、`repl` の `browserjs()` を使用する。",
   parameters: {
     type: "object",
     properties: {},
