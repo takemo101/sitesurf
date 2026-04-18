@@ -106,6 +106,32 @@ describe("getSystemPromptV2", () => {
     expect(prompt).toContain("CRITICAL");
   });
 
+
+  it("enableBgFetch=false の時は system prompt から bgFetch の記述を全削除する", () => {
+    const prompt = getSystemPromptV2({ enableBgFetch: false });
+    // AVAILABLE_FUNCTIONS / COMMON_PATTERNS 経由で system prompt に漏れていた
+    // bgFetch 関連記述が残っていないこと
+    expect(prompt).not.toContain("bgFetch(url, options?)");
+    expect(prompt).not.toContain("Multi-URL fetch that bypasses");
+    expect(prompt).not.toContain("Multi-URL Fetch (static");
+    // sentinel も絶対に残さない
+    expect(prompt).not.toContain("BG_FETCH_SECTION_START");
+    expect(prompt).not.toContain("BG_FETCH_SECTION_END");
+  });
+
+  it("enableBgFetch=true の時は system prompt に bgFetch 記述が含まれる", () => {
+    const prompt = getSystemPromptV2({ enableBgFetch: true });
+    expect(prompt).toContain("bgFetch(url, options?)");
+    // sentinel は常に剥がす
+    expect(prompt).not.toContain("BG_FETCH_SECTION_START");
+  });
+
+  it("enableBgFetch オプション省略時 (未設定) は true 相当として扱う", () => {
+    const prompt = getSystemPromptV2({});
+    // legacy 呼び出しで bgFetch が見えることに依存しているテストを壊さない
+    expect(prompt).toContain("bgFetch(url, options?)");
+    expect(prompt).not.toContain("BG_FETCH_SECTION_START");
+  });
 });
 
 describe("generateVisitedUrlsSection", () => {

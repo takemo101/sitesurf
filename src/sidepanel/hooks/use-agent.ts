@@ -153,6 +153,7 @@ export function useAgent() {
       const systemPrompt = getSystemPromptV2({
         includeSkills: matchedSkills.length > 0,
         skills: matchedSkills,
+        enableBgFetch: settings.enableBgFetch,
       });
 
       runAgentLoop({
