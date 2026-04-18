@@ -438,7 +438,7 @@ function mapFinishReason(reason: unknown): FinishReason {
 ### maxSteps: 1 の重要性
 
 AI SDK は `maxSteps` を指定するとツール呼出し→実行→再送信を自動的に行う。
-TandemWeb では `orchestration/agent-loop.ts` が手動でこのループを制御するため、
+Sitesurf では `orchestration/agent-loop.ts` が手動でこのループを制御するため、
 **`maxSteps: 1` にして自動実行を無効化する**。
 
 ## 3. 要素ピッカーの Background handler

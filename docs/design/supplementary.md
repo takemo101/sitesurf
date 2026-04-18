@@ -274,14 +274,14 @@ Background Service Worker で処理する。
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === "install") {
     // 初回インストール
-    console.log("[Background] TandemWeb installed");
+    console.log("[Background] Sitesurf installed");
     // サイドパネルを自動で開くことはできない (ユーザー操作が必要)
     // 特別な初期化処理は不要 (サイドパネル起動時に boot-sequence が処理)
   }
 
   if (details.reason === "update") {
     // 拡張更新
-    console.log("[Background] TandemWeb updated to", chrome.runtime.getManifest().version);
+    console.log("[Background] Sitesurf updated to", chrome.runtime.getManifest().version);
     // IndexedDB マイグレーションはサイドパネル起動時に onupgradeneeded で自動実行
     // Background での追加処理は不要
   }
@@ -356,7 +356,7 @@ req.onblocked = () => {
 ### D2: message-transformer (メッセージ並べ替え)
 
 既存拡張 では `browserMessageTransformer` でツール結果とナビゲーションメッセージの
-順序を整理している。TandemWeb の agent-loop はローカル `messages` 配列で管理するため、
+順序を整理している。Sitesurf の agent-loop はローカル `messages` 配列で管理するため、
 メッセージの順序は挿入順で保証される。並べ替えは不要。
 
 ただし、ストリーミング中にタブ変更が発生した場合のナビゲーションメッセージ挿入位置は

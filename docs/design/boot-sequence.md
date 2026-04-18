@@ -22,7 +22,7 @@ main.tsx
   └──→ App.tsx (useEffect で非同期初期化)
         │
         │ (4) テーマ復元
-        │     storage.get("tandemweb_theme") → setColorScheme
+        │     storage.get("sitesurf_theme") → setColorScheme
         │
         │ (5) 設定読込
         │     persistence.loadSettings(storage)
@@ -129,7 +129,7 @@ export async function initializeApp(deps: AppDeps, windowId: number): Promise<vo
   const { storage, sessionStorage } = deps;
 
   // (4) テーマ復元
-  const savedTheme = await storage.get<string>("tandemweb_theme");
+  const savedTheme = await storage.get<string>("sitesurf_theme");
   if (savedTheme) {
     // MantineProvider の colorScheme を更新
     // ※ 実際にはuseStoreのUISliceにテーマを保持し、MantineProviderに渡す

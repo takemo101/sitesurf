@@ -639,7 +639,7 @@ export function initializeToolRenderers() {
 
 ## Comparison with 既存拡張
 
-| Feature          | 既存拡張  | TandemWeb v2            |
+| Feature          | 既存拡張  | Sitesurf v2            |
 | ---------------- | --------- | ----------------------- |
 | Architecture     | Lit-based | React-based             |
 | Real-time logs   | Yes       | Yes + structured viewer |

@@ -388,7 +388,7 @@ async function resolveAIProvider(
       const refreshResult = await auth.refresh(credentials);
       if (!refreshResult.ok) return refreshResult;
       credentials = refreshResult.value;
-      await deps.storage.set("tandemweb_settings", { ...settings, credentials });
+      await deps.storage.set("sitesurf_settings", { ...settings, credentials });
       useStore.getState().setCredentials(credentials);
     }
   }

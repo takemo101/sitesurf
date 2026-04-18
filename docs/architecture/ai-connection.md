@@ -195,13 +195,16 @@ while (true) {
 }
 ```
 
-### コンテキスト管理 (3層)
+### コンテキスト管理 (Wave 1-4)
 
-コンテキスト超過を検出・回復するために3層の管理を行う:
+コンテキスト超過を防ぐために以下の層で管理する:
 
-1. **ツール出力の切り詰め**: ツール結果が長すぎる場合、送信前に切り詰める
-2. **事前圧縮 (pre-turn compression)**: `context-compressor.ts` が会話履歴を要約し、トークン数を削減してから送信
-3. **オーバーフローエラー回復**: `isContextOverflowError()` で「token exceeds limit」系エラーを検出し、メッセージを自動圧縮してリトライする
+1. **ContextBudget (`features/ai/context-budget.ts`)**: モデルごとの最大コンテキスト長から、システムプロンプト + ツール結果 + 履歴の予算を計算する。`estimateTokens` で text / tool / image / tool-call を個別にカウントする。
+2. **ツール出力の静的切り詰め**: `maxToolResultChars` を超えるツール結果は送信前に切り詰める (`shared/truncate-utils`)。
+3. **事前圧縮 (`orchestration/context-manager.ts` + `context-compressor.ts`)**: ContextBudget の閾値を超えると、古いメッセージを構造化要約 (`features/ai/structured-summary-prompt.ts`) に置き換える。要約済み部分は履歴から除去され、`[構造化要約]` マーカー付きでセッションに保存される。
+4. **オーバーフローエラー回復 (`orchestration/retry.ts`)**: `isContextOverflowError()` で「token exceeds limit」系エラーを検出し、追加圧縮してリトライする。
+
+`autoCompact` 設定が有効 (デフォルト) の場合、事前圧縮は自動で走る。keep-recent の閾値は文字数ではなくトークン数で管理する (Wave 2 で変更)。
 
 ## Chrome拡張固有の制約
 
