@@ -6,7 +6,7 @@ import { err } from "@/shared/errors";
 export const readPageToolDef: ToolDefinition = {
   name: "read_page",
   description:
-    "現在のアクティブタブ **1ページのみ** の主要コンテンツを軽量抽出する。タイトル、本文（プレーンテキスト）、メタ情報を返す。\n\n**2ページ以上を順に収集する用途ではこのツールを使わないこと。** ループで呼ぶと毎ページ分の本文が AI コンテキストに積み上がってトークンを浪費する。複数ページを跨ぐ場合は `repl` で loop 制御し、結果は artifact に保存する。\n\nより詳細な抽出が必要な場合も、`repl` の `browserjs()` を使用する。",
+    "現在のアクティブタブ **1ページのみ** の主要コンテンツを軽量抽出する。タイトル、本文（プレーンテキスト）、メタ情報を返す。\n\n**2ページ以上を順に収集する用途ではこのツールを使わないこと。** 複数ページを跨ぐ場合は `repl` で loop 制御する。\n\nより詳細な抽出が必要な場合は `repl` の `browserjs()` を使用する。",
   parameters: {
     type: "object",
     properties: {},
