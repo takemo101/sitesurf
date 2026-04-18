@@ -1,6 +1,7 @@
 import type { SkillMatch } from "@/shared/skill-types";
 import { assembleSections, type SectionKey } from "./sections";
 import { PromptCache, createPromptCacheKey } from "./prompt-cache";
+import { stripBgFetchSections } from "@/shared/repl-description-sections";
 
 export interface VisitedUrlEntry {
   url: string;
@@ -15,6 +16,7 @@ export interface SystemPromptOptions {
   skills?: SkillMatch[];
   locale?: string;
   visitedUrls?: VisitedUrlEntry[];
+  enableBgFetch?: boolean;
 }
 
 const cache = new PromptCache();
@@ -110,7 +112,11 @@ export function getSystemPromptV2(options: SystemPromptOptions): string {
   if (cached !== null) {
     base = cached;
   } else {
-    const baseSections = assembleSections(BASE_SECTIONS);
+    // BASE_SECTIONS の中には <!-- BG_FETCH_SECTION_* --> マーカで囲まれた
+    // bgFetch 関連の記述があるので、設定に応じて剥がす。true でもマーカは
+    // 必ず取り除くので、sentinel が AI に漏れることはない。
+    const rawBaseSections = assembleSections(BASE_SECTIONS);
+    const baseSections = stripBgFetchSections(rawBaseSections, options.enableBgFetch ?? true);
     const skillsSection =
       options.includeSkills && options.skills ? generateSkillsSection(options.skills) : "";
     base = skillsSection ? `${baseSections}\n\n${skillsSection}` : baseSections;
