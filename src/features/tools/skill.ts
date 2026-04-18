@@ -25,7 +25,11 @@ export type SkillAction =
   | { action: "create"; data: Skill }
   | { action: "update"; id: string; updates: Partial<Skill> }
   | { action: "patch"; id: string; patches: SkillPatches }
-  | { action: "delete"; id: string };
+  | { action: "delete"; id: string }
+  | { action: "list_drafts" }
+  | { action: "create_draft"; data: CreateSkillDraftArgs }
+  | { action: "update_draft"; id: string; updates: Partial<CreateSkillDraftArgs> }
+  | { action: "delete_draft"; id: string };
 
 export type SkillPatches = {
   [K in keyof Skill]?: {
@@ -133,197 +137,11 @@ export type SkillResult =
   | SkillGetResult
   | SkillCreateResult
   | SkillUpdateResult
-  | SkillDeleteResult;
-
-export const listSkillDraftsToolDef: ToolDefinition = {
-  name: "list_skill_drafts",
-  description: `承認待ちの Skill 下書き一覧を取得するツール。
-
-各下書きの draftId、名前、説明、バリデーション状態などを返します。
-update_skill_draft で下書きを更新する際に draftId を確認するために使用してください。`,
-  parameters: {
-    type: "object",
-    properties: {},
-  },
-};
-
-export const createSkillDraftToolDef: ToolDefinition = {
-  name: "create_skill_draft",
-  description: `チャットから Skill の下書きを作成するツール。
-
-このツールは下書きとして保存されますが、custom skill としては保存されません。
-validation 結果を返し、Settings の下書き一覧で内容を確認したうえで明示承認した時だけ custom skill に反映されます。
-
-## バリデーションルール
-
-### reject になるエラー（必ず回避すること）
-- code 内で **ナビゲーション操作は禁止**: window.location, location.href=, location.assign(), location.replace(), location.reload(), history.pushState(), history.replaceState()
-- code 内で **危険な関数は禁止**: eval(), Function(), new Function(), setTimeout("string"), document.write(), .constructor.constructor(), .submit(), new Image()
-- scope が "site" のとき **matchers.hosts は必須**で1つ以上のホストが必要
-- 各 extractor に **id, name, description, code, outputSchema** はすべて必須
-- **括弧の対応が不一致**（(), [], {} のバランス）
-
-### warning（承認可能だが品質向上のため推奨）
-- description が **10文字未満**だと警告 → 用途がわかる具体的な説明にする
-- outputSchema が "unknown" だと警告 → 返却値の型を具体的に記述する（例: "{ title: string, url: string }"）
-- code に **return 文がない**と警告 → 明示的に return で結果を返す
-- code 内の fetch(), XMLHttpRequest, WebSocket は警告（使用可能だが注意）
-
-### 自動補正
-- code が bare code（return document.title; など）の場合は自動的に function () { ... } でラップされる
-- matchers.hosts は自動的に小文字に正規化される
-- name から id が自動生成される（英数字・ハイフンのスラッグ化）`,
-  parameters: {
-    type: "object",
-    properties: {
-      name: { type: "string", description: "Skill の表示名" },
-      description: { type: "string", description: "Skill の説明" },
-      scope: {
-        type: "string",
-        enum: ["site", "global"],
-        description: "Skill のスコープ。省略時は site。",
-      },
-      matchers: {
-        type: "object",
-        description: "Skill のマッチ条件",
-        properties: {
-          hosts: {
-            type: "array",
-            items: { type: "string" },
-            description: "マッチ対象のホスト名（例: amazon.co.jp）",
-          },
-          paths: {
-            type: "array",
-            items: { type: "string" },
-            description:
-              "マッチ対象のパスパターン（省略可）。* は単一セグメント、** は複数セグメントにマッチ。例: /articles/* は /articles/slug にマッチ、/articles/** は /articles/slug/edit にもマッチ。ワイルドカードなしは前方一致。",
-          },
-          signals: {
-            type: "array",
-            items: { type: "string" },
-            description: "マッチ対象のシグナル（省略可）",
-          },
-        },
-        required: ["hosts"],
-      },
-      extractors: {
-        type: "array",
-        description: "Skill extractor の配列",
-        items: {
-          type: "object",
-          properties: {
-            id: { type: "string", description: "Extractor の識別子（英数字・ハイフン）" },
-            name: { type: "string", description: "Extractor の表示名" },
-            description: { type: "string", description: "Extractor が何を抽出するかの説明" },
-            selector: { type: "string", description: "対象要素の CSS セレクタ（省略可）" },
-            code: {
-              type: "string",
-              description:
-                "抽出ロジックの JavaScript コード。`function () { ... }` 形式が望ましいが、bare code（例: `return document.title;`）でも自動的に function でラップされる。return で結果を返すこと。",
-            },
-            outputSchema: {
-              type: "string",
-              description: "出力の型（例: 'string', 'Array<{title: string, price: string}>'）",
-            },
-          },
-          required: ["id", "name", "description", "code", "outputSchema"],
-        },
-      },
-    },
-    required: ["name", "description", "matchers", "extractors"],
-  },
-};
-
-export const updateSkillDraftToolDef: ToolDefinition = {
-  name: "update_skill_draft",
-  description: `既存の Skill 下書きを更新するツール。
-
-draftId で指定した承認待ちの下書きに対して、部分的な変更を適用します。
-変更後に再度 validation が実行され、結果が返されます。
-指定しなかったフィールドは元の値が維持されます。
-
-- matchers: フィールド単位でマージ（例: hosts のみ指定すると paths は既存値を維持）
-- extractors: 指定時は全置換（既存の extractors は破棄される）
-
-バリデーションルールは create_skill_draft と同一です。`,
-  parameters: {
-    type: "object",
-    properties: {
-      draftId: { type: "string", description: "更新対象の下書き ID" },
-      updates: {
-        type: "object",
-        description: "更新するフィールド（部分更新）",
-        properties: {
-          name: { type: "string", description: "Skill の表示名" },
-          description: { type: "string", description: "Skill の説明" },
-          scope: {
-            type: "string",
-            enum: ["site", "global"],
-            description: "Skill のスコープ",
-          },
-          matchers: {
-            type: "object",
-            description: "Skill のマッチ条件",
-            properties: {
-              hosts: {
-                type: "array",
-                items: { type: "string" },
-                description: "マッチ対象のホスト名",
-              },
-              paths: {
-                type: "array",
-                items: { type: "string" },
-                description:
-                  "マッチ対象のパスパターン。* は単一セグメント、** は複数セグメントにマッチ。",
-              },
-              signals: {
-                type: "array",
-                items: { type: "string" },
-                description: "マッチ対象のシグナル",
-              },
-            },
-          },
-          extractors: {
-            type: "array",
-            description: "Skill extractor の配列（指定時は全置換）",
-            items: {
-              type: "object",
-              properties: {
-                id: { type: "string", description: "Extractor の識別子" },
-                name: { type: "string", description: "Extractor の表示名" },
-                description: { type: "string", description: "Extractor の説明" },
-                selector: { type: "string", description: "CSS セレクタ（省略可）" },
-                code: {
-                  type: "string",
-                  description:
-                    "抽出ロジックの JavaScript コード。bare code でも自動的に function でラップされる。return で結果を返すこと。",
-                },
-                outputSchema: { type: "string", description: "出力の型" },
-              },
-              required: ["id", "name", "description", "code", "outputSchema"],
-            },
-          },
-        },
-      },
-    },
-    required: ["draftId", "updates"],
-  },
-};
-
-export const deleteSkillDraftToolDef: ToolDefinition = {
-  name: "delete_skill_draft",
-  description: `既存の Skill 下書きを破棄するツール。
-
-draftId で指定した承認待ちの下書きを削除します。
-validation が reject の下書きを捨てて作り直したい時にも使用できます。`,
-  parameters: {
-    type: "object",
-    properties: {
-      draftId: { type: "string", description: "削除対象の下書き ID" },
-    },
-    required: ["draftId"],
-  },
-};
+  | SkillDeleteResult
+  | CreateSkillDraftResult
+  | UpdateSkillDraftResult
+  | ListSkillDraftsResult
+  | DeleteSkillDraftResult;
 
 // ============ Tool Definition ============
 
@@ -396,13 +214,84 @@ call skill({
 ### 6. delete - スキル削除
 指定したIDのスキルを削除する。
 
-call skill({ action: "delete", id: "old-skill" })`,
+call skill({ action: "delete", id: "old-skill" })
+
+### 7. list_drafts - 承認待ち下書き一覧
+承認待ちの Skill 下書き一覧を取得する。update_draft / delete_draft に使う下書き ID も返す。
+
+call skill({ action: "list_drafts" })
+
+### 8. create_draft - スキル下書き作成
+チャットから Skill の下書きを作成する。下書きとして保存されるが、custom skill としては保存されません。
+validation 結果を返し、Settings の下書き一覧で内容を確認したうえで明示承認した時だけ custom skill に反映される。
+
+call skill({
+  action: "create_draft",
+  data: {
+    name: "Example Draft Skill",
+    description: "説明文",
+    scope: "site",
+    matchers: { hosts: ["example.com"] },
+    extractors: [{
+      id: "getTitle",
+      name: "タイトル取得",
+      description: "ページタイトルを取得",
+      code: "function () { return document.title; }",
+      outputSchema: "string"
+    }]
+  }
+})
+
+### 9. update_draft - 下書き更新
+指定した下書き ID に部分更新を適用する。matchers はフィールド単位でマージ、extractors は指定時に全置換。
+
+call skill({
+  action: "update_draft",
+  id: "draft-id",
+  updates: { description: "より具体的な説明" }
+})
+
+### 10. delete_draft - 下書き破棄
+指定した下書き ID の承認待ち Skill 下書きを削除する。
+
+call skill({ action: "delete_draft", id: "draft-id" })
+
+## 下書きバリデーション
+
+### reject になるエラー（必ず回避すること）
+- code 内で **ナビゲーション操作は禁止**: window.location, location.href=, location.assign(), location.replace(), location.reload(), history.pushState(), history.replaceState()
+- code 内で **危険な関数は禁止**: eval(), Function(), new Function(), setTimeout("string"), document.write(), .constructor.constructor(), .submit(), new Image()
+- scope が "site" のとき **matchers.hosts は必須**で1つ以上のホストが必要
+- 各 extractor に **id, name, description, code, outputSchema** はすべて必須
+- **括弧の対応が不一致**（(), [], {} のバランス）
+
+### warning（承認可能だが品質向上のため推奨）
+- description が **10文字未満**だと警告 → 用途がわかる具体的な説明にする
+- outputSchema が "unknown" だと警告 → 返却値の型を具体的に記述する（例: "{ title: string, url: string }"）
+- code に **return 文がない**と警告 → 明示的に return で結果を返す
+- code 内の fetch(), XMLHttpRequest, WebSocket は警告（使用可能だが注意）
+
+### 自動補正
+- code が bare code（return document.title; など）の場合は自動的に function () { ... } でラップされる
+- matchers.hosts は自動的に小文字に正規化される
+- name から id が自動生成される（英数字・ハイフンのスラッグ化）`,
   parameters: {
     type: "object",
     properties: {
       action: {
         type: "string",
-        enum: ["list", "get", "create", "update", "patch", "delete"],
+        enum: [
+          "list",
+          "get",
+          "create",
+          "update",
+          "patch",
+          "delete",
+          "list_drafts",
+          "create_draft",
+          "update_draft",
+          "delete_draft",
+        ],
         description: "実行するアクション",
       },
       url: {
@@ -411,7 +300,8 @@ call skill({ action: "delete", id: "old-skill" })`,
       },
       id: {
         type: "string",
-        description: "get/update/patch/deleteアクションで使用。対象スキルのID。",
+        description:
+          "get/update/patch/delete では対象スキル ID、update_draft/delete_draft では対象下書き ID。",
       },
       includeLibraryCode: {
         type: "boolean",
@@ -419,11 +309,11 @@ call skill({ action: "delete", id: "old-skill" })`,
       },
       data: {
         type: "object",
-        description: "createアクションで使用。作成するスキルデータ。",
+        description: "create では作成するスキルデータ、create_draft では作成する下書きデータ。",
       },
       updates: {
         type: "object",
-        description: "updateアクションで使用。更新するフィールド。",
+        description: "update または update_draft で使用。更新するフィールド。",
       },
       patches: {
         type: "object",
@@ -436,25 +326,65 @@ call skill({ action: "delete", id: "old-skill" })`,
 
 // ============ Execute Function ============
 
+function invalidSkillArgs(message: string): Result<never, ToolError> {
+  return err({ code: "tool_script_error", message });
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export async function executeSkill(
   storage: StoragePort,
   registry: SkillRegistry,
   currentUrl: string | undefined,
   args: SkillAction,
 ): Promise<Result<SkillResult, ToolError>> {
+  if (typeof args !== "object" || args === null || typeof args.action !== "string") {
+    return err({
+      code: "tool_script_error",
+      message: "skill arguments must be an object with action",
+    });
+  }
+
   switch (args.action) {
     case "list":
       return executeList(registry, args.url ?? currentUrl);
     case "get":
       return executeGet(registry, args.id, args.includeLibraryCode ?? false);
     case "create":
-      return executeCreate(storage, registry, args.data);
+      return isPlainObject(args.data)
+        ? executeCreate(storage, registry, args.data as Skill)
+        : invalidSkillArgs("create action requires data");
     case "update":
-      return executeUpdate(storage, registry, args.id, args.updates);
+      return typeof args.id === "string" && isPlainObject(args.updates)
+        ? executeUpdate(storage, registry, args.id, args.updates as Partial<Skill>)
+        : invalidSkillArgs("update action requires id and updates");
     case "patch":
-      return executePatch(storage, registry, args.id, args.patches);
+      return typeof args.id === "string" && isPlainObject(args.patches)
+        ? executePatch(storage, registry, args.id, args.patches as SkillPatches)
+        : invalidSkillArgs("patch action requires id and patches");
     case "delete":
-      return executeDelete(storage, registry, args.id);
+      return typeof args.id === "string"
+        ? executeDelete(storage, registry, args.id)
+        : invalidSkillArgs("delete action requires id");
+    case "list_drafts":
+      return executeListSkillDrafts(storage);
+    case "create_draft":
+      return isPlainObject(args.data)
+        ? executeCreateSkillDraft(storage, registry, args.data as CreateSkillDraftArgs)
+        : invalidSkillArgs("create_draft action requires data");
+    case "update_draft":
+      return typeof args.id === "string" && isPlainObject(args.updates)
+        ? executeUpdateSkillDraft(storage, registry, {
+            draftId: args.id,
+            updates: args.updates as Partial<CreateSkillDraftArgs>,
+          })
+        : invalidSkillArgs("update_draft action requires id and updates");
+    case "delete_draft":
+      return typeof args.id === "string"
+        ? executeDeleteSkillDraft(storage, { draftId: args.id })
+        : invalidSkillArgs("delete_draft action requires id");
     default:
       return err({
         code: "tool_script_error",
@@ -614,7 +544,7 @@ export async function executeDeleteSkillDraft(
   if (typeof args !== "object" || args === null) {
     return err({
       code: "tool_script_error",
-      message: "delete_skill_draft arguments must be an object",
+      message: "skill(action: \"delete_draft\") arguments must be an object",
     });
   }
 
@@ -1100,7 +1030,7 @@ function parseCreateSkillDraftArgs(
   args: CreateSkillDraftArgs,
 ): { ok: true; value: CreateSkillDraftArgs } | { ok: false; error: string } {
   if (typeof args !== "object" || args === null) {
-    return { ok: false, error: "create_skill_draft arguments must be an object" };
+    return { ok: false, error: "skill(action: \"create_draft\") arguments must be an object" };
   }
 
   if (typeof args.name !== "string") {

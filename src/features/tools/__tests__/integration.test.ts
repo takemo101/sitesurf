@@ -162,18 +162,18 @@ describe("2段階抽出ワークフロー", () => {
     it("agent に公開する tool 定義から skill 管理ツールを除外する", () => {
       const names = AGENT_TOOL_DEFS.map((t) => t.name);
 
-      expect(names).toContain("list_skill_drafts");
-      expect(names).toContain("create_skill_draft");
-      expect(names).toContain("update_skill_draft");
-      expect(names).toContain("delete_skill_draft");
-      expect(names).not.toContain("skill");
+      expect(names).toContain("skill");
+      expect(names).not.toContain("list_skill_drafts");
+      expect(names).not.toContain("create_skill_draft");
+      expect(names).not.toContain("update_skill_draft");
+      expect(names).not.toContain("delete_skill_draft");
     });
 
     it("getAgentToolDefs: 引数なしで bg_fetch を除外する", () => {
       const names = getAgentToolDefs().map((t) => t.name);
       expect(names).not.toContain("bg_fetch");
       expect(names).not.toContain("get_tool_result");
-      expect(names).not.toContain("skill");
+      expect(names).toContain("skill");
     });
 
     it("getAgentToolDefs: enableBgFetch=false で bg_fetch を除外する", () => {
@@ -185,37 +185,40 @@ describe("2段階抽出ワークフロー", () => {
       const names = getAgentToolDefs({ enableBgFetch: true }).map((t) => t.name);
       expect(names).toContain("bg_fetch");
       expect(names).not.toContain("get_tool_result");
-      expect(names).not.toContain("skill");
+      expect(names).toContain("skill");
     });
 
   });
 
   describe("draft ツールの dispatch パス", () => {
-    it("list_skill_drafts が executor 経由で実行できる", async () => {
+    it("skill(action=list_drafts) が executor 経由で実行できる", async () => {
       const browser = createMockBrowser();
-      const result = await createToolExecutor("list_skill_drafts", {}, browser);
+      const result = await createToolExecutor("skill", { action: "list_drafts" }, browser);
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.value).toHaveProperty("drafts");
     });
 
-    it("create_skill_draft が executor 経由で実行できる", async () => {
+    it("skill(action=create_draft) が executor 経由で実行できる", async () => {
       const browser = createMockBrowser();
       const result = await createToolExecutor(
-        "create_skill_draft",
+        "skill",
         {
-          name: "Integration Draft",
-          description: "Created via executor dispatch",
-          matchers: { hosts: ["example.com"] },
-          extractors: [
-            {
-              id: "getTitle",
-              name: "Get Title",
-              description: "Return the page title",
-              code: "function () { return document.title; }",
-              outputSchema: "string",
-            },
-          ],
+          action: "create_draft",
+          data: {
+            name: "Integration Draft",
+            description: "Created via executor dispatch",
+            matchers: { hosts: ["example.com"] },
+            extractors: [
+              {
+                id: "getTitle",
+                name: "Get Title",
+                description: "Return the page title",
+                code: "function () { return document.title; }",
+                outputSchema: "string",
+              },
+            ],
+          },
         },
         browser,
       );
@@ -224,7 +227,7 @@ describe("2段階抽出ワークフロー", () => {
       expect(result.value).toHaveProperty("draftId");
     });
 
-    it("update_skill_draft が executor 経由で実行できる", async () => {
+    it("skill(action=update_draft) が executor 経由で実行できる", async () => {
       const storage = new InMemoryStorage();
       const registry = new SkillRegistry();
       const browser = createMockBrowser();
@@ -235,20 +238,23 @@ describe("2段階抽出ワークフロー", () => {
       );
 
       const createResult = await executor(
-        "create_skill_draft",
+        "skill",
         {
-          name: "Draft For Update",
-          description: "Will be updated via dispatch",
-          matchers: { hosts: ["example.com"] },
-          extractors: [
-            {
-              id: "getTitle",
-              name: "Get Title",
-              description: "Return the page title",
-              code: "function () { return document.title; }",
-              outputSchema: "string",
-            },
-          ],
+          action: "create_draft",
+          data: {
+            name: "Draft For Update",
+            description: "Will be updated via dispatch",
+            matchers: { hosts: ["example.com"] },
+            extractors: [
+              {
+                id: "getTitle",
+                name: "Get Title",
+                description: "Return the page title",
+                code: "function () { return document.title; }",
+                outputSchema: "string",
+              },
+            ],
+          },
         },
         browser,
       );
@@ -257,8 +263,8 @@ describe("2段階抽出ワークフロー", () => {
       const draftId = (createResult.value as { draftId: string }).draftId;
 
       const updateResult = await executor(
-        "update_skill_draft",
-        { draftId, updates: { description: "Updated via dispatch" } },
+        "skill",
+        { action: "update_draft", id: draftId, updates: { description: "Updated via dispatch" } },
         browser,
       );
       expect(updateResult.ok).toBe(true);
@@ -269,7 +275,7 @@ describe("2段階抽出ワークフロー", () => {
       ).toBe("Updated via dispatch");
     });
 
-    it("delete_skill_draft が executor 経由で実行できる", async () => {
+    it("skill(action=delete_draft) が executor 経由で実行できる", async () => {
       const storage = new InMemoryStorage();
       const registry = new SkillRegistry();
       const browser = createMockBrowser();
@@ -280,20 +286,23 @@ describe("2段階抽出ワークフロー", () => {
       );
 
       const createResult = await executor(
-        "create_skill_draft",
+        "skill",
         {
-          name: "Draft For Delete",
-          description: "Will be deleted via dispatch",
-          matchers: { hosts: ["example.com"] },
-          extractors: [
-            {
-              id: "getTitle",
-              name: "Get Title",
-              description: "Return the page title",
-              code: "function () { return document.title; }",
-              outputSchema: "string",
-            },
-          ],
+          action: "create_draft",
+          data: {
+            name: "Draft For Delete",
+            description: "Will be deleted via dispatch",
+            matchers: { hosts: ["example.com"] },
+            extractors: [
+              {
+                id: "getTitle",
+                name: "Get Title",
+                description: "Return the page title",
+                code: "function () { return document.title; }",
+                outputSchema: "string",
+              },
+            ],
+          },
         },
         browser,
       );
@@ -301,12 +310,16 @@ describe("2段階抽出ワークフロー", () => {
       if (!createResult.ok) return;
       const draftId = (createResult.value as { draftId: string }).draftId;
 
-      const deleteResult = await executor("delete_skill_draft", { draftId }, browser);
+      const deleteResult = await executor(
+        "skill",
+        { action: "delete_draft", id: draftId },
+        browser,
+      );
       expect(deleteResult.ok).toBe(true);
       if (!deleteResult.ok) return;
       expect(deleteResult.value).toEqual({ deleted: true, draftId });
 
-      const listResult = await executor("list_skill_drafts", {}, browser);
+      const listResult = await executor("skill", { action: "list_drafts" }, browser);
       expect(listResult.ok).toBe(true);
       if (!listResult.ok) return;
       expect((listResult.value as { drafts: unknown[] }).drafts).toEqual([]);

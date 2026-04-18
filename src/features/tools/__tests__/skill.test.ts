@@ -2,10 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   executeSkill,
   skillToolDef,
-  listSkillDraftsToolDef,
-  createSkillDraftToolDef,
-  updateSkillDraftToolDef,
-  deleteSkillDraftToolDef,
   executeListSkillDrafts,
   executeCreateSkillDraft,
   executeUpdateSkillDraft,
@@ -19,6 +15,7 @@ import {
   type UpdateSkillDraftResult,
   type ListSkillDraftsResult,
   type DeleteSkillDraftResult,
+  type SkillPatches,
 } from "../skill";
 import { SkillRegistry } from "../skills";
 import { InMemoryStorage } from "@/adapters/storage/in-memory-storage";
@@ -61,30 +58,52 @@ describe("skill tool", () => {
       expect(skillToolDef.description).toContain("update");
       expect(skillToolDef.description).toContain("patch");
       expect(skillToolDef.description).toContain("delete");
+      expect(skillToolDef.description).toContain("list_drafts");
+      expect(skillToolDef.description).toContain("create_draft");
+      expect(skillToolDef.description).toContain("update_draft");
+      expect(skillToolDef.description).toContain("delete_draft");
     });
 
     it("has parameters with action enum", () => {
       const params = skillToolDef.parameters as Record<string, unknown>;
       expect(params.type).toBe("object");
       expect(params.properties).toHaveProperty("action");
+      expect((params.properties as { action: { enum: string[] } }).action.enum).toEqual(
+        expect.arrayContaining([
+          "list",
+          "get",
+          "create",
+          "update",
+          "patch",
+          "delete",
+          "list_drafts",
+          "create_draft",
+          "update_draft",
+          "delete_draft",
+        ]),
+      );
     });
-  });
 
-  describe("create_skill_draft tool definition", () => {
-    it("has the expected tool name", () => {
-      expect(createSkillDraftToolDef.name).toBe("create_skill_draft");
+    it("describes draft persistence through draft actions", () => {
+      expect(skillToolDef.description).toContain("下書き");
+      expect(skillToolDef.description).toContain("create_draft");
+      expect(skillToolDef.description).toContain("custom skill としては保存されません");
     });
 
-    it("describes draft persistence without claiming custom-skill save", () => {
-      expect(createSkillDraftToolDef.description).toContain("下書きとして保存");
-      expect(createSkillDraftToolDef.description).toContain("custom skill としては保存されません");
-    });
+    it("returns a tool error for malformed skill arguments", async () => {
+      const storage = new InMemoryStorage();
+      const registry = new SkillRegistry();
 
-    it("accepts draft creation inputs", () => {
-      const params = createSkillDraftToolDef.parameters as Record<string, unknown>;
-      expect(params.type).toBe("object");
-      expect(params.properties).toHaveProperty("name");
-      expect(params.properties).toHaveProperty("extractors");
+      const result = await executeSkill(
+        storage,
+        registry,
+        undefined,
+        null as unknown as Parameters<typeof executeSkill>[3],
+      );
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.message).toContain("skill arguments must be an object with action");
     });
   });
 
@@ -308,6 +327,22 @@ describe("skill tool", () => {
   });
 
   describe("create action", () => {
+    it("returns a tool error for missing create data", async () => {
+      const storage = new InMemoryStorage();
+      const registry = new SkillRegistry();
+
+      const result = await executeSkill(
+        storage,
+        registry,
+        undefined,
+        { action: "create" } as unknown as Parameters<typeof executeSkill>[3],
+      );
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.message).toContain("create action requires data");
+    });
+
     it("creates a new skill", async () => {
       const storage = new InMemoryStorage();
       const registry = new SkillRegistry();
@@ -549,7 +584,7 @@ describe("skill tool", () => {
     });
   });
 
-  describe("create_skill_draft tool", () => {
+  describe("create_draft action", () => {
     it("creates a draft without persisting it as a custom skill", async () => {
       const storage = new InMemoryStorage();
       const registry = new SkillRegistry();
@@ -757,13 +792,7 @@ describe("skill tool", () => {
     });
   });
 
-  describe("list_skill_drafts tool definition", () => {
-    it("has the expected tool name", () => {
-      expect(listSkillDraftsToolDef.name).toBe("list_skill_drafts");
-    });
-  });
-
-  describe("list_skill_drafts tool", () => {
+  describe("list_drafts action", () => {
     it("returns empty array when no drafts exist", async () => {
       const storage = new InMemoryStorage();
 
@@ -827,18 +856,7 @@ describe("skill tool", () => {
     });
   });
 
-  describe("update_skill_draft tool definition", () => {
-    it("has the expected tool name", () => {
-      expect(updateSkillDraftToolDef.name).toBe("update_skill_draft");
-    });
-
-    it("requires draftId and updates parameters", () => {
-      const params = updateSkillDraftToolDef.parameters as Record<string, unknown>;
-      expect(params.required).toEqual(["draftId", "updates"]);
-    });
-  });
-
-  describe("update_skill_draft tool", () => {
+  describe("update_draft action", () => {
     async function createDraft(storage: InMemoryStorage, registry: SkillRegistry) {
       const result = await executeCreateSkillDraft(storage, registry, {
         name: "Draft To Update",
@@ -990,6 +1008,22 @@ describe("skill tool", () => {
       expect(result.error.message).toContain("updates must be an object");
     });
 
+    it("returns error when update_draft payload is an array", async () => {
+      const storage = new InMemoryStorage();
+      const registry = new SkillRegistry();
+      const draft = await createDraft(storage, registry);
+
+      const result = await executeSkill(storage, registry, undefined, {
+        action: "update_draft",
+        id: draft.draftId,
+        updates: [] as unknown as Partial<CreateSkillDraftArgs>,
+      });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.message).toContain("update_draft action requires id and updates");
+    });
+
     it("preserves createdAt and sets updatedAt on update", async () => {
       const storage = new InMemoryStorage();
       const registry = new SkillRegistry();
@@ -1136,18 +1170,7 @@ describe("skill tool", () => {
     });
   });
 
-  describe("delete_skill_draft tool definition", () => {
-    it("has the expected tool name", () => {
-      expect(deleteSkillDraftToolDef.name).toBe("delete_skill_draft");
-    });
-
-    it("requires draftId parameter", () => {
-      const params = deleteSkillDraftToolDef.parameters as Record<string, unknown>;
-      expect(params.required).toEqual(["draftId"]);
-    });
-  });
-
-  describe("delete_skill_draft tool", () => {
+  describe("delete_draft action", () => {
     async function createDraft(storage: InMemoryStorage, registry: SkillRegistry) {
       const result = await executeCreateSkillDraft(storage, registry, {
         name: "Draft To Delete",
@@ -1244,12 +1267,43 @@ describe("skill tool", () => {
         ),
       ).resolves.toMatchObject({
         ok: false,
-        error: { message: "delete_skill_draft arguments must be an object" },
+        error: { message: 'skill(action: "delete_draft") arguments must be an object' },
       });
     });
   });
 
   describe("update action", () => {
+    it("returns a tool error for missing update payload", async () => {
+      const storage = new InMemoryStorage();
+      const registry = new SkillRegistry();
+
+      const result = await executeSkill(
+        storage,
+        registry,
+        undefined,
+        { action: "update", id: "test-skill" } as unknown as Parameters<typeof executeSkill>[3],
+      );
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.message).toContain("update action requires id and updates");
+    });
+
+    it("returns a tool error when update payload is an array", async () => {
+      const storage = new InMemoryStorage();
+      const registry = new SkillRegistry();
+
+      const result = await executeSkill(storage, registry, undefined, {
+        action: "update",
+        id: "test-skill",
+        updates: [] as unknown as Partial<Skill>,
+      });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.message).toContain("update action requires id and updates");
+    });
+
     it("updates skill fields", async () => {
       const storage = new InMemoryStorage();
       const registry = new SkillRegistry();
@@ -1407,6 +1461,42 @@ describe("skill tool", () => {
   });
 
   describe("patch action", () => {
+    it("returns a tool error for missing patch payload", async () => {
+      const storage = new InMemoryStorage();
+      const registry = new SkillRegistry();
+
+      const result = await executeSkill(
+        storage,
+        registry,
+        undefined,
+        { action: "patch", id: "test-skill" } as unknown as Parameters<typeof executeSkill>[3],
+      );
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.message).toContain("patch action requires id and patches");
+    });
+
+    it("returns a tool error when patch payload is an array", async () => {
+      const storage = new InMemoryStorage();
+      const registry = new SkillRegistry();
+
+      const result = await executeSkill(
+        storage,
+        registry,
+        undefined,
+        {
+          action: "patch",
+          id: "test-skill",
+          patches: [] as unknown as SkillPatches,
+        } as unknown as Parameters<typeof executeSkill>[3],
+      );
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.message).toContain("patch action requires id and patches");
+    });
+
     it("patches string fields", async () => {
       const storage = new InMemoryStorage();
       const registry = new SkillRegistry();

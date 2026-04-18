@@ -13,15 +13,7 @@ import { screenshotToolDef, executeScreenshot } from "./screenshot";
 import { extractImageToolDef, executeExtractImage } from "./extract-image";
 import {
   skillToolDef,
-  listSkillDraftsToolDef,
-  createSkillDraftToolDef,
-  updateSkillDraftToolDef,
-  deleteSkillDraftToolDef,
   executeSkill,
-  executeListSkillDrafts,
-  executeCreateSkillDraft,
-  executeUpdateSkillDraft,
-  executeDeleteSkillDraft,
   type SkillAction,
   type SkillResult,
   type SkillListResult,
@@ -49,15 +41,7 @@ export { screenshotToolDef, executeScreenshot };
 export { extractImageToolDef, executeExtractImage };
 export {
   skillToolDef,
-  listSkillDraftsToolDef,
-  createSkillDraftToolDef,
-  updateSkillDraftToolDef,
-  deleteSkillDraftToolDef,
   executeSkill,
-  executeListSkillDrafts,
-  executeCreateSkillDraft,
-  executeUpdateSkillDraft,
-  executeDeleteSkillDraft,
 };
 export { bgFetchToolDef, executeBgFetch };
 export { artifactsTool, handleArtifactsTool };
@@ -99,17 +83,11 @@ export const ALL_TOOL_DEFS: ToolDefinition[] = [
   screenshotToolDef,
   extractImageToolDef,
   skillToolDef,
-  listSkillDraftsToolDef,
-  createSkillDraftToolDef,
-  updateSkillDraftToolDef,
-  deleteSkillDraftToolDef,
   artifactsTool,
   bgFetchToolDef,
 ];
 
-export const AGENT_TOOL_DEFS: ToolDefinition[] = ALL_TOOL_DEFS.filter(
-  (tool) => tool.name !== "skill",
-);
+export const AGENT_TOOL_DEFS: ToolDefinition[] = [...ALL_TOOL_DEFS];
 
 export function getAgentToolDefs(options?: { enableBgFetch?: boolean }): ToolDefinition[] {
   const enableBgFetch = options?.enableBgFetch ?? false;
@@ -189,26 +167,6 @@ export function createToolExecutorWithSkills(
       case "skill": {
         const tab = await browser.getActiveTab();
         return executeSkill(storage, skillRegistry, tab.url, args as SkillAction);
-      }
-      case "list_skill_drafts": {
-        return executeListSkillDrafts(storage);
-      }
-      case "create_skill_draft": {
-        return executeCreateSkillDraft(
-          storage,
-          skillRegistry,
-          args as unknown as CreateSkillDraftArgs,
-        );
-      }
-      case "update_skill_draft": {
-        return executeUpdateSkillDraft(
-          storage,
-          skillRegistry,
-          args as unknown as UpdateSkillDraftArgs,
-        );
-      }
-      case "delete_skill_draft": {
-        return executeDeleteSkillDraft(storage, args as unknown as DeleteSkillDraftArgs);
       }
       case "artifacts": {
         const artifactArgs = args as unknown as Parameters<typeof handleArtifactsTool>[0];
