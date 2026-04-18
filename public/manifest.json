@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "SiteSurf",
   "description": "AIと一緒にWebページを操作するChrome拡張",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "action": {
     "default_title": "SiteSurfを開く",
     "default_icon": {
