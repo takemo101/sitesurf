@@ -3,7 +3,7 @@ import { MantineProvider } from "@mantine/core";
 import type { ArtifactType } from "@/features/artifacts/types";
 import { useEffect, useRef, useState } from "react";
 import { THEME_STORAGE_KEY, LEGACY_THEME_STORAGE_KEY } from "@/shared/constants";
-import { MarkdownContent } from "@/features/chat/MarkdownContent";
+import { MarkdownContent } from "@/shared/ui/MarkdownContent";
 
 import "@mantine/core/styles.css";
 import "@/shared/hljs-theme.css";

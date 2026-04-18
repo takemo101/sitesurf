@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Box, Group, Tabs, ActionIcon, Text, Paper, useComputedColorScheme } from "@mantine/core";
 import { RotateCw } from "lucide-react";
 import type { ArtifactEntry } from "./types";
-import { MarkdownContent } from "@/features/chat/MarkdownContent";
+import { MarkdownContent } from "@/shared/ui/MarkdownContent";
 import { CodeView } from "./CodeView";
 
 interface ArtifactData {

@@ -16,11 +16,12 @@ import {
   type ListSkillDraftsResult,
   type DeleteSkillDraftResult,
   type SkillPatches,
+  type CreateSkillDraftArgs,
 } from "../skill";
 import { SkillRegistry } from "../skills";
 import { InMemoryStorage } from "@/adapters/storage/in-memory-storage";
-import { saveCustomSkills } from "@/features/settings/skills-persistence";
-import { approveSkillDraft } from "@/features/settings/skills-drafts-state";
+import { saveCustomSkills } from "@/shared/test-fixtures/skills";
+import { approveSkillDraft } from "@/shared/test-fixtures/skills";
 import type { Skill } from "@/shared/skill-types";
 import type { StoredSkillDraft } from "@/shared/skill-draft-types";
 import { loadSkillRegistry } from "../skills/skill-loader";
