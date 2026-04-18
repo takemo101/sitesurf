@@ -102,7 +102,7 @@
 
 ## 4. 他エージェントとの比較
 
-| 観点             | Claude Code               | SiteGeist                 | **sitesurf v2**                                   |
+| 観点             | Claude Code               | 別の Web AI 拡張          | **sitesurf v2**                                   |
 | ---------------- | ------------------------- | ------------------------- | ------------------------------------------------- |
 | 主戦略           | auto-compact + 完全版保持 | トリム無し + artifact避難 | **層構造（窓サイズ適応）**                        |
 | 完全版保持       | **あり**（履歴に残す）    | あり（履歴）              | **あり（Store）**                                 |
@@ -744,4 +744,4 @@ prepareMessagesForTurn(messages, budget, ...)
 - `docs/design/system-prompt.md` — system prompt 分割構造
 - 調査ノート（インライン）:
   - Claude Code: auto-compact + 完全版保持 + CLAUDE.md 階層 （Prompt Caching も利用しているが v2 では不採用）
-  - SiteGeist: トリム無し + artifact 逃がし + NavigationMessage
+  - 別の Web AI 拡張: トリム無し + artifact 逃がし + NavigationMessage
