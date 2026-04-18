@@ -22,6 +22,13 @@ describe("createPromptCacheKey", () => {
     expect(firstKey).not.toBe(secondKey);
   });
 
+  it("ignores enableBgFetch because system prompt content no longer varies by that flag", () => {
+    const enabledKey = createPromptCacheKey({ enableBgFetch: true });
+    const disabledKey = createPromptCacheKey({ enableBgFetch: false });
+
+    expect(enabledKey).toBe(disabledKey);
+  });
+
   it("produces stable key regardless of skill object property order", () => {
     const makeSkill = (id: string) => ({
       skill: {

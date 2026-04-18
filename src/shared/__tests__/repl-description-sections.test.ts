@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { assembleReplDescriptionSections } from "../repl-description-sections";
 
+const ALL_REPL_SECTION_KEYS = ["AVAILABLE_FUNCTIONS", "COMMON_PATTERNS"] as const;
+
 describe("assembleReplDescriptionSections", () => {
+  it("no longer includes Tool Philosophy in REPL descriptions", () => {
+    const out = assembleReplDescriptionSections([...ALL_REPL_SECTION_KEYS]);
+    expect(out).not.toContain("Tool Philosophy");
+    expect(out).toContain("Available Functions");
+    expect(out).toContain("Common Patterns");
+  });
+
   it("デフォルト (enableBgFetch 省略) では bgFetch の signature と参照を含む", () => {
     const out = assembleReplDescriptionSections(["AVAILABLE_FUNCTIONS"]);
     expect(out).toContain("bgFetch(url, options?)");
@@ -22,10 +31,9 @@ describe("assembleReplDescriptionSections", () => {
   });
 
   it("enableBgFetch=false の時は bgFetch 関連を全削除する", () => {
-    const out = assembleReplDescriptionSections(
-      ["AVAILABLE_FUNCTIONS", "COMMON_PATTERNS"],
-      { enableBgFetch: false },
-    );
+    const out = assembleReplDescriptionSections([...ALL_REPL_SECTION_KEYS], {
+      enableBgFetch: false,
+    });
     expect(out).not.toContain("bgFetch");
     expect(out).not.toContain("Multi-URL fetch");
     expect(out).not.toContain("Multi-URL Fetch");
@@ -38,10 +46,7 @@ describe("assembleReplDescriptionSections", () => {
   it("sentinel マーカは enableBgFetch の値に関係なく絶対に残さない", () => {
     for (const flag of [undefined, true, false]) {
       const options = flag === undefined ? undefined : { enableBgFetch: flag };
-      const out = assembleReplDescriptionSections(
-        ["AVAILABLE_FUNCTIONS", "COMMON_PATTERNS"],
-        options,
-      );
+      const out = assembleReplDescriptionSections([...ALL_REPL_SECTION_KEYS], options);
       expect(out).not.toMatch(/BG_FETCH_SECTION_(START|END)/);
     }
   });
