@@ -16,7 +16,7 @@ import { Bot, Brain, Check, ChevronDown, ChevronRight, Copy, Wrench, User } from
 import type { ChatMessage, ToolCallInfo } from "@/ports/session-types";
 import { useStore } from "@/store/index";
 import { messageStyles, type StyledRole } from "./theme";
-import { MarkdownContent } from "./MarkdownContent";
+import { MarkdownContent } from "@/shared/ui/MarkdownContent";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { ImageLightbox } from "./tool-renderers/components";
 
