@@ -7,7 +7,7 @@ export function createDefaultToolRendererRegistry(consoleLogService = defaultCon
   const registry = new ToolRendererRegistry();
   void consoleLogService;
   registry.register("repl", replToolRenderer);
-  registry.register("extract_image", extractImageToolRenderer);
+  registry.register("inspect", extractImageToolRenderer);
   registry.register("artifacts", artifactsToolRenderer);
   registry.register("bg_fetch", bgFetchToolRenderer);
   return registry;

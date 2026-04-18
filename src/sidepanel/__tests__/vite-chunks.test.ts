@@ -20,7 +20,7 @@ describe("getManualChunk", () => {
 
   it("background の動的 import 対象は bg-tools に分離する", () => {
     expect(getManualChunk("/repo/src/adapters/chrome/chrome-browser-executor.ts")).toBe("bg-tools");
-    expect(getManualChunk("/repo/src/features/tools/extract-image.ts")).toBe("bg-tools");
+    expect(getManualChunk("/repo/src/features/tools/inspect.ts")).toBe("bg-tools");
   });
 
   it("shared / ports は shared chunk に分離する", () => {

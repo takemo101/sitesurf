@@ -72,7 +72,7 @@ export function getManualChunk(id: string): string | undefined {
   if (
     normalizedId.includes("/src/background/") ||
     normalizedId.includes("/src/adapters/chrome/") ||
-    normalizedId.endsWith("/src/features/tools/extract-image.ts")
+    normalizedId.endsWith("/src/features/tools/inspect.ts")
   ) {
     return "bg-tools";
   }

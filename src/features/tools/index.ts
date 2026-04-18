@@ -7,9 +7,7 @@ import { useStore } from "@/store/index";
 
 import { replToolDef, buildReplToolDef, executeRepl, formatSkillsForSandbox } from "./repl";
 import { navigateToolDef, executeNavigate } from "./navigate";
-import { pickElementToolDef, executePickElement } from "./pick-element";
-import { screenshotToolDef, executeScreenshot } from "./screenshot";
-import { extractImageToolDef, executeExtractImage } from "./extract-image";
+import { inspectToolDef, executeInspect } from "./inspect";
 import {
   skillToolDef,
   executeSkill,
@@ -34,9 +32,7 @@ import { handleArtifactsTool } from "./handlers/artifacts-handler";
 
 export { replToolDef, buildReplToolDef, executeRepl, formatSkillsForSandbox };
 export { navigateToolDef, executeNavigate };
-export { pickElementToolDef, executePickElement };
-export { screenshotToolDef, executeScreenshot };
-export { extractImageToolDef, executeExtractImage };
+export { inspectToolDef, executeInspect };
 export {
   skillToolDef,
   executeSkill,
@@ -59,8 +55,7 @@ export type {
   DeleteSkillDraftArgs,
   DeleteSkillDraftResult,
 };
-export type { ScreenshotResult } from "./screenshot";
-export type { ExtractImageResult } from "./extract-image";
+export type { ScreenshotResult, ExtractImageResult } from "./inspect";
 export type { ArtifactsParams } from "./handlers/artifacts-handler";
 export { loadSkillRegistry } from "./skills";
 export type { SkillRegistry } from "@/shared/skill-registry";
@@ -76,9 +71,7 @@ export type {
 export const ALL_TOOL_DEFS: ToolDefinition[] = [
   replToolDef,
   navigateToolDef,
-  pickElementToolDef,
-  screenshotToolDef,
-  extractImageToolDef,
+  inspectToolDef,
   skillToolDef,
   artifactsTool,
   bgFetchToolDef,
@@ -131,20 +124,12 @@ export function createToolExecutorWithSkills(
           browser,
           args as { url?: string; newTab?: boolean; listTabs?: boolean; switchToTab?: number },
         );
-      case "pick_element":
-        return executePickElement(browser, args as { message?: string });
-      case "screenshot":
-        return executeScreenshot(browser);
-      case "extract_image":
-        if (typeof args.selector !== "string") {
-          return {
-            ok: false as const,
-            error: { code: "tool_script_error", message: "selector is required" },
-          };
-        }
-        return executeExtractImage(browser, {
-          selector: args.selector,
-          maxWidth: typeof args.maxWidth === "number" ? args.maxWidth : undefined,
+      case "inspect":
+        return executeInspect(browser, args as {
+          action: "pick_element" | "screenshot" | "extract_image";
+          message?: string;
+          selector?: string;
+          maxWidth?: number;
         });
       case "bg_fetch": {
         const bgFetchEnabled = useStore.getState().settings.enableBgFetch;

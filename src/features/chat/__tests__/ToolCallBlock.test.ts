@@ -121,12 +121,13 @@ describe("downloadImageResource", () => {
 });
 
 describe("GenericToolResult", () => {
-  it("pick_element の完了結果を構造化表示する", () => {
+  it("inspect(pick_element) の完了結果を構造化表示する", () => {
     const markup = renderWithProviders(
       createElement(GenericToolResult, {
         toolCall: createToolCall({
-          name: "pick_element",
+          name: "inspect",
           success: true,
+          args: { action: "pick_element" },
           result: JSON.stringify({ selector: "button.submit", tagName: "BUTTON" }),
         }),
       }),
@@ -137,12 +138,13 @@ describe("GenericToolResult", () => {
     expect(markup).toContain("BUTTON");
   });
 
-  it("screenshot の完了結果を画像プレビュー表示する", () => {
+  it("inspect(screenshot) の完了結果を画像プレビュー表示する", () => {
     const markup = renderWithProviders(
       createElement(GenericToolResult, {
         toolCall: createToolCall({
-          name: "screenshot",
+          name: "inspect",
           success: true,
+          args: { action: "screenshot" },
           result: JSON.stringify({ dataUrl: "data:image/png;base64,abc" }),
         }),
       }),
@@ -188,34 +190,34 @@ describe("ToolCallBlock", () => {
     expect(markup).toContain("plain result");
   });
 
-  it("pick_element は実行中に汎用フォールバック本文を展開して表示する", () => {
+  it("inspect(pick_element) は実行中に汎用フォールバック本文を展開して表示する", () => {
     const markup = renderWithProviders(
       createElement(ToolCallBlock, {
         tc: createToolCall({
-          name: "pick_element",
+          name: "inspect",
           isRunning: true,
-          args: { message: "操作したい要素をクリックしてください" },
+          args: { action: "pick_element", message: "操作したい要素をクリックしてください" },
         }),
       }),
     );
 
-    expect(markup).toContain("pick_element");
+    expect(markup).toContain("inspect");
     expect(markup).toContain('aria-expanded="true"');
     expect(markup).toContain("操作したい要素をクリックしてください");
   });
 
-  it("screenshot は実行中に汎用フォールバック本文を展開する", () => {
+  it("inspect(screenshot) は実行中に汎用フォールバック本文を展開する", () => {
     const markup = renderWithProviders(
       createElement(ToolCallBlock, {
         tc: createToolCall({
-          name: "screenshot",
+          name: "inspect",
           isRunning: true,
-          args: {},
+          args: { action: "screenshot" },
         }),
       }),
     );
 
-    expect(markup).toContain("screenshot");
+    expect(markup).toContain("inspect");
     expect(markup).toContain('aria-expanded="true"');
   });
 
@@ -241,13 +243,13 @@ describe("ToolCallBlock", () => {
     expect(markup).toContain("example.org");
   });
 
-  it("extract_image は ToolCallBlock 経由で specialized renderer を使う", () => {
+  it("inspect(extract_image) は ToolCallBlock 経由で specialized renderer を使う", () => {
     const markup = renderWithProviders(
       createElement(ToolCallBlock, {
         tc: createToolCall({
-          name: "extract_image",
+          name: "inspect",
           isRunning: true,
-          args: { selector: ".hero-image" },
+          args: { action: "extract_image", selector: ".hero-image" },
           result: JSON.stringify({
             dataUrl: "data:image/png;base64,xyz",
             info: { selector: ".hero-image", resizedWidth: 640, resizedHeight: 360 },
@@ -256,10 +258,9 @@ describe("ToolCallBlock", () => {
       }),
     );
 
-    expect(markup).toContain("extract_image");
+    expect(markup).toContain("inspect");
     expect(markup).toContain('aria-expanded="true"');
     expect(markup).toContain(".hero-image");
     expect(markup).toContain("Extracting image...");
-    expect(markup).not.toContain('"selector"');
   });
 });

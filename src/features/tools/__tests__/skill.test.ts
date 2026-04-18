@@ -11,6 +11,7 @@ import {
   type SkillCreateResult,
   type SkillUpdateResult,
   type SkillDeleteResult,
+  type CreateSkillDraftArgs,
   type CreateSkillDraftResult,
   type UpdateSkillDraftResult,
   type ListSkillDraftsResult,
