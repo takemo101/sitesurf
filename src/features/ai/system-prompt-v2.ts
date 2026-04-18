@@ -1,5 +1,10 @@
 import type { SkillMatch } from "@/shared/skill-types";
-import { assembleSections, type SectionKey } from "./sections";
+import {
+  CORE_IDENTITY,
+  TOOL_PHILOSOPHY,
+  SECURITY_BOUNDARY,
+  COMPLETION_PRINCIPLE,
+} from "@/shared/prompt-sections";
 import { PromptCache, createPromptCacheKey } from "./prompt-cache";
 
 export interface VisitedUrlEntry {
@@ -22,12 +27,9 @@ const cache = new PromptCache();
 
 // TOOL_PHILOSOPHY は prompt cache 対象に載せるため system prompt 側へ移動。
 // REPL description 側には COMMON_PATTERNS / AVAILABLE_FUNCTIONS のみを残す。
-const BASE_SECTIONS: SectionKey[] = [
-  "CORE_IDENTITY",
-  "REPL_PHILOSOPHY",
-  "SECURITY_BOUNDARY",
-  "COMPLETION_PRINCIPLE",
-];
+const BASE_PROMPT = [CORE_IDENTITY, TOOL_PHILOSOPHY, SECURITY_BOUNDARY, COMPLETION_PRINCIPLE].join(
+  "\n\n",
+);
 
 function formatPropertyAccess(value: string): string {
   return /^[$A-Z_a-z][0-9A-Z_a-z$]*$/u.test(value) ? `.${value}` : `[${JSON.stringify(value)}]`;
@@ -115,10 +117,9 @@ export function getSystemPromptV2(options: SystemPromptOptions): string {
   if (cached !== null) {
     base = cached;
   } else {
-    const baseSections = assembleSections(BASE_SECTIONS);
     const skillsSection =
       options.includeSkills && options.skills ? generateSkillsSection(options.skills) : "";
-    base = skillsSection ? `${baseSections}\n\n${skillsSection}` : baseSections;
+    base = skillsSection ? `${BASE_PROMPT}\n\n${skillsSection}` : BASE_PROMPT;
     cache.set(key, base);
   }
   const visitedSection = generateVisitedUrlsSection(options.visitedUrls ?? []);

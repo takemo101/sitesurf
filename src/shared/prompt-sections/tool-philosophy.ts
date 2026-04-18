@@ -1,9 +1,9 @@
 /**
- * REPL_PHILOSOPHY section
+ * TOOL_PHILOSOPHY section
  * Explains how to choose between authoring output directly and using the REPL
  * for browser-backed execution.
  */
-export const REPL_PHILOSOPHY = [
+export const TOOL_PHILOSOPHY = [
   "# Tool Philosophy",
   "",
   "SiteSurf provides four distinct tool categories with strict boundaries:",
