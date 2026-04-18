@@ -111,6 +111,10 @@ describe("ChromeBrowserExecutor", () => {
           description: "A test page",
           text: "Hello",
           method: "article",
+          outline: [
+            { level: 1, text: "Example" },
+            { level: 2, text: "Section A" },
+          ],
         },
       },
     ]);
@@ -120,7 +124,8 @@ describe("ChromeBrowserExecutor", () => {
       ok: true,
       value: {
         text: "Example\n\nHello",
-        simplifiedDom: "[Extraction: article]\nMeta: A test page\nH1: Example",
+        simplifiedDom:
+          "[Extraction: article]\nMeta: A test page\nH1: Example\nOutline:\n- Example\n  - Section A",
       },
     });
     expect(mockExecuteScript).toHaveBeenCalledWith(

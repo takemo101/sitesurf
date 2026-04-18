@@ -1,8 +1,14 @@
+export interface OutlineItem {
+  level: 1 | 2 | 3;
+  text: string;
+}
+
 export interface LightweightExtraction {
   h1: string;
   description: string;
   text: string;
   method: string;
+  outline: OutlineItem[];
 }
 
 /**
@@ -12,6 +18,7 @@ export interface LightweightExtraction {
  */
 export function extractPageContentLightweight(): LightweightExtraction {
   const MAX_TEXT_LENGTH = 6000;
+  const MAX_OUTLINE_ITEMS = 30;
   const REMOVE_SELECTORS = [
     "script",
     "style",
@@ -26,6 +33,8 @@ export function extractPageContentLightweight(): LightweightExtraction {
     "[role='contentinfo']",
     "[aria-hidden='true']",
   ];
+  const EXCLUDE_HEADING_ANCESTORS =
+    "nav,header,footer,aside,[role='navigation'],[role='banner'],[role='contentinfo'],[aria-hidden='true']";
   const MAIN_SELECTORS = [
     "article",
     "main",
@@ -49,25 +58,48 @@ export function extractPageContentLightweight(): LightweightExtraction {
     return raw.replace(/\s+/g, " ").trim();
   }
 
+  const outline: OutlineItem[] = [];
+  for (const h of document.querySelectorAll("h1,h2,h3")) {
+    if ((h as Element).closest(EXCLUDE_HEADING_ANCESTORS)) continue;
+    const text = cleanText(h.textContent ?? "");
+    if (!text) continue;
+    const level = (h.tagName === "H1" ? 1 : h.tagName === "H2" ? 2 : 3) as 1 | 2 | 3;
+    outline.push({ level, text });
+    if (outline.length >= MAX_OUTLINE_ITEMS) break;
+  }
+
   const h1 = document.querySelector("h1")?.textContent?.trim() ?? "";
   const description =
     document.querySelector('meta[name="description"]')?.getAttribute("content") ?? "";
 
+  const seenElements: Element[] = [];
+  const matchedMethods: string[] = [];
+  const sectionTexts: string[] = [];
+
   for (const selector of MAIN_SELECTORS) {
-    const el = document.querySelector(selector);
-    if (!el) continue;
+    for (const el of document.querySelectorAll(selector)) {
+      if (seenElements.some((s) => s.contains(el) || el.contains(s))) continue;
 
-    const clone = el.cloneNode(true) as Element;
-    removeNoise(clone);
-    const text = cleanText(clone.textContent ?? "");
+      const clone = el.cloneNode(true) as Element;
+      removeNoise(clone);
+      const text = cleanText(clone.textContent ?? "");
 
-    if (text.length < MIN_TEXT_LENGTH) continue;
+      if (text.length < MIN_TEXT_LENGTH) continue;
 
+      seenElements.push(el);
+      if (!matchedMethods.includes(selector)) matchedMethods.push(selector);
+      sectionTexts.push(text);
+    }
+  }
+
+  if (sectionTexts.length > 0) {
+    const joined = sectionTexts.join("\n\n");
     return {
       h1,
       description,
-      text: text.substring(0, MAX_TEXT_LENGTH),
-      method: selector,
+      text: joined.substring(0, MAX_TEXT_LENGTH),
+      method: matchedMethods.join(","),
+      outline,
     };
   }
 
@@ -80,5 +112,6 @@ export function extractPageContentLightweight(): LightweightExtraction {
     description,
     text: bodyText.substring(0, MAX_TEXT_LENGTH),
     method: "body",
+    outline,
   };
 }
