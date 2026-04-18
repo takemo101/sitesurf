@@ -60,7 +60,7 @@ export const createSettingsSlice: StateCreator<AppStore, [], [], SettingsSlice> 
     maxTokensByProvider: {},
     reasoningLevel: "medium",
     maxTokens: DEFAULT_MAX_TOKENS,
-    autoCompact: false,
+    autoCompact: true,
     enableBgFetch: false,
     enableSecurityMiddleware: true,
   },

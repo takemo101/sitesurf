@@ -116,6 +116,6 @@ describe("SettingsPanel", () => {
     });
 
     const saved = await loadSettings(storage);
-    expect(saved?.autoCompact).toBe(true);
+    expect(saved?.autoCompact).toBe(false);
   });
 });

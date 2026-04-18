@@ -145,7 +145,8 @@ describe("compressIfNeeded", () => {
     });
     expect(result.compressed).toBe(true);
     expect(result.session.summary?.text).toBe("要約結果");
-    expect(result.session.history).toHaveLength(10);
+    // KEEP_RECENT_TOKENS=20_000 に対し各メッセージが 200k 相当 → 末尾1件のみ保持。
+    expect(result.session.history).toHaveLength(1);
   });
 
   it("ローカルLLMでは自動圧縮する", async () => {
@@ -160,7 +161,7 @@ describe("compressIfNeeded", () => {
     expect(result.session.summary?.text).toBe("ローカル要約");
   });
 
-  it("直近10件のメッセージを保持する", async () => {
+  it("末尾 KEEP_RECENT_TOKENS 分のメッセージを保持する", async () => {
     const provider = createMockAIProvider("要約");
     const history: AIMessage[] = Array.from({ length: 20 }, (_, i) =>
       createUserMessage(`msg-${i}`),
@@ -175,7 +176,8 @@ describe("compressIfNeeded", () => {
 
     const result = await compressIfNeeded(provider, session, budget, "llama3.2", "local");
     expect(result.compressed).toBe(true);
-    expect(result.session.history).toHaveLength(10);
+    // 末尾 5 件の短メッセージ + 10k 相当の long メッセージ 2 件で 20k token を満たす。
+    expect(result.session.history).toHaveLength(7);
   });
 
   it("圧縮対象が空の場合はスキップする", async () => {
@@ -213,7 +215,8 @@ describe("compressIfNeeded", () => {
 
     const result = await compressIfNeeded(provider, session, budget, "llama3.2", "local");
     expect(result.compressed).toBe(true);
-    expect(result.session.summary?.originalMessageCount).toBe(35);
+    // 各メッセージ 10k 相当 × 15 件 → 末尾 2 件を保持、13 件を要約対象に追加する。
+    expect(result.session.summary?.originalMessageCount).toBe(43);
     expect(result.session.summary?.text).toBe("再要約結果");
   });
 
@@ -258,7 +261,8 @@ describe("compressMessagesIfNeeded", () => {
 
     expect(result.compressed).toBe(true);
     expect(result.summary?.text).toBe("## Goal\n要約された目標");
-    expect(result.messages).toHaveLength(11);
+    // 各メッセージ 10k token 相当 × 15 → 末尾 2 件を保持、先頭に要約メッセージで計 3 件。
+    expect(result.messages).toHaveLength(3);
     expect(result.messages[0]).toEqual({
       role: "user",
       content: [

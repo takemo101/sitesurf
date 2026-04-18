@@ -292,7 +292,7 @@ describe("persistence", () => {
     expect(result?.autoCompact).toBe(true);
   });
 
-  it("autoCompact 未設定の legacy 設定はデフォルトで false に解決する", async () => {
+  it("autoCompact 未設定の legacy 設定はデフォルトで true に解決する", async () => {
     const storage = new InMemoryStorage();
 
     await storage.set("sitesurf_settings", {
@@ -304,10 +304,10 @@ describe("persistence", () => {
 
     const result = await loadSettings(storage);
 
-    expect(result?.autoCompact).toBe(false);
+    expect(result?.autoCompact).toBe(true);
   });
 
-  it("autoCompact 未設定の legacy 設定はデフォルトで false に解決する", async () => {
+  it("autoCompact 未設定の legacy 設定はデフォルトで true に解決する (mcp 設定あり)", async () => {
     const storage = new InMemoryStorage();
 
     await storage.set("sitesurf_settings", {
@@ -321,7 +321,7 @@ describe("persistence", () => {
 
     const result = await loadSettings(storage);
 
-    expect(result?.autoCompact).toBe(false);
+    expect(result?.autoCompact).toBe(true);
   });
 
   it("autoCompact=true は永続化されて復元される", async () => {

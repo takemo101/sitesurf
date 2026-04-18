@@ -11,9 +11,46 @@ import {
 
 export { estimateTokens } from "@/shared/token-utils";
 
-const KEEP_RECENT = 10;
+const KEEP_RECENT_TOKENS = 20_000;
 const log = createLogger("compressor");
 export const STRUCTURED_SUMMARY_MESSAGE_PREFIX = "[構造化要約]";
+
+/**
+ * 末尾から KEEP_RECENT_TOKENS 相当を保持し、残りを要約対象として切り出す。
+ *
+ * - トークン数ベース（pi-mono と同様）。メッセージ数ベースだと巨大な
+ *   ツール結果 1 件で容易にしきい値を超えるため。
+ * - cut point が tool メッセージに当たった場合は、対応する assistant
+ *   (tool_call) から切れるようにさらに後退する。tool_result は必ず
+ *   直前の assistant と一緒に保持／破棄されなければならない。
+ */
+export function splitByKeepRecentTokens(
+  messages: AIMessage[],
+  keepTokens: number = KEEP_RECENT_TOKENS,
+): { toCompress: AIMessage[]; toKeep: AIMessage[] } {
+  if (messages.length === 0) {
+    return { toCompress: [], toKeep: [] };
+  }
+
+  let cutIndex = messages.length;
+  let keptTokens = 0;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    keptTokens += estimateTokens([messages[i]]);
+    cutIndex = i;
+    if (keptTokens >= keepTokens) {
+      break;
+    }
+  }
+
+  while (cutIndex > 0 && messages[cutIndex].role === "tool") {
+    cutIndex--;
+  }
+
+  return {
+    toCompress: messages.slice(0, cutIndex),
+    toKeep: messages.slice(cutIndex),
+  };
+}
 
 export interface CompressResult {
   session: Session;
@@ -97,8 +134,7 @@ export async function compressMessagesIfNeeded(
 
   const currentSummary = options.existingSummary ?? extractStructuredSummary(messages)?.text;
   const sourceMessages = stripStructuredSummaryMessages(messages);
-  const toCompress = sourceMessages.slice(0, -KEEP_RECENT);
-  const toKeep = sourceMessages.slice(-KEEP_RECENT);
+  const { toCompress, toKeep } = splitByKeepRecentTokens(sourceMessages);
 
   if (toCompress.length === 0) {
     return { messages, compressed: false };
