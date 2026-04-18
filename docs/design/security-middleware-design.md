@@ -1,23 +1,59 @@
 # Security Middleware Design Document
 
-**Date**: 2026-04-08  
-**Status**: Approved for Implementation  
-**Target**: 既存拡張-surpassing prompt injection detection
+**Date**: 2026-04-08（initial）/ updated through v0.1.3+
+**Status**: Implemented
+**Target**: ツール出力経由のプロンプトインジェクション検知
 
 ---
 
 ## Overview
 
-Real-time security middleware for detecting and alerting on prompt injection attempts, surpassing 既存拡張's basic security model.
+ツール出力（`browserjs` / `bg_fetch` / `read_page` 等）に紛れ込んだ「指示らしき文字列」をリアルタイム検出し、AI に渡る前に安全な要約だけを返すミドルウェア。実装は `src/features/security/`。
 
 ---
 
 ## Design Goals
 
-1. **Real-time Detection**: Analyze tool outputs as they arrive
-2. **Transparent Alerts**: Inline warnings without blocking workflow
-3. **Pattern-based Detection**: Proven injection patterns
-4. **User Control**: Users decide whether to proceed
+1. **Real-time Detection**: ツール結果を AI 履歴に追加する直前で解析
+2. **Transparent Alerts**: ユーザにはチャット内のシステムメッセージで通知
+3. **Pattern-based Detection**: 同期 regex で軽量に判定
+4. **User Control**: 設定 → システムから ON/OFF 可能（`enableSecurityMiddleware`、デフォルト ON）
+
+---
+
+## 設定 UI と監査ログ
+
+PR #23/#24 で設定タブから「セキュリティ」専用タブが分離された。
+
+| 設定タブ     | 内容                                                                    |
+| ------------ | ----------------------------------------------------------------------- |
+| システム     | プロンプトインジェクション検知の ON/OFF（`enableSecurityMiddleware`）   |
+| セキュリティ | 監査ログの一覧（タブ表示時に lazy load。直近20件、confidence で色分け） |
+
+監査ログは `loadSecurityAuditEntries(storage, limit)` で IndexedDB から読み出される。`AuditLogger.logSecurityEvent` 失敗時もツール出力処理は止めない（`processToolOutput` で try/catch）。
+
+---
+
+## エージェントループとの統合
+
+```typescript
+// orchestration/agent-loop.ts (executeToolCall 内)
+const securityEnabled = useStore.getState().settings.enableSecurityMiddleware;
+if (securityEnabled && !fullResult.includes("data:image/")) {
+  const securityResult = await securityMiddleware.processToolOutput(fullResult, {
+    source: name,
+    sessionId: session.id,
+  });
+  if (securityResult.alert) {
+    chatStore.addSystemMessage(
+      "⚠️ ツール出力内に不審な指示らしきテキストを検出したため、AI には安全な要約だけを返しました。",
+    );
+    // fullResult を安全な要約に差し替えて AI に返す
+  }
+}
+```
+
+スクリーンショット（`data:image/`）はバイナリのため検出対象外。
 
 ---
 

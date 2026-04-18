@@ -57,11 +57,12 @@
 
 ### データ・状態
 
-| ドキュメント                                                   | 状態 | 内容                                      |
-| -------------------------------------------------------------- | ---- | ----------------------------------------- |
-| [session-management-detail.md](./session-management-detail.md) | ✅   | IndexedDB、メタデータ分離、ロック、圧縮   |
-| [data-flow.md](./data-flow.md)                                 | ✅   | ユーザー入力→AI→ツール→DOM→結果の全フロー |
-| [indexeddb-migration.md](./indexeddb-migration.md)             | ✅   | スキーマバージョン管理、lazy migration    |
+| ドキュメント                                                   | 状態    | 内容                                                            |
+| -------------------------------------------------------------- | ------- | --------------------------------------------------------------- |
+| [session-management-detail.md](./session-management-detail.md) | ✅      | IndexedDB、メタデータ分離、ロック、圧縮                         |
+| [data-flow.md](./data-flow.md)                                 | ✅      | ユーザー入力→AI→ツール→DOM→結果の全フロー                       |
+| [indexeddb-migration.md](./indexeddb-migration.md)             | ✅      | スキーマバージョン管理、lazy migration                          |
+| [tool-result-context-v2.md](./tool-result-context-v2.md)       | 📝 + ✅ | コンテキスト管理（Layer 3 部分は HISTORICAL、§5.5 が現行 SSOT） |
 
 ### セキュリティ
 
@@ -87,12 +88,14 @@
 
 ## decisions/ (ADR)
 
-| ドキュメント                                                                              | 状態   | 内容                              |
-| ----------------------------------------------------------------------------------------- | ------ | --------------------------------- |
-| [001-tech-stack.md](../decisions/001-tech-stack.md)                                       | 承認済 | 技術スタック選定                  |
-| [002-chrome-extension-dev-workflow.md](../decisions/002-chrome-extension-dev-workflow.md) | 承認済 | 開発ワークフロー                  |
-| [003-architecture-pattern.md](../decisions/003-architecture-pattern.md)                   | 承認済 | Feature-Sliced + Ports & Adapters |
-| [004-browserjs-script-execution.md](../decisions/004-browserjs-script-execution.md)       | 承認済 | IIFE パターンによるスクリプト実行 |
+| ドキュメント                                                                                      | 状態   | 内容                                                |
+| ------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------- |
+| [001-tech-stack.md](../decisions/001-tech-stack.md)                                               | 承認済 | 技術スタック選定                                    |
+| [002-chrome-extension-dev-workflow.md](../decisions/002-chrome-extension-dev-workflow.md)         | 承認済 | 開発ワークフロー                                    |
+| [003-architecture-pattern.md](../decisions/003-architecture-pattern.md)                           | 承認済 | Feature-Sliced + Ports & Adapters                   |
+| [004-browserjs-script-execution.md](../decisions/004-browserjs-script-execution.md)               | 承認済 | IIFE パターンによるスクリプト実行                   |
+| [005-extension-page-csp-constraints.md](../decisions/005-extension-page-csp-constraints.md)       | 承認済 | Extension Page の CSP 制約と検証コード              |
+| [006-context-management-llm-compaction.md](../decisions/006-context-management-llm-compaction.md) | 承認済 | コンテキスト管理は LLM 圧縮で一本化（Layer 3 廃止） |
 
 ## 状態の凡例
 

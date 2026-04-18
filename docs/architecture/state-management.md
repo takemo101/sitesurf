@@ -21,14 +21,31 @@ feature間の状態アクセスは orchestration 層が仲介する。**
 
 ### 永続性 (ports/storage 経由)
 
-| 状態             | 所属slice | 型                 | 説明                      |
-| ---------------- | --------- | ------------------ | ------------------------- |
-| `provider`       | settings  | `ProviderId`       | AIプロバイダー            |
-| `model`          | settings  | `string`           | モデル名                  |
-| `apiKey`         | settings  | `string`           | APIキー                   |
-| `baseUrl`        | settings  | `string`           | ローカルLLMエンドポイント |
-| `reasoningLevel` | settings  | `ReasoningLevel`   | 思考レベル設定            |
-| `credentials`    | settings  | `AuthCredentials?` | OAuthトークン             |
+#### アクティブなプロバイダ向け値
+
+| 状態               | 所属slice | 型                                            | 説明                            |
+| ------------------ | --------- | --------------------------------------------- | ------------------------------- |
+| `provider`         | settings  | `ProviderId`                                  | 現在選択中のAIプロバイダー      |
+| `model`            | settings  | `string`                                      | モデル名                        |
+| `apiKey`           | settings  | `string`                                      | APIキー                         |
+| `baseUrl`          | settings  | `string`                                      | エンドポイント                  |
+| `apiMode`          | settings  | `"auto" \| "chat-completions" \| "responses"` | OpenAI 互換 API のモード切替    |
+| `enterpriseDomain` | settings  | `string`                                      | Copilot Enterprise 等のドメイン |
+| `reasoningLevel`   | settings  | `"none" \| "low" \| "medium" \| "high"`       | 思考レベル設定                  |
+| `maxTokens`        | settings  | `number`                                      | 出力トークン上限                |
+| `credentials`      | settings  | `AuthCredentials \| null`                     | 現在プロバイダのOAuthトークン   |
+
+#### プロバイダ別キャッシュ
+
+プロバイダ切替で値が消えないよう、上記の各フィールドは `*ByProvider: Partial<Record<ProviderId, T>>` 形でも保持される（`apiKeyByProvider` / `baseUrlByProvider` / `apiModeByProvider` / `modelByProvider` / `reasoningLevelByProvider` / `maxTokensByProvider` / `credentialsByProvider`）。`setSettings` がプロバイダ変更を検知すると、旧プロバイダの値を `*ByProvider` に退避し、新プロバイダの値をアクティブフィールドに復元する。
+
+#### 機能トグル
+
+| 状態                       | 所属slice | 型        | デフォルト | 説明                                                                                                                                  |
+| -------------------------- | --------- | --------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `autoCompact`              | settings  | `boolean` | `true`     | クラウドプロバイダーで `compressMessagesIfNeeded` を自動発動するか（PR #66）                                                          |
+| `enableBgFetch`            | settings  | `boolean` | `false`    | `bg_fetch` ツールと REPL `bgFetch()` ヘルパの有効化（[bg-fetch.md](../design/bg-fetch.md)）                                           |
+| `enableSecurityMiddleware` | settings  | `boolean` | `true`     | ツール出力に対するプロンプトインジェクション検知の ON/OFF（[security-middleware-design.md](../design/security-middleware-design.md)） |
 
 `AuthCredentials` は Port の型 (`ports/auth-provider.ts`) をそのまま使用する。
 ストア固有の別型は定義しない。
@@ -42,8 +59,11 @@ AppStore (単一Zustand store)
   │   addMessage, appendDelta, addToolCall, pushHistory, clearAll
   │
   ├─ SettingsSlice    ← features/settings/settings-store.ts
-  │   provider, model, apiKey, baseUrl, reasoningLevel, credentials
-  │   setProvider, setModel, setApiKey, setCredentials
+  │   provider, model, apiKey, baseUrl, apiMode, enterpriseDomain,
+  │   reasoningLevel, maxTokens, credentials,
+  │   *ByProvider 群（プロバイダ切替時の値保持）,
+  │   autoCompact, enableBgFetch, enableSecurityMiddleware
+  │   setSettings, hydrateSettings, setCredentials
   │
   ├─ SessionSlice     ← features/sessions/session-store.ts
   │   sessions (メタ一覧), activeSessionId, activeSessionSnapshot
