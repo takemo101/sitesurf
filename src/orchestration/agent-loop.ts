@@ -24,9 +24,15 @@ import {
   logContextBudgetSnapshot,
 } from "@/features/ai/context-budget";
 import { buildReplToolDef } from "@/features/tools/repl";
-import { generateVisitedUrlsSection, type VisitedUrlEntry } from "@/features/ai";
+import {
+  generateVisitedUrlsSection,
+  generateSkillsSectionForLoop,
+  getActiveSkillIds,
+  type VisitedUrlEntry,
+} from "@/features/ai";
 import { prepareMessagesForTurn, trimMessagesToThreshold } from "./context-manager";
 import type { SkillRegistry } from "@/shared/skill-registry";
+import type { SkillMatch } from "@/shared/skill-types";
 import { buildSkillDetectionMessage, isSkillDetectionMessage } from "./skill-detector";
 import { useStore } from "@/store/index";
 import type { ProviderId } from "@/shared/constants";
@@ -95,6 +101,7 @@ export interface AgentLoopParams {
   autoSaver: AutoSaver;
   toolExecutor: ToolExecutor;
   skillRegistry: SkillRegistry;
+  skillMatches?: SkillMatch[];
   credentials?: AuthCredentials;
   onCredentialsUpdate?: (creds: AuthCredentials | null) => void;
 }
@@ -104,7 +111,10 @@ export type { ToolExecutor } from "@/ports/tool-executor";
 const MAX_TURNS = 25;
 const MAX_VISITED_URLS = 20;
 
-function shouldIncludeCommonPatternsOnTurn(messages: AIMessage[], lastTurnHadReplError: boolean): boolean {
+function shouldIncludeCommonPatternsOnTurn(
+  messages: AIMessage[],
+  lastTurnHadReplError: boolean,
+): boolean {
   const hasAssistantTurn = messages.some((message) => message.role === "assistant");
   return !hasAssistantTurn || lastTurnHadReplError;
 }
@@ -298,6 +308,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
     autoSaver,
     toolExecutor,
     skillRegistry,
+    skillMatches,
   } = params;
   const securityMiddleware = deps.securityMiddleware ?? defaultSecurityMiddleware;
 
@@ -570,9 +581,16 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
       };
 
       const visitedSection = generateVisitedUrlsSection([...visitedUrls.values()]);
-      const effectiveSystemPrompt = visitedSection
-        ? `${systemPrompt}\n\n${visitedSection}`
-        : systemPrompt;
+      const currentShownSkillIds = useStore.getState().shownSkillIds;
+      const skillsSection =
+        skillMatches && skillMatches.length > 0
+          ? generateSkillsSectionForLoop(skillMatches, currentShownSkillIds)
+          : "";
+      const activeSkillIds =
+        skillMatches && skillMatches.length > 0 ? getActiveSkillIds(skillMatches) : [];
+      const effectiveSystemPrompt = [systemPrompt, skillsSection, visitedSection]
+        .filter((s) => s.length > 0)
+        .join("\n\n");
 
       while (retryCount <= RETRY_CONFIG.maxRetries) {
         let hasError = false;
@@ -818,6 +836,11 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<void> {
           if (hasError) break;
         }
         if (!hasError) break;
+      }
+
+      // After successful AI response, mark the active skills as shown
+      if (activeSkillIds.length > 0) {
+        useStore.getState().addShownSkillIds(activeSkillIds);
       }
 
       if (!hasToolCall) break;

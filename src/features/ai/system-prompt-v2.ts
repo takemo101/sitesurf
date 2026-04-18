@@ -13,6 +13,7 @@ export interface VisitedUrlEntry {
 export interface SystemPromptOptions {
   includeSkills?: boolean;
   skills?: SkillMatch[];
+  shownSkillIds?: ReadonlySet<string>;
   locale?: string;
   visitedUrls?: VisitedUrlEntry[];
   enableBgFetch?: boolean;
@@ -37,7 +38,10 @@ function formatWindowSkillCall(skillId: string, extractorId: string): string {
   return `window${formatPropertyAccess(skillId)}${formatPropertyAccess(extractorId)}()`;
 }
 
-function generateSkillsSection(skills: SkillMatch[]): string {
+function generateSkillsSection(
+  skills: SkillMatch[],
+  shownSkillIds: ReadonlySet<string> = new Set(),
+): string {
   const active = skills.filter((m) => m.availableExtractors.length > 0);
 
   if (active.length === 0) {
@@ -55,7 +59,7 @@ function generateSkillsSection(skills: SkillMatch[]): string {
       "For well-known sites, use optimized extraction patterns:",
       "",
     );
-    sections.push(renderSkillEntries(siteSkills));
+    sections.push(renderSkillEntries(siteSkills, shownSkillIds));
   }
 
   if (globalSkills.length > 0) {
@@ -66,17 +70,29 @@ function generateSkillsSection(skills: SkillMatch[]): string {
       "These skills are available on any page and can be used when their extractor fits the task:",
       "",
     );
-    sections.push(renderSkillEntries(globalSkills));
+    sections.push(renderSkillEntries(globalSkills, shownSkillIds));
   }
 
   return sections.join("\n");
 }
 
-function renderSkillEntries(skills: SkillMatch[]): string {
+function renderSkillEntries(
+  skills: SkillMatch[],
+  shownSkillIds: ReadonlySet<string> = new Set(),
+): string {
   const lines: string[] = [];
 
   for (const match of skills) {
     const { skill, availableExtractors } = match;
+
+    if (shownSkillIds.has(skill.id)) {
+      // Short format for already-seen skills
+      lines.push(`- ${skill.name} (id: ${skill.id}): ${skill.description}`);
+      lines.push("");
+      continue;
+    }
+
+    // Full format for new skills
     const target = skill.scope === "global" ? "any page" : skill.matchers.hosts.join(", ");
     lines.push(`**${skill.name}** (id: ${skill.id}, ${target})`);
     lines.push(skill.description);
@@ -108,20 +124,46 @@ export function generateVisitedUrlsSection(entries: VisitedUrlEntry[]): string {
 }
 
 export function getSystemPromptV2(options: SystemPromptOptions): string {
-  const key = createPromptCacheKey(options);
-  const cached = cache.get(key);
+  // Cache only the static base sections (not skills, which vary by shownSkillIds)
+  const baseKey = createPromptCacheKey(options);
+  const cachedBase = cache.get(baseKey);
 
-  let base: string;
-  if (cached !== null) {
-    base = cached;
-  } else {
-    const baseSections = assembleSections(BASE_SECTIONS);
-    const skillsSection =
-      options.includeSkills && options.skills ? generateSkillsSection(options.skills) : "";
-    base = skillsSection ? `${baseSections}\n\n${skillsSection}` : baseSections;
-    cache.set(key, base);
-  }
+  const baseSections =
+    cachedBase ??
+    (() => {
+      const result = assembleSections(BASE_SECTIONS);
+      cache.set(baseKey, result);
+      return result;
+    })();
+
+  // Skills section is always regenerated (shownSkillIds changes per turn)
+  const skillsSection =
+    options.includeSkills && options.skills
+      ? generateSkillsSection(options.skills, options.shownSkillIds)
+      : "";
+
   const visitedSection = generateVisitedUrlsSection(options.visitedUrls ?? []);
-  const sections = [base, visitedSection].filter((section) => section.length > 0);
+  const sections = [baseSections, skillsSection, visitedSection].filter(
+    (section) => section.length > 0,
+  );
   return sections.join("\n\n");
+}
+
+/**
+ * Extract skill IDs from the active skills that will be sent in the prompt.
+ * Used by agent-loop to track which skills have been shown to the AI.
+ */
+export function getActiveSkillIds(skills: SkillMatch[]): string[] {
+  return skills.filter((m) => m.availableExtractors.length > 0).map((m) => m.skill.id);
+}
+
+/**
+ * Generate skills section string for use inside agent-loop per turn.
+ * Exposed separately so agent-loop can integrate shownSkillIds tracking.
+ */
+export function generateSkillsSectionForLoop(
+  skills: SkillMatch[],
+  shownSkillIds: ReadonlySet<string>,
+): string {
+  return generateSkillsSection(skills, shownSkillIds);
 }
