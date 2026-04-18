@@ -58,6 +58,10 @@ function createBudget(overrides: Partial<ContextBudget> = {}): ContextBudget {
     maxToolResultChars: 1_000,
     compressionThreshold: 9_830,
     trimThreshold: 13_926,
+    systemPromptTokens: 0,
+    toolsTokens: 0,
+    historyTokens: 0,
+    toolResultsTokens: 0,
     ...overrides,
   };
 }
@@ -310,7 +314,12 @@ describe("splitByKeepRecentTokens", () => {
       toolName: "read_page",
       result: "b".repeat(30),
     };
-    const messages: AIMessage[] = [createUserMessage("u".repeat(200)), assistantWithTwoCalls, toolA, toolB];
+    const messages: AIMessage[] = [
+      createUserMessage("u".repeat(200)),
+      assistantWithTwoCalls,
+      toolA,
+      toolB,
+    ];
     const result = splitByKeepRecentTokens(messages, 50);
     expect(result.toKeep[0]).toBe(assistantWithTwoCalls);
     expect(result.toKeep).toHaveLength(3);

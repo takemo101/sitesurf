@@ -111,12 +111,25 @@ describe("toStreamEvent", () => {
     const event = toStreamEvent({
       type: "finish",
       finishReason: "stop",
-      totalUsage: { promptTokens: 100, completionTokens: 50 },
+      totalUsage: {
+        promptTokens: 100,
+        completionTokens: 50,
+        inputTokenDetails: { cacheReadTokens: 40, cacheWriteTokens: 10 },
+        outputTokenDetails: { reasoningTokens: 12 },
+      },
     });
     expect(event).toEqual({
       type: "finish",
       finishReason: "stop",
-      usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+      usage: {
+        promptTokens: 100,
+        completionTokens: 50,
+        totalTokens: 150,
+        cachedInputTokens: 40,
+        reasoningTokens: 12,
+        inputTokenDetails: { cacheReadTokens: 40, cacheWriteTokens: 10 },
+        outputTokenDetails: { reasoningTokens: 12 },
+      },
     });
   });
 

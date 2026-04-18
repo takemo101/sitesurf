@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getContextBudget } from "../context-budget";
+import { buildContextBudgetBreakdown, getContextBudget } from "../context-budget";
 import { DEFAULT_MAX_TOKENS } from "@/shared/token-constants";
 
 // gpt-4-32k has contextWindow = 32768
@@ -53,5 +53,49 @@ describe("getContextBudget", () => {
   it("unknown model: defaults to 128000 window", () => {
     const budget = getContextBudget("nonexistent-model-xyz");
     expect(budget.windowTokens).toBe(128_000);
+  });
+
+  it("initializes per-turn token breakdown fields to zero", () => {
+    const budget = getContextBudget(MODEL_32K);
+
+    expect(budget.systemPromptTokens).toBe(0);
+    expect(budget.toolsTokens).toBe(0);
+    expect(budget.historyTokens).toBe(0);
+    expect(budget.toolResultsTokens).toBe(0);
+  });
+});
+
+describe("buildContextBudgetBreakdown", () => {
+  it("separates latest tool results from history tokens", () => {
+    const breakdown = buildContextBudgetBreakdown({
+      systemPrompt: "system prompt",
+      tools: [
+        {
+          name: "read_page",
+          description: "Read the current page",
+          parameters: { type: "object", properties: { depth: { type: "number" } } },
+        },
+      ],
+      messages: [
+        { role: "user", content: [{ type: "text", text: "hello" }] },
+        { role: "assistant", content: [{ type: "text", text: "world" }] },
+        { role: "tool", toolCallId: "tool-old", toolName: "read_page", result: "old result" },
+        { role: "tool", toolCallId: "tool-latest", toolName: "read_page", result: "latest result" },
+      ],
+      latestToolResultIds: new Set(["tool-latest"]),
+    });
+
+    expect(breakdown.systemPromptTokens).toBe("system prompt".length);
+    expect(breakdown.toolsTokens).toBe(
+      JSON.stringify([
+        {
+          name: "read_page",
+          description: "Read the current page",
+          parameters: { type: "object", properties: { depth: { type: "number" } } },
+        },
+      ]).length,
+    );
+    expect(breakdown.historyTokens).toBe("hello".length + "world".length + "old result".length);
+    expect(breakdown.toolResultsTokens).toBe("latest result".length);
   });
 });

@@ -192,6 +192,9 @@ function extractTokenUsage(part: Record<string, unknown>): TokenUsage | undefine
   const totalUsage = part.totalUsage as Record<string, unknown> | undefined;
   if (!totalUsage) return undefined;
 
+  const inputTokenDetails = totalUsage.inputTokenDetails as Record<string, unknown> | undefined;
+  const outputTokenDetails = totalUsage.outputTokenDetails as Record<string, unknown> | undefined;
+
   // 様々な命名規則に対応
   const promptTokens =
     (totalUsage.promptTokens as number | undefined) ??
@@ -207,11 +210,58 @@ function extractTokenUsage(part: Record<string, unknown>): TokenUsage | undefine
     (totalUsage.output_tokens as number | undefined) ??
     0;
 
+  const reasoningTokens =
+    (outputTokenDetails?.reasoningTokens as number | undefined) ??
+    (totalUsage.reasoningTokens as number | undefined);
+
+  const normalizedInputTokenDetails = compactTokenDetails(
+    inputTokenDetails
+      ? {
+          noCacheTokens:
+            (inputTokenDetails.noCacheTokens as number | undefined) ??
+            (inputTokenDetails.no_cache_tokens as number | undefined),
+          cacheReadTokens:
+            (inputTokenDetails.cacheReadTokens as number | undefined) ??
+            (inputTokenDetails.cache_read_tokens as number | undefined),
+          cacheWriteTokens:
+            (inputTokenDetails.cacheWriteTokens as number | undefined) ??
+            (inputTokenDetails.cache_write_tokens as number | undefined),
+        }
+      : undefined,
+  );
+
+  const normalizedOutputTokenDetails = compactTokenDetails(
+    outputTokenDetails
+      ? {
+          textTokens:
+            (outputTokenDetails.textTokens as number | undefined) ??
+            (outputTokenDetails.text_tokens as number | undefined),
+          reasoningTokens,
+        }
+      : undefined,
+  );
+
   return {
     promptTokens,
     completionTokens,
     totalTokens: promptTokens + completionTokens,
+    ...(reasoningTokens !== undefined ? { reasoningTokens } : {}),
+    ...(normalizedInputTokenDetails?.cacheReadTokens !== undefined
+      ? { cachedInputTokens: normalizedInputTokenDetails.cacheReadTokens }
+      : {}),
+    ...(normalizedInputTokenDetails ? { inputTokenDetails: normalizedInputTokenDetails } : {}),
+    ...(normalizedOutputTokenDetails ? { outputTokenDetails: normalizedOutputTokenDetails } : {}),
   };
+}
+
+function compactTokenDetails<T extends Record<string, number | undefined>>(
+  details: T | undefined,
+): T | undefined {
+  if (!details) return undefined;
+  const compacted = Object.fromEntries(
+    Object.entries(details).filter(([, value]) => value !== undefined),
+  ) as T;
+  return Object.keys(compacted).length > 0 ? compacted : undefined;
 }
 
 function mapFinishReason(reason: unknown): FinishReason {

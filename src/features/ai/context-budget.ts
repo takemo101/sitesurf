@@ -1,8 +1,11 @@
+import type { AIMessage, TokenUsage, ToolDefinition } from "@/ports/ai-provider";
 import { lookupModelContextWindow } from "@/shared/model-utils";
 import { DEFAULT_MAX_TOKENS } from "@/shared/token-constants";
-import { createLogger } from "@/shared/logger";
+import { createLogger, logStructuredInfo } from "@/shared/logger";
+import { estimateTokens } from "@/shared/token-utils";
 
 const log = createLogger("context-budget");
+const CONTEXT_BUDGET_LOG_PREFIX = "[ctx-budget]";
 
 export interface ContextBudget {
   windowTokens: number;
@@ -11,6 +14,10 @@ export interface ContextBudget {
   maxToolResultChars: number;
   compressionThreshold: number;
   trimThreshold: number;
+  systemPromptTokens: number;
+  toolsTokens: number;
+  historyTokens: number;
+  toolResultsTokens: number;
 }
 
 export function getContextBudget(model: string, settingsMaxTokens?: number): ContextBudget {
@@ -44,5 +51,76 @@ export function getContextBudget(model: string, settingsMaxTokens?: number): Con
               : 1_000,
     compressionThreshold: Math.floor(inputBudget * 0.6),
     trimThreshold: Math.floor(inputBudget * 0.85),
+    systemPromptTokens: 0,
+    toolsTokens: 0,
+    historyTokens: 0,
+    toolResultsTokens: 0,
   };
+}
+
+export function buildContextBudgetBreakdown(input: {
+  systemPrompt: string;
+  tools: ToolDefinition[];
+  messages: AIMessage[];
+  latestToolResultIds?: ReadonlySet<string>;
+}): Pick<
+  ContextBudget,
+  "systemPromptTokens" | "toolsTokens" | "historyTokens" | "toolResultsTokens"
+> {
+  const latestToolResultIds = input.latestToolResultIds ?? new Set<string>();
+  const historyMessages: AIMessage[] = [];
+  const latestToolResultMessages: AIMessage[] = [];
+
+  for (const message of input.messages) {
+    if (message.role === "tool" && latestToolResultIds.has(message.toolCallId)) {
+      latestToolResultMessages.push(message);
+      continue;
+    }
+    historyMessages.push(message);
+  }
+
+  return {
+    systemPromptTokens: input.systemPrompt.length,
+    toolsTokens: JSON.stringify(input.tools).length,
+    historyTokens: estimateTokens(historyMessages),
+    toolResultsTokens: estimateTokens(latestToolResultMessages),
+  };
+}
+
+export function logContextBudgetSnapshot(input: {
+  phase: "request" | "finish";
+  model: string;
+  turn: number;
+  budget: ContextBudget;
+  usage?: TokenUsage;
+}): void {
+  const promptCacheReadTokens =
+    input.usage?.inputTokenDetails?.cacheReadTokens ?? input.usage?.cachedInputTokens;
+  const promptCacheWriteTokens = input.usage?.inputTokenDetails?.cacheWriteTokens;
+  const reasoningTokens =
+    input.usage?.outputTokenDetails?.reasoningTokens ?? input.usage?.reasoningTokens;
+  const promptCacheHitRate =
+    input.usage && input.usage.promptTokens > 0 && promptCacheReadTokens !== undefined
+      ? promptCacheReadTokens / input.usage.promptTokens
+      : undefined;
+
+  logStructuredInfo(CONTEXT_BUDGET_LOG_PREFIX, {
+    phase: input.phase,
+    model: input.model,
+    turn: input.turn,
+    windowTokens: input.budget.windowTokens,
+    inputBudget: input.budget.inputBudget,
+    outputReserve: input.budget.outputReserve,
+    systemPromptTokens: input.budget.systemPromptTokens,
+    toolsTokens: input.budget.toolsTokens,
+    historyTokens: input.budget.historyTokens,
+    toolResultsTokens: input.budget.toolResultsTokens,
+    reasoningTokens,
+    promptTokens: input.usage?.promptTokens,
+    completionTokens: input.usage?.completionTokens,
+    totalTokens: input.usage?.totalTokens,
+    promptCacheReadTokens,
+    promptCacheWriteTokens,
+    promptCacheHitRate,
+  });
 }
