@@ -23,7 +23,7 @@ import {
   getContextBudget,
   logContextBudgetSnapshot,
 } from "@/features/ai/context-budget";
-import { generateVisitedUrlsSection, type VisitedUrlEntry } from "@/features/ai/system-prompt-v2";
+import { generateVisitedUrlsSection, type VisitedUrlEntry } from "@/features/ai";
 import { prepareMessagesForTurn, trimMessagesToThreshold } from "./context-manager";
 import type { SkillRegistry } from "@/shared/skill-registry";
 import { buildSkillDetectionMessage, isSkillDetectionMessage } from "./skill-detector";
