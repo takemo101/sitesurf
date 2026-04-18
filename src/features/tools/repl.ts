@@ -103,10 +103,9 @@ export function buildReplToolDef(options: { enableBgFetch?: boolean } = {}): Too
   const enableBgFetch = options.enableBgFetch ?? true;
   return {
     name: "repl",
-    description: assembleReplDescriptionSections(
-      ["TOOL_PHILOSOPHY", "AVAILABLE_FUNCTIONS", "COMMON_PATTERNS"],
-      { enableBgFetch },
-    ),
+    description: assembleReplDescriptionSections(["AVAILABLE_FUNCTIONS", "COMMON_PATTERNS"], {
+      enableBgFetch,
+    }),
     parameters: {
       ...REPL_PARAMETERS_BASE,
       properties: {

@@ -87,13 +87,11 @@ describe("getSystemPromptV2", () => {
     expect(prompt).not.toContain("Skills: Site-Specific Extraction");
   });
 
-  it("contains remaining core sections (tool guidance は repl description 側に移動)", () => {
+  it("contains Tool Philosophy in system prompt while keeping REPL-specific sections out", () => {
     const prompt = getSystemPromptV2({});
+    expect(prompt).toContain("Tool Philosophy");
     expect(prompt).toContain("Security Boundary");
     expect(prompt).toContain("Completion Principles");
-    // Tool Philosophy / Available Functions / Common Patterns は
-    // 重複排除のため repl ツールの description 側のみに保持する
-    expect(prompt).not.toContain("Tool Philosophy");
     expect(prompt).not.toContain("Available Functions");
     expect(prompt).not.toContain("Common Patterns");
   });
