@@ -4,32 +4,32 @@
 # Worktree設定
 # =====================================
 worktree:
-  base_dir: ".worktrees"
-  base_branch: "origin/main"
+  base_dir: '.worktrees'
+  base_branch: 'origin/main'
   setup_commands:
-    - command: "pnpm install"
-      description: "依存関係インストール"
-      on_error: "stop"
+    - command: 'pnpm install'
+      description: '依存関係インストール'
+      on_error: 'stop'
 
 # =====================================
 # マルチプレクサ設定
 # =====================================
 multiplexer:
-  type: "tmux"
-  session_prefix: "sitesurf"
+  type: 'tmux'
+  session_prefix: 'sitesurf'
   start_in_session: true
 
 # =====================================
 # エージェント設定（デフォルト: pi）
 # =====================================
 agent:
-  type: "pi"
+  type: 'pi'
 
 # =====================================
 # Faceted Prompting（グローバルデフォルト）
 # =====================================
-persona: "preset:coder"
-policy: "preset:coding"
+persona: 'preset:coder'
+policy: 'preset:coding'
 
 # =====================================
 # GitHub設定
@@ -45,7 +45,7 @@ parallel:
   max_concurrent: 2
   conflict_detection:
     enabled: true
-    strategy: "sequentialize"
+    strategy: 'sequentialize'
 
 # =====================================
 # auto ワークフロー選択設定
@@ -62,11 +62,11 @@ workflows:
   feature:
     description: 新機能実装（Plan → Implement → Check → Review → Merge）
     agent:
-      type: "claude"
-      args: ["--model", "claude-sonnet-4-6"]
+      type: 'claude'
+      args: ['--model', 'claude-sonnet-4-6']
     steps:
       - agent: plan
-        instruction: "preset:plan"
+        instruction: 'preset:plan'
         context: |
           Chrome拡張機能の新機能の実装計画を立ててください。
 
@@ -92,7 +92,7 @@ workflows:
           - feature間の直接依存は禁止 (orchestration/ が仲介)
           - background/ は shared/message-types のみに依存
       - agent: implement
-        instruction: "preset:implement"
+        instruction: 'preset:implement'
         context: |
           計画に従って実装してください。
 
@@ -112,10 +112,10 @@ workflows:
           - Collapse: `expanded` prop (`in` ではない)
           - Select: `creatable` なし
           - 必ず docs/references/mantine/changelog/version-v9.0.0---mantine.md を確認
-      - run: "vp check"
-        description: "format + lint + 型チェック"
-      - run: "vp build"
-        description: "ビルド確認"
+      - run: 'vp check'
+        description: 'format + lint + 型チェック'
+      - run: 'vp build'
+        description: 'ビルド確認'
       - name: review
         max_loops: 3
         rules:
@@ -139,10 +139,10 @@ workflows:
   bugfix:
     description: バグ修正（根本原因特定 → 修正 → チェック → Merge）
     agent:
-      type: "opencode"
+      type: 'opencode'
     steps:
       - agent: implement
-        instruction: "preset:fix"
+        instruction: 'preset:fix'
         context: |
           バグを修正してください。
 
@@ -155,10 +155,10 @@ workflows:
           - docs/architecture/error-handling.md — Result型、エラー分類
           - TypeScript strict: true
           - Mantine v9 の API を使う (v8 以前と互換性なし)
-      - run: "vp check"
-        description: "format + lint + 型チェック"
-      - run: "vp build"
-        description: "ビルド確認"
+      - run: 'vp check'
+        description: 'format + lint + 型チェック'
+      - run: 'vp build'
+        description: 'ビルド確認'
       - name: review
         max_loops: 3
         rules:
@@ -175,11 +175,11 @@ workflows:
   ui:
     description: UIコンポーネント実装（Implement → Check → Review → Merge）
     agent:
-      type: "claude"
-      args: ["--model", "claude-sonnet-4-6"]
+      type: 'claude'
+      args: ['--model', 'claude-sonnet-4-6']
     steps:
       - agent: implement
-        instruction: "preset:implement"
+        instruction: 'preset:implement'
         context: |
           UIコンポーネントを実装してください。
 
@@ -199,10 +199,10 @@ workflows:
           - store アクセスは個別セレクター: `useStore((s) => s.xxx)`
           - Port アクセスは useDeps(): `const { browserExecutor } = useDeps()`
           - ローカル state は useState、グローバルは Zustand
-      - run: "vp check"
-        description: "format + lint + 型チェック"
-      - run: "vp build"
-        description: "ビルド確認"
+      - run: 'vp check'
+        description: 'format + lint + 型チェック'
+      - run: 'vp build'
+        description: 'ビルド確認'
       - name: review
         max_loops: 3
         rules:
@@ -225,11 +225,11 @@ workflows:
   adapter:
     description: Port / Adapter 実装（Implement → Check → Review → Merge）
     agent:
-      type: "claude"
-      args: ["--model", "claude-sonnet-4-6"]
+      type: 'claude'
+      args: ['--model', 'claude-sonnet-4-6']
     steps:
       - agent: implement
-        instruction: "preset:implement"
+        instruction: 'preset:implement'
         context: |
           Port の Adapter 実装を行ってください。
 
@@ -247,10 +247,10 @@ workflows:
           ## エラーハンドリング
           - Port のメソッドは Result<T, E> を返す
           - Adapter は外部APIエラーをキャッチし AppError に変換
-      - run: "vp check"
-        description: "format + lint + 型チェック"
-      - run: "vp build"
-        description: "ビルド確認"
+      - run: 'vp check'
+        description: 'format + lint + 型チェック'
+      - run: 'vp build'
+        description: 'ビルド確認'
       - name: review
         max_loops: 3
         rules:
@@ -268,7 +268,7 @@ workflows:
     description: ドキュメント更新
     steps:
       - agent: implement
-        instruction: "preset:implement"
+        instruction: 'preset:implement'
         context: |
           ドキュメントを更新してください。
 
@@ -283,13 +283,13 @@ workflows:
     description: 軽微な修正（typo・設定値・コメント等）
     steps:
       - agent: implement
-        instruction: "preset:implement"
+        instruction: 'preset:implement'
         context: |
           軽微な修正を行ってください。変更は最小限に留めてください。
-      - run: "vp check"
-        description: "format + lint + 型チェック"
-      - run: "vp build"
-        description: "ビルド確認"
+      - run: 'vp check'
+        description: 'format + lint + 型チェック'
+      - run: 'vp build'
+        description: 'ビルド確認'
       - merge
 
 # =====================================
@@ -333,20 +333,20 @@ retry:
 # =====================================
 intervention:
   stall_timeout: 300
-  stall_action: "nudge"
+  stall_action: 'nudge'
   max_nudges: 3
-  escalation_action: "stop"
+  escalation_action: 'stop'
 
 # =====================================
 # Hook設定
 # =====================================
 hooks:
   on_workflow_start: |
-    osascript -e 'display notification "Issue #'"$PI_ISSUE_NUMBER"' を開始しました" with title "TandemWeb" subtitle "🚀 開始" sound name "Pop"'
+    osascript -e 'display notification "Issue #'"$PI_ISSUE_NUMBER"' を開始しました" with title "SiteSurf" subtitle "🚀 開始" sound name "Pop"'
 
   on_workflow_end: |
     if [ "$PI_STATUS" = "success" ]; then
-      osascript -e 'display notification "Issue #'"$PI_ISSUE_NUMBER"' が完了しました" with title "TandemWeb" subtitle "✅ 完了" sound name "Glass"'
+      osascript -e 'display notification "Issue #'"$PI_ISSUE_NUMBER"' が完了しました" with title "SiteSurf" subtitle "✅ 完了" sound name "Glass"'
     else
-      osascript -e 'display notification "Issue #'"$PI_ISSUE_NUMBER"' でエラーが発生しました" with title "TandemWeb" subtitle "❌ エラー" sound name "Basso"'
+      osascript -e 'display notification "Issue #'"$PI_ISSUE_NUMBER"' でエラーが発生しました" with title "SiteSurf" subtitle "❌ エラー" sound name "Basso"'
     fi
