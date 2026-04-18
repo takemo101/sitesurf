@@ -45,6 +45,29 @@ describe("assembleReplDescriptionSections", () => {
     expect(out).toContain("Multi-page Scraping");
   });
 
+  it("AVAILABLE_FUNCTIONS は signature と1行説明の一覧に圧縮されている", () => {
+    const out = assembleReplDescriptionSections(["AVAILABLE_FUNCTIONS"]);
+
+    expect(out).toContain("| Function | Purpose |");
+    expect(out).toContain("| `browserjs(fn, ...args)` | Read/scrape JSON-serializable data from the active page context. |");
+    expect(out).toContain("| `returnFile(name, content, mimeType)` | Deliver a generated file to the user / Artifact Panel. |");
+    expect(out).not.toContain("### Examples");
+    expect(out).not.toContain("### When to Use");
+    expect(out).not.toContain("### Do NOT Use browserjs() For");
+  });
+
+  it("Native Input は個別詳細ではなく signature 一覧のみを載せる", () => {
+    const out = assembleReplDescriptionSections(["AVAILABLE_FUNCTIONS"]);
+
+    expect(out).toContain(
+      "Chrome debugger 経由で trusted な入力イベントを発火する。通常 DOM 操作で動かない bot 対策ページではこれを使う。",
+    );
+    expect(out).toContain("- `nativeClick(selector, options?)`");
+    expect(out).toContain("- `nativeSelectText(selector, start?, end?)`");
+    expect(out).not.toContain("options: { button?: \"left\" | \"right\" | \"middle\"");
+    expect(out).not.toContain("// ✅ CORRECT: Form submission with native functions");
+  });
+
   it("sentinel マーカは enableBgFetch の値に関係なく絶対に残さない", () => {
     for (const flag of [undefined, true, false]) {
       const options = flag === undefined ? undefined : { enableBgFetch: flag };
