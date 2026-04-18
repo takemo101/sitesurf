@@ -85,17 +85,21 @@ describe("buildContextBudgetBreakdown", () => {
       latestToolResultIds: new Set(["tool-latest"]),
     });
 
-    expect(breakdown.systemPromptTokens).toBe("system prompt".length);
+    expect(breakdown.systemPromptTokens).toBe(Math.ceil("system prompt".length / 4));
     expect(breakdown.toolsTokens).toBe(
-      JSON.stringify([
-        {
-          name: "read_page",
-          description: "Read the current page",
-          parameters: { type: "object", properties: { depth: { type: "number" } } },
-        },
-      ]).length,
+      Math.ceil(
+        JSON.stringify([
+          {
+            name: "read_page",
+            description: "Read the current page",
+            parameters: { type: "object", properties: { depth: { type: "number" } } },
+          },
+        ]).length / 4,
+      ),
     );
-    expect(breakdown.historyTokens).toBe("hello".length + "world".length + "old result".length);
-    expect(breakdown.toolResultsTokens).toBe("latest result".length);
+    expect(breakdown.historyTokens).toBe(
+      Math.ceil(("hello".length + "world".length + "old result".length) / 4),
+    );
+    expect(breakdown.toolResultsTokens).toBe(Math.ceil("latest result".length / 4));
   });
 });

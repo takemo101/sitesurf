@@ -1108,9 +1108,9 @@ describe("context budget integration", () => {
       "[ctx-budget]",
       expect.objectContaining({
         phase: "finish",
-        systemPromptTokens: "system prompt".length,
-        toolsTokens: JSON.stringify(params.tools).length,
-        historyTokens: "hello world".length,
+        systemPromptTokens: Math.ceil("system prompt".length / 4),
+        toolsTokens: Math.ceil(JSON.stringify(params.tools).length / 4),
+        historyTokens: Math.ceil("hello world".length / 4),
         toolResultsTokens: 0,
         reasoningTokens: 9,
         promptCacheReadTokens: 60,
