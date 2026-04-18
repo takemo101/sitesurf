@@ -150,9 +150,9 @@ export function useAgent() {
         new SkillRegistry();
       const { currentTab } = useStore.getState();
       const matchedSkills = currentRegistry.getAvailableSkills(currentTab.url);
+      // Build system prompt without skills (skills are injected per-turn in agent-loop
+      // using shownSkillIds for diff-based rendering)
       const systemPrompt = getSystemPromptV2({
-        includeSkills: matchedSkills.length > 0,
-        skills: matchedSkills,
         enableBgFetch: settings.enableBgFetch,
       });
 
@@ -215,6 +215,7 @@ export function useAgent() {
           enableBgFetch: settings.enableBgFetch,
         }),
         systemPrompt,
+        skillMatches: matchedSkills,
         autoSaver: autoSaverRef.current,
         toolExecutor: createToolExecutorWithSkills(
           currentRegistry,
