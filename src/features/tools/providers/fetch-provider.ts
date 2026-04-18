@@ -19,7 +19,7 @@ interface SandboxFetchArgs {
 
 /**
  * FetchProvider - REPL sandbox 内から CORS 制約なしに任意 URL を fetch するための
- * `sandboxFetch(url, options?)` ヘルパを提供する。
+ * `bgFetch(url, options?)` ヘルパを提供する。
  *
  * 実体は bg_fetch (background 側の fetchOneWithBgInfra) に委譲する。
  * top-level bg_fetch との違い：
@@ -28,10 +28,10 @@ interface SandboxFetchArgs {
  * - for ループで並列／連続取得を 1 ツールコール内に畳める（MAX_TURNS 節約）
  */
 export class FetchProvider implements RuntimeProvider {
-  readonly actions = ["sandboxFetch"] as const;
+  readonly actions = ["bgFetch"] as const;
 
   getDescription(): string {
-    return `## sandboxFetch(url, options?) — REPL 内で任意 URL を fetch
+    return `## bgFetch(url, options?) — REPL 内で任意 URL を fetch
 
 外部 URL を background service worker 経由で取得する。CORS 制約なし、
 アクティブタブを汚さず、結果は AI のコンテキストを経由せず repl 戻り値や
@@ -44,12 +44,12 @@ artifact に直接渡せる（トークン効率◎）。
 
 ### Do NOT Use For
 - 1〜2 URL だけ取得して AI が直接内容を読みたい場合 → top-level \`bg_fetch\` を使う
-- SPA/CSR サイト → \`navigate()\` + \`browserjs()\` を使う（sandboxFetch も JS 実行後の内容は取れない）
+- SPA/CSR サイト → \`navigate()\` + \`browserjs()\` を使う（bgFetch も JS 実行後の内容は取れない）
 
 ### Signature
 
 \`\`\`ts
-sandboxFetch(url: string, options?: {
+bgFetch(url: string, options?: {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS",
   headers?: Record<string, string>,
   body?: string,
@@ -72,7 +72,7 @@ sandboxFetch(url: string, options?: {
 const contents = {};
 for (const url of urls) {
   try {
-    const { body } = await sandboxFetch(url, { responseType: 'readability' });
+    const { body } = await bgFetch(url, { responseType: 'readability' });
     contents[url] = body.content;
   } catch (e) {
     contents[url] = 'Error: ' + e.message;
@@ -85,7 +85,7 @@ return \`Collected \${Object.keys(contents).length} pages\`;
 
   getRuntimeCode(): string {
     return `
-async function sandboxFetch(url, options) {
+async function bgFetch(url, options) {
   const opts = options || {};
   return new Promise((resolve, reject) => {
     const id = 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
@@ -103,7 +103,7 @@ async function sandboxFetch(url, options) {
     window.parent.postMessage({
       type: 'sandbox-request',
       id,
-      action: 'sandboxFetch',
+      action: 'bgFetch',
       url,
       method: opts.method,
       headers: opts.headers,
@@ -123,7 +123,7 @@ async function sandboxFetch(url, options) {
       request as unknown as SandboxFetchArgs;
 
     if (typeof url !== "string" || url.length === 0) {
-      return err({ code: "tool_script_error", message: "sandboxFetch: url is required" });
+      return err({ code: "tool_script_error", message: "bgFetch: url is required" });
     }
 
     const message: BgFetchMessage = {
@@ -151,7 +151,7 @@ async function sandboxFetch(url, options) {
       if (!result?.success || !result.data) {
         return err({
           code: "tool_script_error",
-          message: result?.error ?? "sandboxFetch: no response from background handler",
+          message: result?.error ?? "bgFetch: no response from background handler",
         });
       }
 

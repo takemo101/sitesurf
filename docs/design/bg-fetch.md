@@ -22,8 +22,8 @@ AI → tool call: bg_fetch({ urls: [...], response_type: "readability" })
   → レスポンスを返却
 
 REPL 内からは同じ background インフラを FetchProvider 経由で利用する：
-AI → tool call: repl({ code: "await sandboxFetch(url, { responseType: 'readability' })" })
-  → sandbox.html の sandboxFetch() → postMessage
+AI → tool call: repl({ code: "await bgFetch(url, { responseType: 'readability' })" })
+  → sandbox.html の bgFetch() → postMessage
   → repl.ts handleSandboxRequest → FetchProvider.handleRequest
   → chrome.runtime.sendMessage<BgFetchMessage, BgFetchResponse>(...)
   → background/handlers/bg-fetch.ts: fetchOneWithBgInfra() （同じ関数）

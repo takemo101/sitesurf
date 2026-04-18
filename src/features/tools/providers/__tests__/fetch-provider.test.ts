@@ -22,20 +22,20 @@ describe("FetchProvider", () => {
     vi.restoreAllMocks();
   });
 
-  it("actions に sandboxFetch を公開する", () => {
+  it("actions に bgFetch を公開する", () => {
     const provider = new FetchProvider();
-    expect(provider.actions).toContain("sandboxFetch");
+    expect(provider.actions).toContain("bgFetch");
   });
 
-  it("getRuntimeCode は sandboxFetch 関数定義を含む", () => {
+  it("getRuntimeCode は bgFetch 関数定義を含む", () => {
     const code = new FetchProvider().getRuntimeCode();
-    expect(code).toContain("async function sandboxFetch(url, options)");
-    expect(code).toContain("action: 'sandboxFetch'");
+    expect(code).toContain("async function bgFetch(url, options)");
+    expect(code).toContain("action: 'bgFetch'");
   });
 
-  it("getDescription は sandboxFetch の When/Do NOT を含む", () => {
+  it("getDescription は bgFetch の When/Do NOT を含む", () => {
     const description = new FetchProvider().getDescription();
-    expect(description).toContain("sandboxFetch");
+    expect(description).toContain("bgFetch");
     expect(description).toContain("When to Use");
     expect(description).toContain("Do NOT Use For");
   });
@@ -43,7 +43,7 @@ describe("FetchProvider", () => {
   it("url 欠落時は tool_script_error を返す", async () => {
     const provider = new FetchProvider();
     const result = await provider.handleRequest(
-      { id: "req-1", action: "sandboxFetch" },
+      { id: "req-1", action: "bgFetch" },
       makeContext(),
     );
     expect(result.ok).toBe(false);
@@ -67,7 +67,7 @@ describe("FetchProvider", () => {
 
     const provider = new FetchProvider();
     const result = await provider.handleRequest(
-      { id: "req-1", action: "sandboxFetch", url: "https://example.com" },
+      { id: "req-1", action: "bgFetch", url: "https://example.com" },
       makeContext(),
     );
 
@@ -98,7 +98,7 @@ describe("FetchProvider", () => {
     await provider.handleRequest(
       {
         id: "req-2",
-        action: "sandboxFetch",
+        action: "bgFetch",
         url: "https://api.example.com/users",
         method: "POST",
         headers: { authorization: "Bearer x" },
@@ -134,7 +134,7 @@ describe("FetchProvider", () => {
     await provider.handleRequest(
       {
         id: "req-3",
-        action: "sandboxFetch",
+        action: "bgFetch",
         url: "https://example.com",
         responseType: "html-invalid",
       },
@@ -149,7 +149,7 @@ describe("FetchProvider", () => {
     stubSendMessage({ success: false, error: "Blocked host: localhost" });
     const provider = new FetchProvider();
     const result = await provider.handleRequest(
-      { id: "req-4", action: "sandboxFetch", url: "http://localhost" },
+      { id: "req-4", action: "bgFetch", url: "http://localhost" },
       makeContext(),
     );
 
@@ -171,7 +171,7 @@ describe("FetchProvider", () => {
 
     const provider = new FetchProvider();
     const result = await provider.handleRequest(
-      { id: "req-5", action: "sandboxFetch", url: "https://example.com" },
+      { id: "req-5", action: "bgFetch", url: "https://example.com" },
       makeContext(),
     );
 
