@@ -18,6 +18,21 @@
         return sendToParent("navigate", { url });
       }
 
+      async function sandboxFetch(url, options) {
+        if (typeof url !== "string" || !url) {
+          throw new Error("sandboxFetch: url must be a non-empty string");
+        }
+        const opts = options || {};
+        return sendToParent("sandboxFetch", {
+          url,
+          method: opts.method,
+          headers: opts.headers,
+          body: opts.body,
+          responseType: opts.responseType,
+          timeout: opts.timeout,
+        });
+      }
+
       // Base64 conversion helper for Uint8Array
       function arrayBufferToBase64(bytes) {
         let binary = "";
@@ -235,6 +250,7 @@
             const fn = new AsyncFunction(
               "browserjs",
               "navigate",
+              "sandboxFetch",
               "skills",
               "createOrUpdateArtifact",
               "getArtifact",
@@ -259,6 +275,7 @@
             const result = await fn(
               browserjs,
               navigate,
+              sandboxFetch,
               skills,
               createOrUpdateArtifact,
               getArtifact,

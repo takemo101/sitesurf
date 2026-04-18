@@ -12,6 +12,7 @@ import {
   NavigateProvider,
   ArtifactProvider,
   NativeInputProvider,
+  FetchProvider,
 } from "./providers";
 
 const log = createLogger("repl");
@@ -29,6 +30,7 @@ function getProviderRegistry(): ProviderRegistry {
     providerRegistry.register(new NavigateProvider());
     providerRegistry.register(new ArtifactProvider());
     providerRegistry.register(new NativeInputProvider());
+    providerRegistry.register(new FetchProvider());
   }
   return providerRegistry;
 }
@@ -86,7 +88,7 @@ export const replToolDef: ToolDefinition = {
       code: {
         type: "string",
         description:
-          "実行するJavaScriptコード。browserjs(), navigate(), skills, Artifact Functions, File Functions, Native Input Functions (nativeClick, nativeDoubleClick, nativeRightClick, nativeHover, nativeFocus, nativeBlur, nativeScroll, nativeSelectText, nativeType, nativePress, nativeKeyDown, nativeKeyUp) が使える。",
+          "実行するJavaScriptコード。browserjs(), navigate(), sandboxFetch(), skills, Artifact Functions, File Functions, Native Input Functions (nativeClick, nativeDoubleClick, nativeRightClick, nativeHover, nativeFocus, nativeBlur, nativeScroll, nativeSelectText, nativeType, nativePress, nativeKeyDown, nativeKeyUp) が使える。",
       },
     },
     required: ["code"],
