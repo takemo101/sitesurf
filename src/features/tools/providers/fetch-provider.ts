@@ -1,6 +1,7 @@
 import type { RuntimeProvider, SandboxRequest, ProviderContext } from "@/ports/runtime-provider";
 import type { Result, ToolError } from "@/shared/errors";
 import { ok, err } from "@/shared/errors";
+import { buildBgFetchHelperDescription } from "@/shared/repl-description-sections";
 import type { BgFetchMessage, BgFetchResponse } from "@/shared/message-types";
 import { useStore } from "@/store/index";
 
@@ -32,30 +33,7 @@ export class FetchProvider implements RuntimeProvider {
   readonly actions = ["bgFetch"] as const;
 
   getDescription(): string {
-    return `## bgFetch(url, options?)
-
-詳しい使い分けは top-level \`bg_fetch\` tool description を参照。\`enableBgFetch\` トグルも top-level \`bg_fetch\` と共有し、無効時は \`bgFetch\` も使えない。
-
-### Signature
-
-\`\`\`ts
-bgFetch(url: string, options?: {
-  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS",
-  headers?: Record<string, string>,
-  body?: string,
-  responseType?: "text" | "json" | "base64" | "readability",  // default: "text"
-  timeout?: number,                                             // ms, default 30000, max 60000
-}): Promise<{
-  url: string,
-  ok: boolean,
-  status: number,
-  statusText: string,
-  headers: Record<string, string>,
-  body: string | object,
-  redirected?: boolean,
-  redirectUrl?: string,
-}>
-\`\`\``;
+    return buildBgFetchHelperDescription();
   }
 
   getRuntimeCode(): string {

@@ -11,11 +11,13 @@ describe("assembleReplDescriptionSections", () => {
     expect(out).toContain("Common Patterns");
   });
 
-  it("デフォルト (enableBgFetch 省略) では bgFetch の signature と参照を含む", () => {
+  it("デフォルト (enableBgFetch 省略) では bgFetch の signature と参照のみを含む", () => {
     const out = assembleReplDescriptionSections(["AVAILABLE_FUNCTIONS"]);
     expect(out).toContain("bgFetch(url, options?)");
     expect(out).toContain("詳しい使い分けは top-level `bg_fetch` tool description を参照");
-    expect(out).not.toContain("Fetch an external URL via the background service worker");
+    expect(out).not.toContain("5URL以上を取得する場合");
+    expect(out).not.toContain("MAX_TURNS");
+    expect(out).not.toContain("CORSを回避してあらゆるURLにアクセス可能");
     // sentinel 行は出力に残してはいけない
     expect(out).not.toContain("BG_FETCH_SECTION_START");
     expect(out).not.toContain("BG_FETCH_SECTION_END");

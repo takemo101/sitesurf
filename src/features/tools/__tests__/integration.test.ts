@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   executeReadPage,
   readPageToolDef,
+  bgFetchToolDef,
   createToolExecutorWithSkills,
   ALL_TOOL_DEFS,
   AGENT_TOOL_DEFS,
@@ -147,10 +148,18 @@ describe("2段階抽出ワークフロー", () => {
       expect(new Set(names).size).toBe(names.length);
     });
 
-    it("read_page の description が軽量抽出と簡潔な repl 誘導を含む", () => {
+    it("read_page の description が軽量抽出と1行の repl 誘導のみを含む", () => {
       expect(readPageToolDef.description).toContain("軽量");
-      expect(readPageToolDef.description).toContain("複数ページを跨ぐ場合は `repl` で loop 制御");
+      expect(readPageToolDef.description).toContain("複数ページを跨ぐ場合は `repl` で loop 制御する。");
+      expect(readPageToolDef.description).not.toContain("artifact");
       expect(readPageToolDef.description).not.toContain("```javascript");
+    });
+
+    it("bg_fetch の description が SSOT として詳細な使い分けを保持する", () => {
+      expect(bgFetchToolDef.description).toContain("repl 内 helper の bgFetch() も同じ使い分けに従う");
+      expect(bgFetchToolDef.description).toContain("5URL以上を取得する場合");
+      expect(bgFetchToolDef.description).toContain("createOrUpdateArtifact()");
+      expect(bgFetchToolDef.description).toContain("MAX_TURNS");
     });
 
     it("全ツール定義が parameters.type を持つ", () => {

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FetchProvider } from "../fetch-provider";
 import type { ProviderContext } from "@/ports/runtime-provider";
+import { buildBgFetchHelperDescription } from "@/shared/repl-description-sections";
 import type { BgFetchMessage, BgFetchResponse } from "@/shared/message-types";
 import { useStore } from "@/store/index";
 
@@ -41,10 +42,9 @@ describe("FetchProvider", () => {
     expect(code).toContain("action: 'bgFetch'");
   });
 
-  it("getDescription は bgFetch の signature と top-level 参照のみを含む", () => {
+  it("getDescription は repl description と同じ bgFetch helper 説明を再利用する", () => {
     const description = new FetchProvider().getDescription();
-    expect(description).toContain("bgFetch(url, options?)");
-    expect(description).toContain("top-level `bg_fetch` tool description");
+    expect(description).toBe(buildBgFetchHelperDescription());
     expect(description).not.toContain("When to Use");
     expect(description).not.toContain("Do NOT Use For");
     expect(description).not.toContain("Collected ");
