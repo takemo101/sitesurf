@@ -20,6 +20,13 @@ describe("buildReplToolDef", () => {
     expect(def.description).toContain("Research & Document");
   });
 
+  it("ページ読取を readPage() helper として案内し、top-level read_page を案内しない", () => {
+    const def = buildReplToolDef({ enableBgFetch: true });
+
+    expect(def.description).toContain("readPage(maxDepth?)");
+    expect(def.description).not.toContain("top-level `read_page`");
+  });
+
   it("skills guidance uses runtime-injected window extractors", () => {
     const def = buildReplToolDef({ enableBgFetch: true });
 

@@ -206,7 +206,7 @@ function trackSpaDomainsFromBgFetch(spaDetectedDomains: Set<string>, toolValue: 
         // spaWarning がなくても既知 SPA ドメインなら警告
         const host = new URL(it.url).hostname;
         if (spaDetectedDomains.has(host)) {
-          warning += `\n\n⚠️ WARNING: The domain "${host}" was previously detected as a SPA/CSR site. bg_fetch cannot retrieve JS-rendered content from this domain. Use navigate() + read_page/browserjs() instead.`;
+          warning += `\n\n⚠️ WARNING: The domain "${host}" was previously detected as a SPA/CSR site. bg_fetch cannot retrieve JS-rendered content from this domain. Use navigate() + repl with readPage()/browserjs() instead.`;
         }
       }
     }

@@ -13,7 +13,7 @@ export const bgFetchToolDef: ToolDefinition = {
     "複数URLを並列取得できる。Webページはresponse_type='readability'で本文のみ抽出すると効率的。" +
     "readabilityモードでは本文テキストに加え、ページ内リンク一覧も返すのでドキュメント探索に活用できる。" +
     "注意: SPA/CSRサイト（React, Vue, Next.js等）ではJSレンダリング後のコンテンツを取得できない。" +
-    "SPA/CSRサイトの場合はnavigateでページを開いてからread_pageやbrowserjs()を使うこと。" +
+    "SPA/CSRサイトの場合はnavigateでページを開いてからrepl内のreadPage()やbrowserjs()を使うこと。" +
     "repl 内 helper の bgFetch() も同じ使い分けに従う。" +
     "また **5URL以上を取得する場合、または結果をartifactに保存したい場合は、bg_fetchではなく " +
     "repl 内の bgFetch() ループ + createOrUpdateArtifact() を使うこと**。" +
@@ -157,7 +157,7 @@ export async function executeBgFetch(
           "⚠️ This page returned very little content via bg_fetch. " +
           "It is likely a SPA/CSR site where content is rendered by JavaScript. " +
           "Do NOT use bg_fetch for other pages on this same domain. " +
-          "Instead, use navigate() to load the page, then read_page or browserjs() to extract content.";
+          "Instead, use navigate() to load the page, then readPage() or browserjs() inside repl to extract content.";
       }
 
       return item;

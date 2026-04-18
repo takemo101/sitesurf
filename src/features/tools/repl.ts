@@ -10,6 +10,7 @@ import type { SkillMatch } from "./skills/types";
 import {
   BrowserJsProvider,
   NavigateProvider,
+  ReadPageProvider,
   ArtifactProvider,
   NativeInputProvider,
   FetchProvider,
@@ -28,6 +29,7 @@ function getProviderRegistry(): ProviderRegistry {
     providerRegistry = new ProviderRegistry();
     providerRegistry.register(new BrowserJsProvider());
     providerRegistry.register(new NavigateProvider());
+    providerRegistry.register(new ReadPageProvider());
     providerRegistry.register(new ArtifactProvider());
     providerRegistry.register(new NativeInputProvider());
     providerRegistry.register(new FetchProvider());
@@ -90,6 +92,7 @@ function codeDescription(enableBgFetch: boolean): string {
   const fns = [
     "browserjs()",
     "navigate()",
+    "readPage()",
     ...(enableBgFetch ? ["bgFetch()"] : []),
     "skills",
     "Artifact Functions",

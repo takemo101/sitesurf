@@ -5,7 +5,6 @@ import type { ToolExecutionHooks, ToolExecutor } from "@/ports/tool-executor";
 import { SkillRegistry } from "@/shared/skill-registry";
 import { useStore } from "@/store/index";
 
-import { readPageToolDef, executeReadPage } from "./read-page";
 import { replToolDef, buildReplToolDef, executeRepl, formatSkillsForSandbox } from "./repl";
 import { navigateToolDef, executeNavigate } from "./navigate";
 import { pickElementToolDef, executePickElement } from "./pick-element";
@@ -33,7 +32,6 @@ import { bgFetchToolDef, executeBgFetch } from "./bg-fetch";
 import { artifactsTool } from "./definitions/artifacts-tool";
 import { handleArtifactsTool } from "./handlers/artifacts-handler";
 
-export { readPageToolDef, executeReadPage };
 export { replToolDef, buildReplToolDef, executeRepl, formatSkillsForSandbox };
 export { navigateToolDef, executeNavigate };
 export { pickElementToolDef, executePickElement };
@@ -76,7 +74,6 @@ export type {
 } from "./navigate";
 
 export const ALL_TOOL_DEFS: ToolDefinition[] = [
-  readPageToolDef,
   replToolDef,
   navigateToolDef,
   pickElementToolDef,
@@ -114,8 +111,6 @@ export function createToolExecutorWithSkills(
     }
 
     switch (name) {
-      case "read_page":
-        return executeReadPage(browser, args);
       case "repl": {
         const tab = await browser.getActiveTab();
         const skillMatches = skillRegistry.getAvailableSkills(tab.url ?? undefined);

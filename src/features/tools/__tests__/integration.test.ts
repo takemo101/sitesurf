@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  executeReadPage,
-  readPageToolDef,
   bgFetchToolDef,
   createToolExecutorWithSkills,
   ALL_TOOL_DEFS,
@@ -9,7 +7,7 @@ import {
   getAgentToolDefs,
 } from "../index";
 import { SkillRegistry, type SkillMatch } from "../skills";
-import type { BrowserExecutor, PageContent } from "@/ports/browser-executor";
+import type { BrowserExecutor } from "@/ports/browser-executor";
 import { ok } from "@/shared/errors";
 import { InMemoryArtifactStorage, InMemoryStorage } from "@/adapters/storage/in-memory-storage";
 
@@ -92,47 +90,16 @@ function createTestRegistry(): SkillRegistry {
 }
 
 describe("2段階抽出ワークフロー", () => {
-  describe("Stage 1: read_page で軽量抽出", () => {
-    it("プレーンテキストとメタ情報を返す", async () => {
-      const browser = createMockBrowser({
-        readPageContent: async () =>
-          ok({
-            text: "記事の本文テキスト",
-            simplifiedDom: "[Extraction: article]\nMeta: description\n\n記事の本文テキスト",
-          }),
-      });
-
-      const result = await executeReadPage(browser, {});
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.value.text).toBe("記事の本文テキスト");
-      expect(result.value.simplifiedDom).toContain("Extraction:");
-    });
-
-    it("長いコンテンツは切り詰められる（トークン削減）", async () => {
-      const longText = "あ".repeat(10_000);
-      const browser = createMockBrowser({
-        readPageContent: async () => ok({ text: longText, simplifiedDom: "" }),
-      });
-
-      const result = await executeReadPage(browser, {});
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.value.text.length).toBeLessThan(longText.length);
-    });
-  });
-
   describe("Stage 2: repl で精密抽出（ToolExecutor経由）", () => {
-    it("createToolExecutor が read_page をディスパッチする", async () => {
+    it("read_page は top-level tool として公開されない", async () => {
       const browser = createMockBrowser({
         readPageContent: async () => ok({ text: "概要テキスト", simplifiedDom: "" }),
       });
 
       const result = await createToolExecutor("read_page", {}, browser);
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      const content = result.value as PageContent;
-      expect(content.text).toBe("概要テキスト");
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.message).toContain("Unknown tool: read_page");
     });
 
     it("未知のツール名はエラーを返す", async () => {
@@ -148,11 +115,9 @@ describe("2段階抽出ワークフロー", () => {
       expect(new Set(names).size).toBe(names.length);
     });
 
-    it("read_page の description が軽量抽出と1行の repl 誘導のみを含む", () => {
-      expect(readPageToolDef.description).toContain("軽量");
-      expect(readPageToolDef.description).toContain("複数ページを跨ぐ場合は `repl` で loop 制御する。");
-      expect(readPageToolDef.description).not.toContain("artifact");
-      expect(readPageToolDef.description).not.toContain("```javascript");
+    it("tool 一覧から read_page が消えている", () => {
+      const names = ALL_TOOL_DEFS.map((t) => t.name);
+      expect(names).not.toContain("read_page");
     });
 
     it("bg_fetch の description が SSOT として詳細な使い分けを保持する", () => {
@@ -374,27 +339,15 @@ describe("Skills使用フロー", () => {
   });
 
   describe("2段階抽出 + Skills の統合フロー", () => {
-    it("read_page → Skills検出 → extractor code取得 の流れが成立する", async () => {
-      // Stage 1: read_page で軽量な概要を取得
+    it("readPage helper 前提でも Skills検出 → extractor code取得 の流れが成立する", async () => {
       const browser = createMockBrowser({
         getActiveTab: async () => ({
           id: 1,
           url: "https://www.youtube.com/watch?v=abc123",
           title: "YouTube Video",
         }),
-        readPageContent: async () =>
-          ok({
-            text: "YouTube Video\n\n動画の概要テキスト...",
-            simplifiedDom: "[Extraction: ytd-watch-metadata]",
-          }),
       });
 
-      const readResult = await executeReadPage(browser, {});
-      expect(readResult.ok).toBe(true);
-      if (!readResult.ok) return;
-      expect(readResult.value.text).toContain("YouTube Video");
-
-      // Stage 2: URLからSkillsを検出し、extractor codeを取得
       const tab = await browser.getActiveTab();
       const registry = createTestRegistry();
       const matches = registry.findMatchingSkills(tab.url);
@@ -403,7 +356,6 @@ describe("Skills使用フロー", () => {
       const youtubeMatch = matches[0];
       expect(youtubeMatch.skill.id).toBe("youtube");
 
-      // extractorのcodeが存在し、replで実行可能な形式であることを確認
       const videoExtractor = youtubeMatch.availableExtractors.find((e) => e.id === "videoInfo");
       expect(videoExtractor).toBeDefined();
       expect(typeof videoExtractor!.code).toBe("string");
@@ -413,31 +365,6 @@ describe("Skills使用フロー", () => {
 });
 
 describe("後方互換性", () => {
-  it("PageContent に text と simplifiedDom の両フィールドが存在する", async () => {
-    const browser = createMockBrowser({
-      readPageContent: async () => ok({ text: "本文", simplifiedDom: "メタ情報" }),
-    });
-
-    const result = await executeReadPage(browser, {});
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-
-    expect(result.value).toHaveProperty("text");
-    expect(result.value).toHaveProperty("simplifiedDom");
-  });
-
-  it("simplifiedDom が空文字でもエラーにならない", async () => {
-    const browser = createMockBrowser({
-      readPageContent: async () => ok({ text: "本文のみ", simplifiedDom: "" }),
-    });
-
-    const result = await executeReadPage(browser, {});
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.value.text).toBe("本文のみ");
-    expect(result.value.simplifiedDom).toBe("");
-  });
-
   it("SkillMatch の型が skill と availableExtractors を持つ", () => {
     const registry = createTestRegistry();
     const matches: SkillMatch[] = registry.findMatchingSkills(
