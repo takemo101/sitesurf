@@ -361,6 +361,8 @@ export const AVAILABLE_FUNCTIONS = [
   "- 1〜2 URLs whose contents you want to read inline — use top-level `bg_fetch`",
   "- SPA/CSR sites whose content is JS-rendered — use `navigate()` + `browserjs()`",
   "",
+  "Shares the `enableBgFetch` settings toggle with the top-level `bg_fetch` tool; if that tool is disabled by the user, `bgFetch` is also blocked (error: `bgFetch is disabled in settings`).",
+  "",
   "### Signature",
   "```ts",
   "bgFetch(url: string, options?: {",

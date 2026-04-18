@@ -2,6 +2,7 @@ import type { RuntimeProvider, SandboxRequest, ProviderContext } from "@/ports/r
 import type { Result, ToolError } from "@/shared/errors";
 import { ok, err } from "@/shared/errors";
 import type { BgFetchMessage, BgFetchResponse } from "@/shared/message-types";
+import { useStore } from "@/store/index";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_TIMEOUT_MS = 60_000;
@@ -124,6 +125,15 @@ async function bgFetch(url, options) {
 
     if (typeof url !== "string" || url.length === 0) {
       return err({ code: "tool_script_error", message: "bgFetch: url is required" });
+    }
+
+    // 設定側の enableBgFetch ゲートを尊重する。top-level bg_fetch と同じ
+    // 判定を通して、REPL 経由の bgFetch が設定の抜け道にならないようにする。
+    if (!useStore.getState().settings.enableBgFetch) {
+      return err({
+        code: "tool_script_error",
+        message: "bgFetch is disabled in settings (enableBgFetch is off)",
+      });
     }
 
     const message: BgFetchMessage = {

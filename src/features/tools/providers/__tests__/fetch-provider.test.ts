@@ -2,12 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FetchProvider } from "../fetch-provider";
 import type { ProviderContext } from "@/ports/runtime-provider";
 import type { BgFetchMessage, BgFetchResponse } from "@/shared/message-types";
+import { useStore } from "@/store/index";
 
 function makeContext(): ProviderContext {
   return {
     browser: {} as ProviderContext["browser"],
     artifactStorage: {} as ProviderContext["artifactStorage"],
   };
+}
+
+function setEnableBgFetch(enabled: boolean): void {
+  useStore.setState((state) => ({
+    settings: { ...state.settings, enableBgFetch: enabled },
+  }));
 }
 
 function stubSendMessage(response: BgFetchResponse) {
@@ -20,6 +27,7 @@ function stubSendMessage(response: BgFetchResponse) {
 describe("FetchProvider", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    setEnableBgFetch(true);
   });
 
   it("actions に bgFetch を公開する", () => {
@@ -178,5 +186,31 @@ describe("FetchProvider", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.message).toContain("port closed");
+  });
+
+  it("enableBgFetch=false の時は background に届く前に disabled エラーを返す", async () => {
+    setEnableBgFetch(false);
+    const send = stubSendMessage({
+      success: true,
+      data: {
+        url: "https://example.com",
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        headers: {},
+        body: "should not reach here",
+      },
+    });
+
+    const provider = new FetchProvider();
+    const result = await provider.handleRequest(
+      { id: "req-off", action: "bgFetch", url: "https://example.com" },
+      makeContext(),
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.message).toContain("disabled");
+    expect(send).not.toHaveBeenCalled();
   });
 });
