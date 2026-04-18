@@ -12,7 +12,7 @@ import { createSecurityMiddleware } from "@/features/security/middleware";
 import { getContextBudget } from "@/features/ai/context-budget";
 import { ok, err } from "@/shared/errors";
 import { initStore, useStore } from "@/store/index";
-import { defaultConsoleLogService } from "@/features/chat/services/console-log";
+import { defaultConsoleLogService } from "@/shared/console-log-types";
 import type { ArtifactStoragePort } from "@/ports/artifact-storage";
 import { estimateTokens } from "@/shared/token-utils";
 import { buildReplToolDef } from "@/features/tools/repl";
