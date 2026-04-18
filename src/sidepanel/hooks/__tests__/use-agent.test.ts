@@ -44,7 +44,7 @@ vi.mock("@/features/settings/skill-registry-sync", () => ({
   subscribeSkillRegistryReload: vi.fn(() => () => {}),
 }));
 
-vi.mock("@/features/ai/system-prompt-v2", () => ({
+vi.mock("@/features/ai", () => ({
   getSystemPromptV2: vi.fn(() => "system-prompt"),
 }));
 

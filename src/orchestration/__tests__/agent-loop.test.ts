@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { runAgentLoop, trackVisitedUrl, pruneVisitedUrls, toPersistedHistory } from "../agent-loop";
 import { STRUCTURED_SUMMARY_MESSAGE_PREFIX } from "../context-compressor";
 import type { AgentLoopParams, ChatActions } from "../agent-loop";
-import type { VisitedUrlEntry } from "@/features/ai/system-prompt-v2";
+import type { VisitedUrlEntry } from "@/features/ai";
 import type { Session } from "@/ports/session-types";
 import type { AIProvider, StreamEvent } from "@/ports/ai-provider";
 import type { AuthProvider, AuthCredentials } from "@/ports/auth-provider";

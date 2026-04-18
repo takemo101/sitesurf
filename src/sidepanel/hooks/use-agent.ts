@@ -3,7 +3,7 @@ import { useDeps } from "@/shared/deps-context";
 import { useStore } from "@/store/index";
 import { isExcludedUrl, getLastKnownUrl } from "@/shared/utils";
 import { runAgentLoop } from "@/orchestration/agent-loop";
-import { getSystemPromptV2 } from "@/features/ai/system-prompt-v2";
+import { getSystemPromptV2 } from "@/features/ai";
 import {
   getAgentToolDefs,
   createToolExecutorWithSkills,

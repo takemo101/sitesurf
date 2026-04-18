@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { getSystemPromptV2, generateVisitedUrlsSection } from "../system-prompt-v2";
 import type { VisitedUrlEntry } from "../system-prompt-v2";
 import type { SkillMatch } from "@/shared/skill-types";
@@ -25,6 +27,13 @@ const mockSkillMatch: SkillMatch = {
 };
 
 describe("getSystemPromptV2", () => {
+  it("has removed legacy system prompt modules", () => {
+    expect(existsSync(path.resolve(import.meta.dirname, "../system-prompt.ts"))).toBe(false);
+    expect(existsSync(path.resolve(import.meta.dirname, "../../chat/system-prompt.ts"))).toBe(
+      false,
+    );
+  });
+
   it("returns a non-empty string", () => {
     const prompt = getSystemPromptV2({});
     expect(typeof prompt).toBe("string");
