@@ -33,10 +33,7 @@ import { handleArtifactsTool } from "./handlers/artifacts-handler";
 export { replToolDef, buildReplToolDef, executeRepl, formatSkillsForSandbox };
 export { navigateToolDef, executeNavigate };
 export { inspectToolDef, executeInspect };
-export {
-  skillToolDef,
-  executeSkill,
-};
+export { skillToolDef, executeSkill };
 export { bgFetchToolDef, executeBgFetch };
 export { artifactsTool, handleArtifactsTool };
 export type {
@@ -112,9 +109,6 @@ export function createToolExecutorWithSkills(
           artifactStorage,
           args as { title?: string; code: string },
           skillMatches,
-          (name) => {
-            void useStore.getState().addArtifact(name, "json", "json");
-          },
           signal,
           hooks?.onConsoleLog,
         );
@@ -125,13 +119,16 @@ export function createToolExecutorWithSkills(
           args as { url?: string; newTab?: boolean; listTabs?: boolean; switchToTab?: number },
         );
       case "inspect":
-        return executeInspect(browser, args as {
-          action: "pick_element" | "screenshot" | "extract_image";
-          message?: string;
-          selector?: string;
-          selectors?: string[];
-          maxWidth?: number;
-        });
+        return executeInspect(
+          browser,
+          args as {
+            action: "pick_element" | "screenshot" | "extract_image";
+            message?: string;
+            selector?: string;
+            selectors?: string[];
+            maxWidth?: number;
+          },
+        );
       case "bg_fetch": {
         const bgFetchEnabled = useStore.getState().settings.enableBgFetch;
         if (!bgFetchEnabled) {

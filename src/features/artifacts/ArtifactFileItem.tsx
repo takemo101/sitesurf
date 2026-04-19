@@ -12,6 +12,10 @@ const TYPE_ICONS: Record<ArtifactEntry["type"], React.ReactNode> = {
   binary: <File size={14} />,
 };
 
+function kindLabel(source: ArtifactEntry["source"]): string {
+  return source === "json" ? "JSON 値" : "ファイル";
+}
+
 export function ArtifactFileItem({
   artifact,
   selected,
@@ -37,11 +41,23 @@ export function ArtifactFileItem({
       }}
       className="hover-highlight"
     >
-      <Box c={selected ? "indigo" : "dimmed"} style={{ flexShrink: 0 }}>
+      <Box
+        c={selected ? "indigo" : "dimmed"}
+        style={{ flexShrink: 0 }}
+        title={kindLabel(artifact.source)}
+      >
         {TYPE_ICONS[artifact.type]}
       </Box>
       <Text size="xs" truncate style={{ flex: 1 }} fw={selected ? 500 : 400}>
         {artifact.name}
+      </Text>
+      <Text
+        size="10"
+        c="dimmed"
+        style={{ flexShrink: 0, textTransform: "uppercase", letterSpacing: 0.5 }}
+        data-testid="artifact-kind-badge"
+      >
+        {artifact.source}
       </Text>
       <ActionIcon
         variant="subtle"
