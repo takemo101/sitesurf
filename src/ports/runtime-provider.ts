@@ -14,6 +14,11 @@ import type { SkillMatch } from "@/shared/skill-types";
  * - 動的description生成: REPLツールのdescriptionを実行時に動的に構築
  * - 拡張性: 新しい機能の追加が容易
  * - テスト容易性: 各Providerを個別にテスト可能
+ *
+ * NOTE: REPL 内で AI が呼べる helper 関数の実体 (async function xxx) は
+ * `public/sandbox.html` に hardcode されている。provider 側は
+ * `handleRequest()` で sandbox から届く sandbox-request を処理する責務のみ。
+ * 両者の action 名は `sandbox-contract.test.ts` で drift を検知している。
  */
 
 /**
@@ -65,12 +70,6 @@ export interface RuntimeProvider {
   getDescription(): string;
 
   /**
-   * Sandboxに注入されるランタイムコードを生成
-   * @returns JavaScriptコード文字列
-   */
-  getRuntimeCode(): string;
-
-  /**
    * メッセージを処理する
    * @param request Sandboxからのリクエスト
    * @param context 実行コンテキスト
@@ -111,12 +110,5 @@ export class ProviderRegistry {
    */
   getCombinedDescription(): string {
     return this.providers.map((p) => p.getDescription()).join("\n\n");
-  }
-
-  /**
-   * 全Providerのruntime codeを結合して返す
-   */
-  getCombinedRuntimeCode(): string {
-    return this.providers.map((p) => p.getRuntimeCode()).join("\n\n");
   }
 }

@@ -36,38 +36,6 @@ export class FetchProvider implements RuntimeProvider {
     return buildBgFetchHelperDescription();
   }
 
-  getRuntimeCode(): string {
-    return `
-async function bgFetch(url, options) {
-  const opts = options || {};
-  return new Promise((resolve, reject) => {
-    const id = 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    const handler = (event) => {
-      if (event.data && event.data.type === 'sandbox-response' && event.data.id === id) {
-        window.removeEventListener('message', handler);
-        if (event.data.ok) {
-          resolve(event.data.value);
-        } else {
-          reject(new Error(event.data.error));
-        }
-      }
-    };
-    window.addEventListener('message', handler);
-    window.parent.postMessage({
-      type: 'sandbox-request',
-      id,
-      action: 'bgFetch',
-      url,
-      method: opts.method,
-      headers: opts.headers,
-      body: opts.body,
-      responseType: opts.responseType,
-      timeout: opts.timeout,
-    }, '*');
-  });
-}`;
-  }
-
   async handleRequest(
     request: SandboxRequest,
     _context: ProviderContext,

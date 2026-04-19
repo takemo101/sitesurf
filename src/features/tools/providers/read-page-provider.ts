@@ -24,27 +24,6 @@ Read the current page with the same lightweight extraction used by the legacy re
 - For precise field extraction, follow up with browserjs()`;
   }
 
-  getRuntimeCode(): string {
-    return `
-async function readPage(maxDepth) {
-  return new Promise((resolve, reject) => {
-    const id = 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    const handler = (event) => {
-      if (event.data?.type === 'sandbox-response' && event.data.id === id) {
-        window.removeEventListener('message', handler);
-        if (event.data.ok) {
-          resolve(event.data.value);
-        } else {
-          reject(new Error(event.data.error));
-        }
-      }
-    };
-    window.addEventListener('message', handler);
-    window.parent.postMessage({ type: 'sandbox-request', id, action: 'readPage', maxDepth }, '*');
-  });
-}`;
-  }
-
   async handleRequest(
     request: SandboxRequest,
     context: ProviderContext,

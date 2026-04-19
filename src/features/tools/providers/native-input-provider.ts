@@ -107,69 +107,6 @@ await nativeScroll('.target-section', { behavior: 'smooth', block: 'center' });
 \`\`\``;
   }
 
-  getRuntimeCode(): string {
-    const actions = [
-      "nativeClick",
-      "nativeDoubleClick",
-      "nativeRightClick",
-      "nativeHover",
-      "nativeFocus",
-      "nativeBlur",
-      "nativeScroll",
-      "nativeSelectText",
-      "nativeType",
-      "nativePress",
-      "nativeKeyDown",
-      "nativeKeyUp",
-    ];
-
-    return actions
-      .map((action) => {
-        const isGlobal =
-          action === "nativePress" || action === "nativeKeyDown" || action === "nativeKeyUp";
-        if (isGlobal) {
-          return `
-function ${action}(key) {
-  return new Promise((resolve, reject) => {
-    const id = 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    const handler = (event) => {
-      if (event.data?.type === 'sandbox-response' && event.data.id === id) {
-        window.removeEventListener('message', handler);
-        if (event.data.ok) {
-          resolve(event.data.value);
-        } else {
-          reject(new Error(event.data.error));
-        }
-      }
-    };
-    window.addEventListener('message', handler);
-    window.parent.postMessage({ type: 'sandbox-request', id, action: '${action}', key }, '*');
-  });
-}`;
-        } else {
-          return `
-function ${action}(selector, ...args) {
-  return new Promise((resolve, reject) => {
-    const id = 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    const handler = (event) => {
-      if (event.data?.type === 'sandbox-response' && event.data.id === id) {
-        window.removeEventListener('message', handler);
-        if (event.data.ok) {
-          resolve(event.data.value);
-        } else {
-          reject(new Error(event.data.error));
-        }
-      }
-    };
-    window.addEventListener('message', handler);
-    window.parent.postMessage({ type: 'sandbox-request', id, action: '${action}', selector, args }, '*');
-  });
-}`;
-        }
-      })
-      .join("\n");
-  }
-
   async handleRequest(
     request: SandboxRequest,
     context: ProviderContext,
