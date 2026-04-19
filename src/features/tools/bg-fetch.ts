@@ -16,7 +16,7 @@ export const bgFetchToolDef: ToolDefinition = {
     "SPA/CSRサイトの場合はnavigateでページを開いてからrepl内のreadPage()やbrowserjs()を使うこと。" +
     "repl 内 helper の bgFetch() も同じ使い分けに従う。" +
     "また **5URL以上を取得する場合、または結果をartifactに保存したい場合は、bg_fetchではなく " +
-    "repl 内の bgFetch() ループ + createOrUpdateArtifact() を使うこと**。" +
+    "repl 内の bgFetch() ループ + saveArtifact() を使うこと**。" +
     "bg_fetch の結果は必ず AI コンテキストを経由するのでトークン効率が悪く、MAX_TURNS も消費する。",
   parameters: {
     type: "object",

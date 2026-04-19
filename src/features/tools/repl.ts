@@ -95,8 +95,7 @@ function codeDescription(enableBgFetch: boolean): string {
     "readPage()",
     ...(enableBgFetch ? ["bgFetch()"] : []),
     "skills",
-    "Artifact Functions",
-    "File Functions",
+    "Artifact Functions (saveArtifact, getArtifact, listArtifacts, deleteArtifact)",
     "Native Input Functions (nativeClick, nativeDoubleClick, nativeRightClick, nativeHover, nativeFocus, nativeBlur, nativeScroll, nativeSelectText, nativeType, nativePress, nativeKeyDown, nativeKeyUp)",
   ];
   return `実行するJavaScriptコード。${fns.join(", ")} が使える。`;

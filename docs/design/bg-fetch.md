@@ -4,7 +4,7 @@
 
 独立したAI toolとして `bg_fetch` を追加し、background service worker経由でCORS制限を回避して任意URLのコンテンツを取得する。複数URLの一括並列取得と、HTMLページからの本文+リンク抽出（Readability）に対応する。
 
-REPL 内からは同名のヘルパ `bgFetch(url, options?)` として再エクスポートされ、ループで複数URLを取得した結果を **AI コンテキストに載せず** `createOrUpdateArtifact` に直接保存できる。
+REPL 内からは同名のヘルパ `bgFetch(url, options?)` として再エクスポートされ、ループで複数URLを取得した結果を **AI コンテキストに載せず** `saveArtifact` に直接保存できる。
 
 **GitHub Issue**: #7
 

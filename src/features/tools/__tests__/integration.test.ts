@@ -121,9 +121,11 @@ describe("2段階抽出ワークフロー", () => {
     });
 
     it("bg_fetch の description が SSOT として詳細な使い分けを保持する", () => {
-      expect(bgFetchToolDef.description).toContain("repl 内 helper の bgFetch() も同じ使い分けに従う");
+      expect(bgFetchToolDef.description).toContain(
+        "repl 内 helper の bgFetch() も同じ使い分けに従う",
+      );
       expect(bgFetchToolDef.description).toContain("5URL以上を取得する場合");
-      expect(bgFetchToolDef.description).toContain("createOrUpdateArtifact()");
+      expect(bgFetchToolDef.description).toContain("saveArtifact()");
       expect(bgFetchToolDef.description).toContain("MAX_TURNS");
     });
 
@@ -162,7 +164,6 @@ describe("2段階抽出ワークフロー", () => {
       expect(names).not.toContain("get_tool_result");
       expect(names).toContain("skill");
     });
-
   });
 
   describe("draft ツールの dispatch パス", () => {

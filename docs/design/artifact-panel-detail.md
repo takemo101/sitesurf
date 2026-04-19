@@ -2,12 +2,12 @@
 
 ## 概要
 
-AIが `createOrUpdateArtifact` / `returnFile` で保存したデータをユーザーが確認・プレビューできる UI を追加する。
+AIが `saveArtifact` (ADR-007 統一 API) で保存したデータをユーザーが確認・プレビューできる UI を提供する。
 既存拡張 の **Flex side-by-side** パターンを採用し、アーティファクトがある場合のみ右パネルを表示する。
 
 ## 既存拡張 との対応関係
 
-| 既存拡張                         | Sitesurf                                    | 差分                             |
+| 既存拡張                         | Sitesurf                                     | 差分                             |
 | -------------------------------- | -------------------------------------------- | -------------------------------- |
 | LitElement `@state`              | Zustand `ArtifactSlice`                      | フレームワーク差異のみ           |
 | `ArtifactsPanel` (Web Component) | `ArtifactPanel.tsx` (React)                  | 同等機能を React で再実装        |

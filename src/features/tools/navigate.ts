@@ -53,7 +53,7 @@ Actions:
 
 IMPORTANT: Do NOT navigate to a URL you have already visited in this session. Trust your conversation history — recent tool results remain fully visible. Collect all necessary pages first, then proceed to analysis — do not loop between pages.
 
-IMPORTANT: When you need to visit **multiple URLs in sequence** and extract content from each, do NOT call this tool repeatedly from the top level. Instead, drive the whole workflow from a single \`repl\` call that loops \`navigate()\` + \`readPage()\`/\`browserjs()\` and saves the results with \`createOrUpdateArtifact()\`. A top-level \`navigate\` pair per page wastes turns and floods the AI context.
+IMPORTANT: When you need to visit **multiple URLs in sequence** and extract content from each, do NOT call this tool repeatedly from the top level. Instead, drive the whole workflow from a single \`repl\` call that loops \`navigate()\` + \`readPage()\`/\`browserjs()\` and saves the results with \`saveArtifact()\`. A top-level \`navigate\` pair per page wastes turns and floods the AI context.
 
 When switching tabs, use the tab ID from listTabs.
 Tab IDs are temporary and may change when the browser restarts.`,
