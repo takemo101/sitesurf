@@ -6,16 +6,17 @@ function makeStorage(
   overrides?: Partial<ArtifactStoragePort>,
 ): ArtifactStoragePort & { setSessionId(id: string | null): void } {
   return {
-    createOrUpdate: vi.fn(),
+    put: vi.fn(),
     get: vi.fn().mockResolvedValue(null),
     list: vi.fn().mockResolvedValue([]),
     delete: vi.fn(),
+    clearAll: vi.fn(),
+    setSessionId: () => undefined,
+    createOrUpdate: vi.fn(),
     saveFile: vi.fn(),
     getFile: vi.fn().mockResolvedValue(null),
     listFiles: vi.fn().mockResolvedValue([]),
     deleteFile: vi.fn(),
-    clearAll: vi.fn(),
-    setSessionId: () => undefined,
     ...overrides,
   };
 }
@@ -34,8 +35,25 @@ describe("ArtifactSlice", () => {
 
   it("loadArtifacts で JSON + ファイル一覧を取得してマージする", async () => {
     const storage = makeStorage({
-      list: vi.fn().mockResolvedValue(["result.json"]),
-      listFiles: vi.fn().mockResolvedValue(["photo.png", "result.json"]),
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "result.json",
+          kind: "json",
+          size: 10,
+          visible: true,
+          createdAt: 1,
+          updatedAt: 2,
+        },
+        {
+          name: "photo.png",
+          kind: "file",
+          mimeType: "image/png",
+          size: 20,
+          visible: true,
+          createdAt: 1,
+          updatedAt: 3,
+        },
+      ]),
     });
     initStore(storage);
     await useStore.getState().loadArtifacts();
@@ -48,8 +66,25 @@ describe("ArtifactSlice", () => {
 
   it("loadArtifacts で型が正しく設定される", async () => {
     const storage = makeStorage({
-      list: vi.fn().mockResolvedValue(["data.json"]),
-      listFiles: vi.fn().mockResolvedValue(["photo.png"]),
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "data.json",
+          kind: "json",
+          size: 10,
+          visible: true,
+          createdAt: 1,
+          updatedAt: 2,
+        },
+        {
+          name: "photo.png",
+          kind: "file",
+          mimeType: "image/png",
+          size: 20,
+          visible: true,
+          createdAt: 1,
+          updatedAt: 3,
+        },
+      ]),
     });
     initStore(storage);
     await useStore.getState().loadArtifacts();
@@ -60,10 +95,54 @@ describe("ArtifactSlice", () => {
     expect(artifacts.find((a) => a.name === "photo.png")?.source).toBe("file");
   });
 
+  it("loadArtifacts で visible false の artifact を除外する", async () => {
+    const storage = makeStorage({
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "hidden.json",
+          kind: "json",
+          size: 10,
+          visible: false,
+          createdAt: 1,
+          updatedAt: 2,
+        },
+        {
+          name: "shown.png",
+          kind: "file",
+          mimeType: "image/png",
+          size: 20,
+          visible: true,
+          createdAt: 1,
+          updatedAt: 3,
+        },
+      ]),
+    });
+    initStore(storage);
+
+    await useStore.getState().loadArtifacts();
+
+    expect(useStore.getState().artifacts).toStrictEqual([
+      {
+        name: "shown.png",
+        type: "image",
+        source: "file",
+        updatedAt: 3,
+      },
+    ]);
+  });
+
   it("selectArtifact で選択中ファイルを設定できる", async () => {
     const storage = makeStorage({
-      list: vi.fn().mockResolvedValue(["data.json"]),
-      listFiles: vi.fn().mockResolvedValue([]),
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "data.json",
+          kind: "json",
+          size: 10,
+          visible: true,
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      ]),
     });
     initStore(storage);
     await useStore.getState().loadArtifacts();
@@ -74,8 +153,16 @@ describe("ArtifactSlice", () => {
   it("removeArtifact で JSON アーティファクトを削除する", async () => {
     const deleteFn = vi.fn();
     const storage = makeStorage({
-      list: vi.fn().mockResolvedValue(["data.json"]),
-      listFiles: vi.fn().mockResolvedValue([]),
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "data.json",
+          kind: "json",
+          size: 10,
+          visible: true,
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      ]),
       delete: deleteFn,
     });
     initStore(storage);
@@ -87,38 +174,72 @@ describe("ArtifactSlice", () => {
     expect(useStore.getState().selectedArtifact).toBeNull();
   });
 
-  it("removeArtifact で画像ファイルを deleteFile で削除する", async () => {
-    const deleteFileFn = vi.fn();
+  it("removeArtifact で画像ファイルを削除する", async () => {
+    const deleteFn = vi.fn();
     const storage = makeStorage({
-      list: vi.fn().mockResolvedValue([]),
-      listFiles: vi.fn().mockResolvedValue(["photo.png"]),
-      deleteFile: deleteFileFn,
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "photo.png",
+          kind: "file",
+          mimeType: "image/png",
+          size: 20,
+          visible: true,
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      ]),
+      delete: deleteFn,
     });
     initStore(storage);
     await useStore.getState().loadArtifacts();
     await useStore.getState().removeArtifact("photo.png");
-    expect(deleteFileFn).toHaveBeenCalledWith("photo.png");
+    expect(deleteFn).toHaveBeenCalledWith("photo.png");
     expect(useStore.getState().artifacts).toHaveLength(0);
   });
 
-  it("removeArtifact で markdown ファイルを deleteFile で削除する", async () => {
-    const deleteFileFn = vi.fn();
+  it("removeArtifact で markdown ファイルを削除する", async () => {
+    const deleteFn = vi.fn();
     const storage = makeStorage({
-      list: vi.fn().mockResolvedValue([]),
-      listFiles: vi.fn().mockResolvedValue(["report.md"]),
-      deleteFile: deleteFileFn,
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "report.md",
+          kind: "file",
+          mimeType: "text/markdown",
+          size: 20,
+          visible: true,
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      ]),
+      delete: deleteFn,
     });
     initStore(storage);
     await useStore.getState().loadArtifacts();
     await useStore.getState().removeArtifact("report.md");
-    expect(deleteFileFn).toHaveBeenCalledWith("report.md");
+    expect(deleteFn).toHaveBeenCalledWith("report.md");
     expect(useStore.getState().artifacts).toHaveLength(0);
   });
 
   it("removeArtifact で選択中でないアーティファクトを削除しても selectedArtifact は変わらない", async () => {
     const storage = makeStorage({
-      list: vi.fn().mockResolvedValue(["a.json", "b.json"]),
-      listFiles: vi.fn().mockResolvedValue([]),
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "a.json",
+          kind: "json",
+          size: 10,
+          visible: true,
+          createdAt: 1,
+          updatedAt: 2,
+        },
+        {
+          name: "b.json",
+          kind: "json",
+          size: 10,
+          visible: true,
+          createdAt: 1,
+          updatedAt: 3,
+        },
+      ]),
       delete: vi.fn(),
     });
     initStore(storage);
@@ -131,8 +252,16 @@ describe("ArtifactSlice", () => {
   it("clearArtifacts で UI 状態のみクリアする（ストレージは消さない）", async () => {
     const clearAllFn = vi.fn();
     const storage = makeStorage({
-      list: vi.fn().mockResolvedValue(["data.json"]),
-      listFiles: vi.fn().mockResolvedValue([]),
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "data.json",
+          kind: "json",
+          size: 10,
+          visible: true,
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      ]),
       clearAll: clearAllFn,
     });
     initStore(storage);

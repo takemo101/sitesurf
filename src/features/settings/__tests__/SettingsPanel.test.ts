@@ -14,16 +14,17 @@ import { loadSettings } from "../persistence";
 import { SettingsPanel } from "../SettingsPanel";
 
 const mockArtifactStorage = {
-  createOrUpdate: async () => {},
+  put: async () => {},
   get: async () => null,
   list: async () => [],
   delete: async () => {},
+  clearAll: async () => {},
+  setSessionId: () => {},
+  createOrUpdate: async () => {},
   saveFile: async () => {},
   getFile: async () => null,
   listFiles: async () => [],
   deleteFile: async () => {},
-  clearAll: async () => {},
-  setSessionId: () => {},
 };
 
 function createDeps(storage: InMemoryStorage): AppDeps {

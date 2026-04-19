@@ -40,6 +40,7 @@ interface ArtifactData {
 export function ArtifactPanel() {
   const artifacts = useStore((s) => s.artifacts);
   const selectedArtifact = useStore((s) => s.selectedArtifact);
+  const activeSessionId = useStore((s) => s.activeSessionId);
   const setArtifactPanelOpen = useStore((s) => s.setArtifactPanelOpen);
   const selectArtifact = useStore((s) => s.selectArtifact);
   const removeArtifact = useStore((s) => s.removeArtifact);
@@ -83,6 +84,14 @@ export function ArtifactPanel() {
     loadingRef.current = loading;
   }, [loading]);
 
+  useEffect(() => {
+    loadVersionRef.current += 1;
+    artifactDataRef.current = new Map();
+    loadingRef.current = new Set();
+    setArtifactData(new Map());
+    setLoading(new Set());
+  }, [activeSessionId]);
+
   // Scroll selected tab into view
   useEffect(() => {
     if (selectedArtifact && tabListRef.current) {
@@ -114,23 +123,18 @@ export function ArtifactPanel() {
         try {
           let content: string | object;
           let mimeType: string | undefined;
-          // Use source (not type) to determine how to load content
-          if (artifact.source === "json") {
-            content = (await deps.artifactStorage.get(artifact.name)) ?? {};
-          } else {
-            const file = await deps.artifactStorage.getFile(artifact.name);
-            if (file) {
-              mimeType = file.mimeType;
-              if (artifact.type === "image") {
-                content = toDataUrl(file.mimeType, file.contentBase64);
-              } else {
-                content = new TextDecoder().decode(
-                  Uint8Array.from(atob(file.contentBase64), (c) => c.charCodeAt(0)),
-                );
-              }
+          const value = await deps.artifactStorage.get(artifact.name);
+          if (value?.kind === "json") {
+            content = value.data ?? {};
+          } else if (value?.kind === "file") {
+            mimeType = value.mimeType;
+            if (artifact.type === "image") {
+              content = toDataUrl(value.mimeType, value.bytes);
             } else {
-              content = "";
+              content = new TextDecoder().decode(value.bytes);
             }
+          } else {
+            content = "";
           }
           if (loadVersion !== loadVersionRef.current) return;
           if (latestByName.get(artifact.name)?.updatedAt !== artifact.updatedAt) continue;
@@ -145,8 +149,7 @@ export function ArtifactPanel() {
             });
             return next;
           });
-        } catch (e) {
-          console.error("Failed to load artifact:", artifact.name, e);
+        } catch {
         } finally {
           loadingRef.current = new Set(loadingRef.current);
           loadingRef.current.delete(artifact.name);
@@ -447,6 +450,10 @@ export function ArtifactPanel() {
   );
 }
 
-function toDataUrl(mimeType: string, contentBase64: string): string {
-  return `data:${mimeType};base64,${contentBase64}`;
+function toDataUrl(mimeType: string, bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return `data:${mimeType};base64,${btoa(binary)}`;
 }

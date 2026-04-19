@@ -7,16 +7,17 @@ import type { ArtifactStoragePort } from "@/ports/artifact-storage";
 import { DEFAULT_MAX_TOKENS } from "@/shared/token-constants";
 
 const mockArtifactStorage: ArtifactStoragePort & { setSessionId(id: string | null): void } = {
-  createOrUpdate: async () => {},
+  put: async () => {},
   get: async () => null,
   list: async () => [],
   delete: async () => {},
+  clearAll: async () => {},
+  setSessionId: () => {},
+  createOrUpdate: async () => {},
   saveFile: async () => {},
   getFile: async () => null,
   listFiles: async () => [],
   deleteFile: async () => {},
-  clearAll: async () => {},
-  setSessionId: () => {},
 };
 
 function resetStore() {

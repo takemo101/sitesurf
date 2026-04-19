@@ -180,24 +180,26 @@ function arrayBufferToBase64(bytes) {
       switch (action) {
         case "createOrUpdateArtifact": {
           const { name, data } = request as unknown as { name: string; data: unknown };
-          await artifactStorage.createOrUpdate(name, data);
+          await artifactStorage.put(name, { kind: "json", data });
           return ok({ success: true, name });
         }
 
         case "getArtifact": {
           const { name } = request as unknown as { name: string };
-          const data = await artifactStorage.get(name);
-          if (data === null) {
+          const artifact = await artifactStorage.get(name);
+          if (artifact === null || artifact.kind !== "json") {
             return err({
               code: "tool_script_error",
               message: `Artifact '${name}' not found`,
             });
           }
-          return ok(data);
+          return ok(artifact.data);
         }
 
         case "listArtifacts": {
-          const list = await artifactStorage.list();
+          const list = (await artifactStorage.list())
+            .filter((artifact) => artifact.kind === "json")
+            .map((artifact) => artifact.name);
           return ok(list);
         }
 
@@ -213,7 +215,11 @@ function arrayBufferToBase64(bytes) {
             contentBase64: string;
             mimeType: string;
           };
-          await artifactStorage.saveFile(name, contentBase64, mimeType);
+          await artifactStorage.put(name, {
+            kind: "file",
+            bytes: base64ToBytes(contentBase64),
+            mimeType,
+          });
           return ok({
             success: true,
             fileName: name,
@@ -234,4 +240,8 @@ function arrayBufferToBase64(bytes) {
       });
     }
   }
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
 }
