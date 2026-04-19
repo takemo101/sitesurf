@@ -266,6 +266,7 @@ async function handleSandboxRequest(
   signal?: AbortSignal,
   onReturnFile?: (name: string) => void,
   onCreateOrUpdateArtifact?: (name: string) => void,
+  skillMatches?: readonly SkillMatch[],
 ): Promise<void> {
   const registry = getProviderRegistry();
   const provider = registry.getProvider(msg.action);
@@ -286,7 +287,7 @@ async function handleSandboxRequest(
   try {
     const result = await provider.handleRequest(
       { ...msg, id: msg.id, action: msg.action },
-      { browser, artifactStorage, signal },
+      { browser, artifactStorage, signal, skillMatches },
     );
 
     if (result.ok) {
@@ -409,6 +410,7 @@ export async function executeRepl(
           signal,
           (name) => returnedFileNames.add(name),
           onArtifactCreated,
+          skillMatches,
         );
         return;
       }

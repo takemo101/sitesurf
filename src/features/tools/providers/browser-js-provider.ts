@@ -1,6 +1,26 @@
 import type { RuntimeProvider, SandboxRequest, ProviderContext } from "@/ports/runtime-provider";
 import type { Result, ToolError } from "@/shared/errors";
 import { ok, err } from "@/shared/errors";
+import type { SkillMatch } from "@/shared/skill-types";
+
+/**
+ * skillMatches から target page の window に extractor を載せるための JS を組み立てる。
+ * 例: `window["youtube"]["getVideoInfo"] = (function () { ... });`
+ * hyphen などを含む id でも壊れないよう bracket notation と JSON.stringify を使う。
+ */
+export function buildSkillInjection(skillMatches?: readonly SkillMatch[]): string {
+  if (!skillMatches || skillMatches.length === 0) return "";
+  const lines: string[] = [];
+  for (const match of skillMatches) {
+    const sid = JSON.stringify(match.skill.id);
+    lines.push(`window[${sid}] = window[${sid}] || {};`);
+    for (const ext of match.availableExtractors) {
+      const eid = JSON.stringify(ext.id);
+      lines.push(`window[${sid}][${eid}] = (${ext.code});`);
+    }
+  }
+  return lines.join("\n");
+}
 
 /**
  * BrowserJsProvider - browserjs() 機能の提供
@@ -88,7 +108,7 @@ function browserjs(fn, ...args) {
     request: SandboxRequest,
     context: ProviderContext,
   ): Promise<Result<unknown, ToolError>> {
-    const { browser, signal } = context;
+    const { browser, signal, skillMatches } = context;
     const { code, args } = request as unknown as { code: string; args: unknown[] };
 
     try {
@@ -98,7 +118,9 @@ function browserjs(fn, ...args) {
       }
 
       const serializedArgs = (args || []).map((a) => JSON.stringify(a)).join(", ");
+      const skillInjection = buildSkillInjection(skillMatches);
       const scriptCode = `(async () => {
+        ${skillInjection}
         const fn = ${code};
         return await fn(${serializedArgs});
       })()`;
