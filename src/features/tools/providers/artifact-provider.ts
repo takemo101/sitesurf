@@ -1,57 +1,72 @@
+import type { ArtifactValue } from "@/ports/artifact-storage";
 import type { RuntimeProvider, SandboxRequest, ProviderContext } from "@/ports/runtime-provider";
+import { getMimeType } from "@/shared/artifact-mime";
 import type { Result, ToolError } from "@/shared/errors";
 import { ok, err } from "@/shared/errors";
 
 /**
- * ArtifactProvider - Artifact Functions の提供
+ * ArtifactProvider - Artifact Functions の提供 (ADR-007)
  *
- * JSONデータの永続化ストレージを提供する。
+ * AI は `saveArtifact / getArtifact / listArtifacts / deleteArtifact` の 4 helper で
+ * JSON 値・ファイルを同一ネームスペースで扱う。旧 `createOrUpdateArtifact` /
+ * `returnFile` は deprecation wrapper として残し、内部で `saveArtifact` へ forward する。
  */
 export class ArtifactProvider implements RuntimeProvider {
   readonly actions = [
-    "createOrUpdateArtifact",
+    "saveArtifact",
     "getArtifact",
     "listArtifacts",
     "deleteArtifact",
+    // Legacy action names still accepted; wrapper helpers ride on them as a safety net
+    // even though the emitted runtime now sends only the new names.
+    "createOrUpdateArtifact",
     "returnFile",
   ] as const;
 
   getDescription(): string {
     return `## Artifact Functions (Data Persistence)
 
-Store and retrieve JSON data across REPL executions:
+Artifacts persist across REPL executions in a single unified store. Save JSON
+values, text, or binary bytes with the same API.
 
-- \`await createOrUpdateArtifact(name, data)\` - Save JSON data
-- \`await getArtifact(name)\` - Retrieve saved data
-- \`await listArtifacts()\` - List all artifact names
-- \`await deleteArtifact(name)\` - Delete an artifact
+- \`await saveArtifact(name, data, options?)\` — save anything
+  - \`data\`: object/array/number → JSON; \`Uint8Array\` → binary file;
+    \`string\` + \`options.mimeType\` or \`name\` has extension → file (UTF-8); otherwise → JSON string
+  - \`options.mimeType\`: override inferred MIME (e.g. "text/plain")
+  - \`options.visible\`: \`false\` keeps it out of the UI Artifact Panel (scratch data)
+- \`await getArtifact(name)\` — returns \`{ kind: "json", data }\` or \`{ kind: "file", bytes, mimeType }\`
+- \`await listArtifacts()\` — returns \`[{ name, kind, mimeType?, size, visible, createdAt, updatedAt }, ...]\`
+- \`await deleteArtifact(name)\` — delete (any kind)
 
 \`\`\`javascript
-// Save scraping results
-await createOrUpdateArtifact("products", [{ name: "A" }, { name: "B" }]);
+// JSON
+await saveArtifact("products", [{ name: "A" }]);
+const result = await getArtifact("products");
+// result => { kind: "json", data: [{ name: "A" }] }
 
-// Retrieve in another script
-const products = await getArtifact("products");
+// HTML (string + extension → file)
+await saveArtifact("report.html", "<!doctype html><h1>ok</h1>");
+
+// Binary
+await saveArtifact("icon.png", new Uint8Array([...]), { mimeType: "image/png" });
+
+// Scratch data (hidden from UI)
+await saveArtifact("_debug", logEntries, { visible: false });
+
+// Inspect what you have
+const items = await listArtifacts();
+// items => [{ name: "products", kind: "json", size: 24, visible: true, ... }, ...]
 \`\`\`
 
-## File Functions
+### Deprecated (will be removed in a future release)
 
-Return files to the AI:
-
-- \`await returnFile(name, content, mimeType)\`
-  - name: filename (e.g., "data.csv")
-  - content: string or Uint8Array
-  - mimeType: e.g., "text/csv", "application/pdf"
-
-\`\`\`javascript
-const csv = "name,price\\nA,100\\nB,200";
-await returnFile("products.csv", csv, "text/csv");
-\`\`\``;
+- \`createOrUpdateArtifact(name, data)\` → use \`saveArtifact(name, data)\`
+- \`returnFile(name, content, mimeType)\` → use \`saveArtifact(name, content, { mimeType })\``;
   }
 
   getRuntimeCode(): string {
     return `
-function createOrUpdateArtifact(name, data) {
+function __artifactRequest(action, payload) {
   return new Promise((resolve, reject) => {
     const id = 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
     const handler = (event) => {
@@ -65,107 +80,41 @@ function createOrUpdateArtifact(name, data) {
       }
     };
     window.addEventListener('message', handler);
-    window.parent.postMessage({ type: 'sandbox-request', id, action: 'createOrUpdateArtifact', name, data }, '*');
+    window.parent.postMessage({ type: 'sandbox-request', id, action, ...payload }, '*');
+  });
+}
+
+function saveArtifact(name, data, options) {
+  const opts = options || {};
+  return __artifactRequest('saveArtifact', {
+    name,
+    data,
+    mimeType: opts.mimeType,
+    visible: opts.visible,
   });
 }
 
 function getArtifact(name) {
-  return new Promise((resolve, reject) => {
-    const id = 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    const handler = (event) => {
-      if (event.data?.type === 'sandbox-response' && event.data.id === id) {
-        window.removeEventListener('message', handler);
-        if (event.data.ok) {
-          resolve(event.data.value);
-        } else {
-          reject(new Error(event.data.error));
-        }
-      }
-    };
-    window.addEventListener('message', handler);
-    window.parent.postMessage({ type: 'sandbox-request', id, action: 'getArtifact', name }, '*');
-  });
+  return __artifactRequest('getArtifact', { name });
 }
 
 function listArtifacts() {
-  return new Promise((resolve, reject) => {
-    const id = 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    const handler = (event) => {
-      if (event.data?.type === 'sandbox-response' && event.data.id === id) {
-        window.removeEventListener('message', handler);
-        if (event.data.ok) {
-          resolve(event.data.value);
-        } else {
-          reject(new Error(event.data.error));
-        }
-      }
-    };
-    window.addEventListener('message', handler);
-    window.parent.postMessage({ type: 'sandbox-request', id, action: 'listArtifacts' }, '*');
-  });
+  return __artifactRequest('listArtifacts', {});
 }
 
 function deleteArtifact(name) {
-  return new Promise((resolve, reject) => {
-    const id = 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    const handler = (event) => {
-      if (event.data?.type === 'sandbox-response' && event.data.id === id) {
-        window.removeEventListener('message', handler);
-        if (event.data.ok) {
-          resolve(event.data.value);
-        } else {
-          reject(new Error(event.data.error));
-        }
-      }
-    };
-    window.addEventListener('message', handler);
-    window.parent.postMessage({ type: 'sandbox-request', id, action: 'deleteArtifact', name }, '*');
-  });
+  return __artifactRequest('deleteArtifact', { name });
+}
+
+// --- Deprecated helpers (forward to saveArtifact) ---
+function createOrUpdateArtifact(name, data) {
+  console.warn('createOrUpdateArtifact() is deprecated; use saveArtifact(name, data).');
+  return saveArtifact(name, data);
 }
 
 function returnFile(name, content, mimeType) {
-  return new Promise((resolve, reject) => {
-    const id = 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    const handler = (event) => {
-      if (event.data?.type === 'sandbox-response' && event.data.id === id) {
-        window.removeEventListener('message', handler);
-        if (event.data.ok) {
-          resolve(event.data.value);
-        } else {
-          reject(new Error(event.data.error));
-        }
-      }
-    };
-    window.addEventListener('message', handler);
-    const bytes = toUtf8Bytes(content);
-    const size = bytes.byteLength;
-    const contentBase64 = arrayBufferToBase64(bytes);
-    window.parent.postMessage({ type: 'sandbox-request', id, action: 'returnFile', name, contentBase64, mimeType, size }, '*');
-  });
-}
-
-function toUtf8Bytes(content) {
-  if (typeof content === 'string') {
-    return new TextEncoder().encode(content);
-  }
-
-  if (content instanceof Uint8Array) {
-    return content;
-  }
-
-  if (ArrayBuffer.isView(content)) {
-    return new Uint8Array(content.buffer, content.byteOffset, content.byteLength);
-  }
-
-  return new Uint8Array(content);
-}
-
-function arrayBufferToBase64(bytes) {
-  let binary = '';
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
+  console.warn('returnFile() is deprecated; use saveArtifact(name, content, { mimeType }).');
+  return saveArtifact(name, content, { mimeType });
 }`;
   }
 
@@ -178,34 +127,44 @@ function arrayBufferToBase64(bytes) {
 
     try {
       switch (action) {
-        case "createOrUpdateArtifact": {
-          const { name, data } = request as unknown as { name: string; data: unknown };
-          await artifactStorage.put(name, { kind: "json", data });
-          return ok({ success: true, name });
+        case "saveArtifact": {
+          const { name, data, mimeType, visible } = request as unknown as {
+            name: string;
+            data: unknown;
+            mimeType?: string;
+            visible?: boolean;
+          };
+          const value = inferArtifactValue(name, data, mimeType);
+          await artifactStorage.put(name, value, visible === undefined ? undefined : { visible });
+          return ok({ success: true, name, kind: value.kind });
         }
 
         case "getArtifact": {
           const { name } = request as unknown as { name: string };
           const artifact = await artifactStorage.get(name);
-          if (artifact === null || artifact.kind !== "json") {
+          if (artifact === null) {
             return err({
               code: "tool_script_error",
               message: `Artifact '${name}' not found`,
             });
           }
-          return ok(artifact.data);
+          return ok(artifact);
         }
 
         case "listArtifacts": {
-          const list = (await artifactStorage.list())
-            .filter((artifact) => artifact.kind === "json")
-            .map((artifact) => artifact.name);
-          return ok(list);
+          return ok(await artifactStorage.list());
         }
 
         case "deleteArtifact": {
           const { name } = request as unknown as { name: string };
           await artifactStorage.delete(name);
+          return ok({ success: true, name });
+        }
+
+        // --- Legacy wire protocol (no longer emitted by getRuntimeCode, kept for safety) ---
+        case "createOrUpdateArtifact": {
+          const { name, data } = request as unknown as { name: string; data: unknown };
+          await artifactStorage.put(name, { kind: "json", data });
           return ok({ success: true, name });
         }
 
@@ -240,6 +199,41 @@ function arrayBufferToBase64(bytes) {
       });
     }
   }
+}
+
+/**
+ * saveArtifact の自動型判別:
+ * - Uint8Array → file (mimeType 指定なければ拡張子から推測)
+ * - string かつ mimeType 指定あり → file
+ * - string かつ name に拡張子あり → file (mimeType は拡張子から)
+ * - それ以外 (object / array / primitive / 拡張子なしの string) → json
+ */
+export function inferArtifactValue(
+  name: string,
+  data: unknown,
+  mimeType: string | undefined,
+): ArtifactValue {
+  if (data instanceof Uint8Array) {
+    return {
+      kind: "file",
+      bytes: data,
+      mimeType: mimeType ?? getMimeType(name),
+    };
+  }
+
+  if (typeof data === "string" && (mimeType || hasFileExtension(name))) {
+    return {
+      kind: "file",
+      bytes: new TextEncoder().encode(data),
+      mimeType: mimeType ?? getMimeType(name),
+    };
+  }
+
+  return { kind: "json", data };
+}
+
+function hasFileExtension(name: string): boolean {
+  return /\.[^./\\]+$/.test(name);
 }
 
 function base64ToBytes(base64: string): Uint8Array {
