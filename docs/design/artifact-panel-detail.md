@@ -57,7 +57,7 @@ export type ArtifactKind = "json" | "file";
 export interface ArtifactMeta {
   name: string;
   kind: ArtifactKind;
-  mimeType?: string;  // kind === "file" のみ
+  mimeType?: string; // kind === "file" のみ
   size: number;
   visible: boolean;
   createdAt: number;
@@ -75,8 +75,6 @@ export interface ArtifactStoragePort {
   delete(name: string): Promise<void>;
   setSessionId(sessionId: string | null): void;
   clearAll(): Promise<void>;
-  // 以下は deprecation wrapper (v0.1.7 で削除予定 / #137)
-  createOrUpdate / saveFile / getFile / listFiles / deleteFile
 }
 ```
 

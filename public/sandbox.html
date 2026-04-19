@@ -82,29 +82,6 @@
         return sendToParent("deleteArtifact", { name });
       }
 
-      // Deprecated helpers (forward to saveArtifact)
-      async function createOrUpdateArtifact(name, data) {
-        console.warn("createOrUpdateArtifact() is deprecated; use saveArtifact(name, data).");
-        return saveArtifact(name, data);
-      }
-
-      // File return function (deprecated; forwards to saveArtifact)
-      async function returnFile(name, content, mimeType) {
-        console.warn(
-          "returnFile() is deprecated; use saveArtifact(name, content, { mimeType }).",
-        );
-        if (typeof name !== "string" || !name) {
-          throw new Error("File name must be a non-empty string");
-        }
-        if (!mimeType || typeof mimeType !== "string") {
-          throw new Error("MIME type is required");
-        }
-        if (typeof content !== "string" && !(content instanceof Uint8Array)) {
-          throw new Error("Content must be string or Uint8Array");
-        }
-        return saveArtifact(name, content, { mimeType });
-      }
-
       // Native input functions (for bot-resistant sites)
       async function nativeClick(selector, options) {
         if (typeof selector !== "string" || !selector) {
@@ -263,8 +240,6 @@
               "getArtifact",
               "listArtifacts",
               "deleteArtifact",
-              "createOrUpdateArtifact",
-              "returnFile",
               "nativeClick",
               "nativeDoubleClick",
               "nativeRightClick",
@@ -290,8 +265,6 @@
               getArtifact,
               listArtifacts,
               deleteArtifact,
-              createOrUpdateArtifact,
-              returnFile,
               nativeClick,
               nativeDoubleClick,
               nativeRightClick,

@@ -268,12 +268,10 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
  */
 /**
  * REPL tool result UI の "Files" セクションに載せるべき保存アクションかを判定する。
- * - legacy `returnFile` は常に file (action 自体が file 専用)
- * - 新 `saveArtifact` は自動型判別なので、provider の返した `kind === "file"` の時だけ拾う
- *   (kind: "json" を含めると REPL 内の単なる state 保存が毎回 "Files" に出てしまう)
+ * `saveArtifact` の自動型判別で `kind === "file"` になったものだけ拾う。
+ * (kind: "json" を含めると REPL 内の単なる state 保存が毎回 "Files" に出てしまう)
  */
 export function isFileSaveAction(action: string, resultValue: unknown): boolean {
-  if (action === "returnFile") return true;
   if (action !== "saveArtifact") return false;
   if (typeof resultValue !== "object" || resultValue === null) return false;
   return (resultValue as { kind?: unknown }).kind === "file";

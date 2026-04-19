@@ -16,11 +16,6 @@ function makeStorage(): ArtifactStoragePort {
     delete: vi.fn(),
     clearAll: vi.fn(),
     setSessionId: vi.fn(),
-    createOrUpdate: vi.fn(),
-    saveFile: vi.fn(),
-    getFile: vi.fn(),
-    listFiles: vi.fn().mockResolvedValue([]),
-    deleteFile: vi.fn(),
   };
 }
 

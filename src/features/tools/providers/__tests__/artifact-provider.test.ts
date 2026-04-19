@@ -178,20 +178,20 @@ describe("ArtifactProvider.handleRequest", () => {
     });
   });
 
-  describe("deprecated wire protocol", () => {
-    it("still accepts createOrUpdateArtifact and routes to json", async () => {
+  describe("legacy wire protocol (removed in v0.1.7)", () => {
+    it("createOrUpdateArtifact は Unknown action エラーになる", async () => {
       const result = await provider.handleRequest(
         { id: "1", action: "createOrUpdateArtifact", name: "legacy", data: { foo: 1 } },
         ctx,
       );
-      expect(result.ok).toBe(true);
-      const stored = await storage.get("legacy");
-      expect(stored).toEqual({ kind: "json", data: { foo: 1 } });
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.message).toContain("Unknown artifact action");
     });
 
-    it("still accepts returnFile (base64) and routes to file", async () => {
+    it("returnFile は Unknown action エラーになる", async () => {
       const contentBase64 = btoa("hello");
-      await provider.handleRequest(
+      const result = await provider.handleRequest(
         {
           id: "1",
           action: "returnFile",
@@ -201,11 +201,9 @@ describe("ArtifactProvider.handleRequest", () => {
         },
         ctx,
       );
-      const stored = await storage.get("legacy.txt");
-      expect(stored?.kind).toBe("file");
-      if (stored?.kind !== "file") return;
-      expect(new TextDecoder().decode(stored.bytes)).toBe("hello");
-      expect(stored.mimeType).toBe("text/plain");
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.message).toContain("Unknown artifact action");
     });
   });
 
