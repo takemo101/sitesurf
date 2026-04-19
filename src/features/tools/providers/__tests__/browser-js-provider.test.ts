@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { BrowserJsProvider } from "../browser-js-provider";
+import { BrowserJsProvider, buildSkillInjection } from "../browser-js-provider";
 import type { BrowserExecutor, ScriptResult, TabInfo } from "@/ports/browser-executor";
 import type { ProviderContext } from "@/ports/runtime-provider";
 import type { Result, ToolError } from "@/shared/errors";
+import type { SkillMatch } from "@/shared/skill-types";
 import { ok, err } from "@/shared/errors";
 
 type ExecuteScriptResult = Result<ScriptResult, ToolError>;
@@ -82,5 +83,110 @@ describe("BrowserJsProvider.handleRequest", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.message).toContain("timeout");
+  });
+
+  it("prepends skill extractor injection so window[skillId][extractorId] is callable", async () => {
+    let receivedCode = "";
+    const browser = makeBrowser(async () => ok({ value: "ok" }));
+    (browser.executeScript as unknown) = vi.fn(async (_tabId: number, code: string) => {
+      receivedCode = code;
+      return ok({ value: "ok" });
+    });
+
+    const skillMatches: SkillMatch[] = [
+      {
+        skill: {
+          id: "x-post-helper",
+          name: "X Post Helper",
+          description: "X投稿フォーム操作",
+          matchers: { hosts: ["x.com"] },
+          version: "1.0.0",
+          extractors: [
+            {
+              id: "check-post-form",
+              name: "Check Post Form",
+              description: "投稿フォーム存在確認",
+              code: "function () { return !!document.querySelector('[data-testid=\"tweetTextarea_0\"]'); }",
+              outputSchema: "boolean",
+            },
+          ],
+        },
+        availableExtractors: [
+          {
+            id: "check-post-form",
+            name: "Check Post Form",
+            description: "投稿フォーム存在確認",
+            code: "function () { return !!document.querySelector('[data-testid=\"tweetTextarea_0\"]'); }",
+            outputSchema: "boolean",
+          },
+        ],
+        confidence: 100,
+      },
+    ];
+
+    const provider = new BrowserJsProvider();
+    await provider.handleRequest(
+      {
+        id: "req-5",
+        action: "browserjs",
+        code: '() => window["x-post-helper"]["check-post-form"]()',
+        args: [],
+      },
+      { ...makeContext(browser), skillMatches },
+    );
+
+    expect(receivedCode).toContain('window["x-post-helper"] = window["x-post-helper"] || {};');
+    expect(receivedCode).toContain('window["x-post-helper"]["check-post-form"] = (function ()');
+  });
+
+  it("does not inject anything when skillMatches is empty or undefined", async () => {
+    let receivedCode = "";
+    const browser = makeBrowser(async () => ok({ value: 1 }));
+    (browser.executeScript as unknown) = vi.fn(async (_tabId: number, code: string) => {
+      receivedCode = code;
+      return ok({ value: 1 });
+    });
+
+    const provider = new BrowserJsProvider();
+    await provider.handleRequest(
+      { id: "req-6", action: "browserjs", code: "() => 1", args: [] },
+      makeContext(browser),
+    );
+
+    expect(receivedCode).not.toContain("window[");
+  });
+});
+
+describe("buildSkillInjection", () => {
+  it("returns empty string when no matches", () => {
+    expect(buildSkillInjection()).toBe("");
+    expect(buildSkillInjection([])).toBe("");
+  });
+
+  it("handles ids with hyphens via bracket notation", () => {
+    const injection = buildSkillInjection([
+      {
+        skill: {
+          id: "x-post-helper",
+          name: "X",
+          description: "x",
+          matchers: { hosts: ["x.com"] },
+          version: "1.0.0",
+          extractors: [],
+        },
+        availableExtractors: [
+          {
+            id: "check-post-form",
+            name: "c",
+            description: "d",
+            code: "function () { return 1; }",
+            outputSchema: "number",
+          },
+        ],
+        confidence: 100,
+      },
+    ]);
+    expect(injection).toContain('window["x-post-helper"]["check-post-form"]');
+    expect(injection).toContain("(function () { return 1; })");
   });
 });

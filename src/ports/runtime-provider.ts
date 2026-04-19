@@ -1,6 +1,7 @@
 import type { BrowserExecutor } from "@/ports/browser-executor";
 import type { ArtifactStoragePort } from "@/ports/artifact-storage";
 import type { Result, ToolError } from "@/shared/errors";
+import type { SkillMatch } from "@/shared/skill-types";
 
 /**
  * RuntimeProviderパターン - 各機能を独立したProviderとして実装
@@ -41,6 +42,9 @@ export interface ProviderContext {
   browser: BrowserExecutor;
   artifactStorage: ArtifactStoragePort;
   signal?: AbortSignal;
+  // browserjs() 実行前に target page の window に skill extractor を注入するために使う。
+  // 現在タブの URL にマッチした skill のみが渡される想定。
+  skillMatches?: readonly SkillMatch[];
 }
 
 /**
