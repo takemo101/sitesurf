@@ -49,6 +49,35 @@ export async function executeExtractImage(
   return extractElementImage(browser, args.selector, maxWidth);
 }
 
+export type ExtractImagesItem =
+  | ({ ok: true; selector: string } & ExtractImageResult)
+  | { ok: false; selector: string; error: string };
+
+export interface ExtractImagesResult {
+  images: ExtractImagesItem[];
+}
+
+/**
+ * 複数セレクタの画像を 1 回のツール呼び出しで順に抽出する。個別の失敗は
+ * items に `{ok: false, error}` として残し、全体としては成功を返す。
+ */
+export async function executeExtractImages(
+  browser: BrowserExecutor,
+  args: { selectors: string[]; maxWidth?: number },
+): Promise<Result<ExtractImagesResult, ToolError>> {
+  const maxWidth = args.maxWidth ?? 800;
+  const items: ExtractImagesItem[] = [];
+  for (const selector of args.selectors) {
+    const r = await extractElementImage(browser, selector, maxWidth);
+    if (r.ok) {
+      items.push({ ok: true, selector, ...r.value });
+    } else {
+      items.push({ ok: false, selector, error: r.error.message });
+    }
+  }
+  return ok({ images: items });
+}
+
 async function extractElementImage(
   browser: BrowserExecutor,
   selector: string,
