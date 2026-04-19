@@ -5,18 +5,10 @@ import type {
   ArtifactValue,
 } from "@/ports/artifact-storage";
 import type { StoragePort } from "@/ports/storage";
-
-const GLOBAL_SESSION_KEY = "__global__";
-
-type StoredArtifact = ArtifactMeta & {
-  key: string;
-  sessionId: string | null;
-  data?: unknown;
-  bytes?: Uint8Array;
-};
+import { GLOBAL_SESSION_KEY, type StoredArtifactRecord } from "./artifact-record";
 
 export class InMemoryArtifactStorage implements ArtifactStoragePort {
-  private artifacts = new Map<string, StoredArtifact>();
+  private artifacts = new Map<string, StoredArtifactRecord>();
   private sessionId: string | null = null;
 
   async put(name: string, value: ArtifactValue, options?: { visible?: boolean }): Promise<void> {
