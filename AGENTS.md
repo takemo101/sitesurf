@@ -148,6 +148,7 @@ vp lint --fix     # lint 修正
   - [004-browserjs-script-execution](docs/decisions/004-browserjs-script-execution.md)
   - [005-extension-page-csp-constraints](docs/decisions/005-extension-page-csp-constraints.md)
   - [006-context-management-llm-compaction](docs/decisions/006-context-management-llm-compaction.md)
+  - [007-artifact-storage-unification](docs/decisions/007-artifact-storage-unification.md)（提案中）
 
 ## 既知の制約
 
