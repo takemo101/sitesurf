@@ -21,6 +21,7 @@ import {
   Eye,
   FileCode,
   Image as ImageIcon,
+  MousePointerClick,
   Terminal,
   X,
   Zap,
@@ -659,7 +660,8 @@ function ExtractImageRendererView({ toolCall }: ToolRendererContext) {
             const mediaType = mediaTypeMatch?.[1]?.toLowerCase();
             const extension = mediaType === "jpeg" ? "jpg" : mediaType || "png";
             const timestamp = new Date().toISOString().replace(/[.:]/g, "-");
-            const filename = `sitesurf-extract-${timestamp}.${extension}`;
+            const prefix = isScreenshot ? "sitesurf-screenshot" : "sitesurf-extract";
+            const filename = `${prefix}-${timestamp}.${extension}`;
 
             try {
               setIsDownloading(true);
@@ -974,15 +976,163 @@ function InspectGenericFallbackView({ toolCall }: ToolRendererContext) {
   );
 }
 
+interface ParsedPickedElement {
+  selector: string;
+  tagName: string;
+  text: string;
+  attributes: Record<string, string>;
+}
+
+function parsePickedElement(result?: string): ParsedPickedElement | null {
+  if (!result) return null;
+  try {
+    const parsed = JSON.parse(result);
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      typeof parsed.selector === "string" &&
+      typeof parsed.tagName === "string"
+    ) {
+      return {
+        selector: parsed.selector,
+        tagName: parsed.tagName,
+        text: typeof parsed.text === "string" ? parsed.text : "",
+        attributes:
+          parsed.attributes && typeof parsed.attributes === "object"
+            ? (parsed.attributes as Record<string, string>)
+            : {},
+      };
+    }
+  } catch {
+    // fall through
+  }
+  return null;
+}
+
+function InspectPickElementView({ toolCall }: ToolRendererContext) {
+  const args = toolCall.args && typeof toolCall.args === "object" ? toolCall.args : {};
+  const message =
+    typeof (args as { message?: unknown }).message === "string"
+      ? (args as { message: string }).message
+      : null;
+
+  if (toolCall.isRunning) {
+    return (
+      <Paper
+        p="sm"
+        radius="md"
+        style={{
+          background: "var(--mantine-color-indigo-light)",
+          border: "1px solid var(--mantine-color-indigo-light-hover)",
+        }}
+      >
+        <Group gap="sm" align="flex-start">
+          <Loader size={14} />
+          <Box style={{ flex: 1 }}>
+            <Text size="sm" fw={600}>
+              Waiting for element selection...
+            </Text>
+            {message && (
+              <Text size="xs" c="dimmed" mt={2}>
+                {message}
+              </Text>
+            )}
+          </Box>
+        </Group>
+      </Paper>
+    );
+  }
+
+  const picked = parsePickedElement(toolCall.result);
+
+  if (!picked) {
+    // Cancelled or unexpected shape — fall back to JSON view
+    return <InspectGenericFallbackView toolCall={toolCall} consoleLogService={undefined as never} />;
+  }
+
+  const attrEntries = Object.entries(picked.attributes);
+  const truncatedText =
+    picked.text.length > 120 ? `${picked.text.slice(0, 120).trim()}…` : picked.text;
+
+  return (
+    <Paper
+      p="sm"
+      radius="md"
+      mt="xs"
+      style={{
+        background: "var(--mantine-color-green-light)",
+        border: "1px solid var(--mantine-color-green-light)",
+      }}
+    >
+      <Group gap="sm" mb="xs">
+        <MousePointerClick size={20} color="var(--mantine-color-green-6)" />
+        <Text size="sm" fw={600}>
+          Element selected
+        </Text>
+      </Group>
+
+      <Box mb="xs">
+        <Text size="xs" c="dimmed" mb={2}>
+          Selector
+        </Text>
+        <Code block style={{ fontSize: 13, fontFamily: "monospace" }}>
+          {picked.selector}
+        </Code>
+      </Box>
+
+      <Group gap="md" mb="xs" wrap="wrap">
+        <Box>
+          <Text size="xs" c="dimmed">
+            Tag
+          </Text>
+          <Text size="sm" ff="monospace">
+            {picked.tagName.toLowerCase()}
+          </Text>
+        </Box>
+        {truncatedText && (
+          <Box style={{ flex: 1, minWidth: 0 }}>
+            <Text size="xs" c="dimmed">
+              Text
+            </Text>
+            <Text size="sm" lineClamp={2}>
+              {truncatedText}
+            </Text>
+          </Box>
+        )}
+      </Group>
+
+      {attrEntries.length > 0 && (
+        <Box>
+          <Text size="xs" c="dimmed" mb={2}>
+            Attributes
+          </Text>
+          <Code block style={{ fontSize: 12 }}>
+            {attrEntries
+              .slice(0, 8)
+              .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+              .join("\n")}
+            {attrEntries.length > 8 ? `\n...(+${attrEntries.length - 8})` : ""}
+          </Code>
+        </Box>
+      )}
+    </Paper>
+  );
+}
+
 function InspectRendererView(context: ToolRendererContext) {
-  const args = context.toolCall.args && typeof context.toolCall.args === "object"
-    ? (context.toolCall.args as { action?: string })
-    : {};
-  // screenshot と extract_image は同じ画像プレビュー UI を使う
+  const args =
+    context.toolCall.args && typeof context.toolCall.args === "object"
+      ? (context.toolCall.args as { action?: string })
+      : {};
+  // screenshot と extract_image は画像プレビュー UI
   if (args.action === "extract_image" || args.action === "screenshot") {
     return <ExtractImageRendererView {...context} />;
   }
-  // pick_element は generic fallback (args + result JSON 表示) で十分
+  // pick_element は selector / tag / attrs を構造化カードで表示
+  if (args.action === "pick_element") {
+    return <InspectPickElementView {...context} />;
+  }
+  // 未知 action は generic fallback (args + result JSON)
   return <InspectGenericFallbackView {...context} />;
 }
 
