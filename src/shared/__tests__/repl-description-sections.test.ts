@@ -49,8 +49,10 @@ describe("assembleReplDescriptionSections", () => {
     const out = assembleReplDescriptionSections(["AVAILABLE_FUNCTIONS"]);
 
     expect(out).toContain("| Function | Purpose |");
-    expect(out).toContain("| `browserjs(fn, ...args)` | Read/scrape JSON-serializable data from the active page context. |");
-    expect(out).toContain("| `returnFile(name, content, mimeType)` | Deliver a generated file to the user / Artifact Panel. |");
+    expect(out).toContain(
+      "| `browserjs(fn, ...args)` | Read/scrape JSON-serializable data from the active page context. |",
+    );
+    expect(out).toContain("| `saveArtifact(name, data, options?)` | Save JSON/text/binary.");
     expect(out).not.toContain("### Examples");
     expect(out).not.toContain("### When to Use");
     expect(out).not.toContain("### Do NOT Use browserjs() For");
@@ -64,7 +66,7 @@ describe("assembleReplDescriptionSections", () => {
     );
     expect(out).toContain("- `nativeClick(selector, options?)`");
     expect(out).toContain("- `nativeSelectText(selector, start?, end?)`");
-    expect(out).not.toContain("options: { button?: \"left\" | \"right\" | \"middle\"");
+    expect(out).not.toContain('options: { button?: "left" | "right" | "middle"');
     expect(out).not.toContain("// ✅ CORRECT: Form submission with native functions");
   });
 

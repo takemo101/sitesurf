@@ -24,7 +24,7 @@ export const inspectToolDef: ToolDefinition = {
   description: `Inspect the current page visually or interactively. Choose an action:
 - pick_element: Ask the user to click an element to select it. Returns CSS selector, tag, text, and attributes.
 - screenshot: Capture a screenshot of the visible viewport. Use to check the page's visual state.
-- extract_image: Return raw image bytes so you can VISUALLY analyze one or a few images (read a chart, judge a layout, inspect a design). Max 3-5 selectors per call. Not for bulk collection — if the user wants "all images on the page" to download/view later, use browserjs() to get URLs, then returnFile() to deliver a list. Pass \`selector\` for a single image or \`selectors\` for a small set.`,
+- extract_image: Return raw image bytes so you can VISUALLY analyze one or a few images (read a chart, judge a layout, inspect a design). Max 3-5 selectors per call. Not for bulk collection — if the user wants "all images on the page" to download/view later, use browserjs() to get URLs, then saveArtifact() to deliver a list. Pass \`selector\` for a single image or \`selectors\` for a small set.`,
   parameters: {
     type: "object",
     properties: {
@@ -95,7 +95,7 @@ export async function executeInspect(
         if (count > EXTRACT_IMAGE_BULK_LIMIT) {
           return err({
             code: "tool_script_error",
-            message: `extract_image was called with ${count} selectors. This tool is for visually analyzing 1-${EXTRACT_IMAGE_BULK_LIMIT} images — large fan-outs return truncated base64 and deliver nothing usable. To collect many images for the user, do this instead: (1) browserjs() to gather URLs, (2) createOrUpdateArtifact() to stage, (3) returnFile() to hand off an HTML/CSV/JSON list. Retry with at most ${EXTRACT_IMAGE_BULK_LIMIT} selectors, or switch to the browserjs + returnFile pattern.`,
+            message: `extract_image was called with ${count} selectors. This tool is for visually analyzing 1-${EXTRACT_IMAGE_BULK_LIMIT} images — large fan-outs return truncated base64 and deliver nothing usable. To collect many images for the user, do this instead: (1) browserjs() to gather URLs, (2) saveArtifact() to stage the URL list and emit an HTML/CSV/JSON file. Retry with at most ${EXTRACT_IMAGE_BULK_LIMIT} selectors, or switch to the browserjs + saveArtifact pattern.`,
           });
         }
         return executeExtractImages(browser, { selectors: args.selectors!, maxWidth });
