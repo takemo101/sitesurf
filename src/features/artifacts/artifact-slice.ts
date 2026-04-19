@@ -13,11 +13,6 @@ export interface ArtifactSlice {
   removeArtifact(name: string): Promise<void>;
   clearArtifacts(): void;
   setArtifacts(artifacts: ArtifactEntry[]): void;
-  addArtifact(
-    name: string,
-    type: ArtifactEntry["type"],
-    source: ArtifactEntry["source"],
-  ): Promise<void>;
 }
 
 export function createArtifactSlice(
@@ -68,22 +63,5 @@ export function createArtifactSlice(
     },
 
     setArtifacts: (artifacts) => set({ artifacts }),
-
-    addArtifact: async (name, type, source) => {
-      const entry: ArtifactEntry = {
-        name,
-        type,
-        source,
-        updatedAt: Date.now(),
-      };
-      set((s) => {
-        const existing = s.artifacts.findIndex((a) => a.name === name);
-        const artifacts =
-          existing >= 0
-            ? s.artifacts.map((a, i) => (i === existing ? entry : a))
-            : [...s.artifacts, entry];
-        return { artifacts, selectedArtifact: name };
-      });
-    },
   });
 }

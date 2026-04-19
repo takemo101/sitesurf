@@ -274,7 +274,6 @@ async function handleSandboxRequest(
   artifactStorage: ArtifactStoragePort,
   signal?: AbortSignal,
   onReturnFile?: (name: string) => void,
-  onCreateOrUpdateArtifact?: (name: string) => void,
   skillMatches?: readonly SkillMatch[],
 ): Promise<void> {
   const registry = getProviderRegistry();
@@ -304,10 +303,6 @@ async function handleSandboxRequest(
         const name = (msg as { name?: string }).name;
         if (name) onReturnFile(name);
       }
-      if (msg.action === "createOrUpdateArtifact" && onCreateOrUpdateArtifact) {
-        const name = (msg as { name?: string }).name;
-        if (name) onCreateOrUpdateArtifact(name);
-      }
       sandboxWindow.postMessage(
         { type: "sandbox-response", id: msg.id, ok: true, value: result.value },
         "*",
@@ -336,7 +331,6 @@ export async function executeRepl(
   artifactStorage: ArtifactStoragePort,
   args: { title?: string; code: string },
   skillMatches?: readonly SkillMatch[],
-  onArtifactCreated?: (name: string) => void,
   signal?: AbortSignal,
   onConsoleLog?: (message: string) => void,
 ): Promise<Result<ReplResult, ToolError>> {
@@ -418,7 +412,6 @@ export async function executeRepl(
           artifactStorage,
           signal,
           (name) => returnedFileNames.add(name),
-          onArtifactCreated,
           skillMatches,
         );
         return;
