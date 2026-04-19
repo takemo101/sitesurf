@@ -50,23 +50,25 @@
         return btoa(binary);
       }
 
-      // Artifact functions
-      async function createOrUpdateArtifact(name, data) {
+      // Artifact functions (ADR-007 unified API)
+      async function saveArtifact(name, data, options) {
         if (typeof name !== "string" || !name) {
           throw new Error("Artifact name must be a non-empty string");
         }
-        return sendToParent("createOrUpdateArtifact", { name, data });
+        const opts = options || {};
+        return sendToParent("saveArtifact", {
+          name,
+          data,
+          mimeType: opts.mimeType,
+          visible: opts.visible,
+        });
       }
 
       async function getArtifact(name) {
         if (typeof name !== "string" || !name) {
           throw new Error("Artifact name must be a non-empty string");
         }
-        const data = await sendToParent("getArtifact", { name });
-        if (data === null) {
-          throw new Error(`Artifact '${name}' not found`);
-        }
-        return data;
+        return sendToParent("getArtifact", { name });
       }
 
       async function listArtifacts() {
@@ -80,30 +82,27 @@
         return sendToParent("deleteArtifact", { name });
       }
 
-      // File return function
+      // Deprecated helpers (forward to saveArtifact)
+      async function createOrUpdateArtifact(name, data) {
+        console.warn("createOrUpdateArtifact() is deprecated; use saveArtifact(name, data).");
+        return saveArtifact(name, data);
+      }
+
+      // File return function (deprecated; forwards to saveArtifact)
       async function returnFile(name, content, mimeType) {
+        console.warn(
+          "returnFile() is deprecated; use saveArtifact(name, content, { mimeType }).",
+        );
         if (typeof name !== "string" || !name) {
           throw new Error("File name must be a non-empty string");
         }
         if (!mimeType || typeof mimeType !== "string") {
           throw new Error("MIME type is required");
         }
-
-        // Convert to base64
-        let base64;
-        let size;
-        if (typeof content === "string") {
-          const utf8Bytes = new TextEncoder().encode(content);
-          base64 = arrayBufferToBase64(utf8Bytes);
-          size = utf8Bytes.length;
-        } else if (content instanceof Uint8Array) {
-          base64 = arrayBufferToBase64(content);
-          size = content.length;
-        } else {
+        if (typeof content !== "string" && !(content instanceof Uint8Array)) {
           throw new Error("Content must be string or Uint8Array");
         }
-
-        return sendToParent("returnFile", { name, contentBase64: base64, mimeType, size });
+        return saveArtifact(name, content, { mimeType });
       }
 
       // Native input functions (for bot-resistant sites)
@@ -260,10 +259,11 @@
               "readPage",
               "bgFetch",
               "skills",
-              "createOrUpdateArtifact",
+              "saveArtifact",
               "getArtifact",
               "listArtifacts",
               "deleteArtifact",
+              "createOrUpdateArtifact",
               "returnFile",
               "nativeClick",
               "nativeDoubleClick",
@@ -286,10 +286,11 @@
               readPage,
               bgFetch,
               skills,
-              createOrUpdateArtifact,
+              saveArtifact,
               getArtifact,
               listArtifacts,
               deleteArtifact,
+              createOrUpdateArtifact,
               returnFile,
               nativeClick,
               nativeDoubleClick,
