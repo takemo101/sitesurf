@@ -30,41 +30,14 @@ export interface ArtifactStoragePort {
   clearAll(): Promise<void>;
   setSessionId(sessionId: string | null): void;
 
-  /** @deprecated Issue #132 keeps the legacy API temporarily for the deprecation wrapper step. */
+  /** @deprecated ADR-007 step 2 (#133) will replace callers with `put({ kind: "json", data })`. */
   createOrUpdate(name: string, data: unknown): Promise<void>;
-  /** @deprecated Issue #132 keeps the legacy API temporarily for the deprecation wrapper step. */
+  /** @deprecated ADR-007 step 2 (#133) will replace callers with `put({ kind: "file", bytes, mimeType })`. */
   saveFile(name: string, contentBase64: string, mimeType: string): Promise<void>;
-  /** @deprecated Issue #132 keeps the legacy API temporarily for the deprecation wrapper step. */
+  /** @deprecated ADR-007 step 2 (#133) will replace callers with `get()` + base64 encode at the boundary. */
   getFile(name: string): Promise<ArtifactFile | null>;
-  /** @deprecated Issue #132 keeps the legacy API temporarily for the deprecation wrapper step. */
+  /** @deprecated ADR-007 step 2 (#133) will replace callers with `list()` filtered by kind. */
   listFiles(): Promise<string[]>;
-  /** @deprecated Issue #132 keeps the legacy API temporarily for the deprecation wrapper step. */
+  /** @deprecated ADR-007 step 2 (#133) will replace callers with `delete()`. */
   deleteFile(name: string): Promise<void>;
-}
-
-// --- Unified Artifact Storage (ADR-007) ---
-
-export type ArtifactKind = "json" | "file";
-
-export interface ArtifactMeta {
-  name: string;
-  kind: ArtifactKind;
-  mimeType?: string;
-  size: number;
-  visible: boolean;
-  createdAt: number;
-  updatedAt: number;
-}
-
-export type ArtifactValue =
-  | { kind: "json"; data: unknown }
-  | { kind: "file"; bytes: Uint8Array; mimeType: string };
-
-export interface UnifiedArtifactStoragePort {
-  put(name: string, value: ArtifactValue, options?: { visible?: boolean }): Promise<void>;
-  get(name: string): Promise<ArtifactValue | null>;
-  list(): Promise<ArtifactMeta[]>;
-  delete(name: string): Promise<void>;
-  setSessionId(sessionId: string | null): void;
-  clearAll(): Promise<void>;
 }
