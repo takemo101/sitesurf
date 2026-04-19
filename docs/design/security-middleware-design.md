@@ -8,7 +8,7 @@
 
 ## Overview
 
-ツール出力（`browserjs` / `bg_fetch` / `read_page` 等）に紛れ込んだ「指示らしき文字列」をリアルタイム検出し、AI に渡る前に安全な要約だけを返すミドルウェア。実装は `src/features/security/`。
+ツール出力（`browserjs` / `bg_fetch` / `readPage` 等、REPL 内 helper を含む）に紛れ込んだ「指示らしき文字列」をリアルタイム検出し、AI に渡る前に安全な要約だけを返すミドルウェア。実装は `src/features/security/`。
 
 ---
 
@@ -430,7 +430,7 @@ interface SecuritySettings {
 
 ## Comparison with 既存拡張
 
-| Feature            | 既存拡張                | Sitesurf             |
+| Feature            | 既存拡張                | Sitesurf              |
 | ------------------ | ----------------------- | --------------------- |
 | Detection          | Pattern-based in prompt | Dedicated middleware  |
 | Alert              | Text warning            | Inline visual warning |

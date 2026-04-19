@@ -556,8 +556,9 @@ async function executeRepl(...) {
 }
 ```
 
-スキルは `new Function(`return (${code})`)()` で復元してから `browserjs(fn)` で実行します。
-これは sandbox iframe 経由の実行パスであり、ユーザー自身が入力したコードと同等のセキュリティレベルです。
+スキルは `BrowserJsProvider.handleRequest` が target page に `executeScript` する際、`browser-js-provider.ts` の `buildSkillInjection()` が `window[skillId][extractorId] = (extractor.code);` を scriptCode 先頭に prepend する形で注入されます (PR #128)。AI は `browserjs(() => window.youtube.getVideoInfo())` のように `window` 経由で呼び出します。
+
+Extension Pages の CSP により `new Function()` / `eval()` は使えないため (ADR-005)、extractor code は target page 側 (MAIN world または USER_SCRIPT world) で `chrome.scripting.executeScript` / `chrome.userScripts.execute` 経由で実行されます。
 
 ### 起動シーケンス
 
