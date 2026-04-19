@@ -66,11 +66,14 @@ export async function handleArtifactsTool(
         };
 
         if (type === "json") {
-          await artifactStorage.createOrUpdate(filename, JSON.parse(args.content));
+          await artifactStorage.put(filename, { kind: "json", data: JSON.parse(args.content) });
         } else {
-          const contentBase64 = btoa(unescape(encodeURIComponent(args.content)));
           const mimeType = getMimeType(filename);
-          await artifactStorage.saveFile(filename, contentBase64, mimeType);
+          await artifactStorage.put(filename, {
+            kind: "file",
+            bytes: new TextEncoder().encode(args.content),
+            mimeType,
+          });
         }
 
         // Update store
@@ -100,11 +103,14 @@ export async function handleArtifactsTool(
 
         const type = detectType(filename);
         if (type === "json") {
-          await artifactStorage.createOrUpdate(filename, JSON.parse(args.content));
+          await artifactStorage.put(filename, { kind: "json", data: JSON.parse(args.content) });
         } else {
-          const contentBase64 = btoa(unescape(encodeURIComponent(args.content)));
           const mimeType = getMimeType(filename);
-          await artifactStorage.saveFile(filename, contentBase64, mimeType);
+          await artifactStorage.put(filename, {
+            kind: "file",
+            bytes: new TextEncoder().encode(args.content),
+            mimeType,
+          });
         }
 
         // Update timestamp
@@ -132,14 +138,14 @@ export async function handleArtifactsTool(
         // Get current content
         let currentContent: string;
         if (existing.type === "json") {
-          const data = await artifactStorage.get(filename);
-          currentContent = data ? JSON.stringify(data, null, 2) : "";
+          const artifact = await artifactStorage.get(filename);
+          currentContent = artifact?.kind === "json" ? JSON.stringify(artifact.data, null, 2) : "";
         } else {
-          const file = await artifactStorage.getFile(filename);
-          if (!file || !file.contentBase64) {
+          const file = await artifactStorage.get(filename);
+          if (!file || file.kind !== "file") {
             return { content: `Error: Could not read file ${filename}`, isError: true };
           }
-          currentContent = decodeURIComponent(escape(atob(file.contentBase64)));
+          currentContent = new TextDecoder().decode(file.bytes);
         }
 
         // Check if old_str exists
@@ -154,11 +160,14 @@ export async function handleArtifactsTool(
         const newContent = currentContent.replace(args.old_str, args.new_str);
 
         if (existing.type === "json") {
-          await artifactStorage.createOrUpdate(filename, JSON.parse(newContent));
+          await artifactStorage.put(filename, { kind: "json", data: JSON.parse(newContent) });
         } else {
-          const contentBase64 = btoa(unescape(encodeURIComponent(newContent)));
           const mimeType = getMimeType(filename);
-          await artifactStorage.saveFile(filename, contentBase64, mimeType);
+          await artifactStorage.put(filename, {
+            kind: "file",
+            bytes: new TextEncoder().encode(newContent),
+            mimeType,
+          });
         }
 
         // Update timestamp
@@ -178,14 +187,14 @@ export async function handleArtifactsTool(
 
         let content: string;
         if (existing.type === "json") {
-          const data = await artifactStorage.get(filename);
-          content = data ? JSON.stringify(data, null, 2) : "";
+          const artifact = await artifactStorage.get(filename);
+          content = artifact?.kind === "json" ? JSON.stringify(artifact.data, null, 2) : "";
         } else {
-          const file = await artifactStorage.getFile(filename);
-          if (!file || !file.contentBase64) {
+          const file = await artifactStorage.get(filename);
+          if (!file || file.kind !== "file") {
             return { content: `Error: Could not read file ${filename}`, isError: true };
           }
-          content = decodeURIComponent(escape(atob(file.contentBase64)));
+          content = new TextDecoder().decode(file.bytes);
         }
 
         return { content };
@@ -197,11 +206,7 @@ export async function handleArtifactsTool(
           return { content: `Error: File ${filename} not found`, isError: true };
         }
 
-        if (existing.source === "json") {
-          await artifactStorage.delete(filename);
-        } else {
-          await artifactStorage.deleteFile(filename);
-        }
+        await artifactStorage.delete(filename);
 
         const remaining = artifactSlice.artifacts.filter((a) => a.name !== filename);
         artifactSlice.setArtifacts(remaining);

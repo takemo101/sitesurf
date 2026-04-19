@@ -1,19 +1,78 @@
 const DEFAULT_DB_NAME = "tandemweb";
-const CURRENT_DB_VERSION = 3;
+const CURRENT_DB_VERSION = 4;
 const SESSIONS_STORE = "sessions";
 const METADATA_STORE = "sessions-metadata";
 const LEGACY_TOOL_RESULTS_STORE = "tool-results";
 const LAST_MODIFIED_INDEX = "lastModified";
+const ARTIFACTS_STORE = "artifacts-v2";
+const APP_META_STORE = "app-meta";
+const ARTIFACTS_SESSION_ID_INDEX = "sessionId";
+const ARTIFACTS_SESSION_UPDATED_AT_INDEX = "sessionId_updatedAt";
+const LEGACY_JSON_ARTIFACTS_STORE = "json-artifacts";
+const LEGACY_FILES_STORE = "files";
+const ARTIFACTS_MIGRATION_DONE_KEY = "artifacts-migration-v1-done";
+const MIGRATION_NOTES_KEY = "migration-notes";
+const GLOBAL_SESSION_KEY = "__global__";
+
+type LegacyJsonArtifactRecord = {
+  name: string;
+  data: unknown;
+  createdAt?: number;
+  updatedAt?: number;
+  visible?: boolean;
+  sessionId?: string | null;
+};
+
+type LegacyFileArtifactRecord = {
+  name: string;
+  contentBase64: string;
+  mimeType: string;
+  size?: number;
+  createdAt?: number;
+  updatedAt?: number;
+  visible?: boolean;
+  sessionId?: string | null;
+};
+
+type UnifiedArtifactRecord = {
+  key: string;
+  sessionId: string | null;
+  name: string;
+  kind: "json" | "file";
+  data?: unknown;
+  bytes?: Uint8Array;
+  mimeType?: string;
+  size: number;
+  visible: boolean;
+  createdAt: number;
+  updatedAt: number;
+};
+
+type MigrationNote = {
+  name: string;
+  losingKind: "json" | "file";
+  timestamp: number;
+};
 
 export {
+  APP_META_STORE,
+  ARTIFACTS_MIGRATION_DONE_KEY,
+  ARTIFACTS_SESSION_ID_INDEX,
+  ARTIFACTS_SESSION_UPDATED_AT_INDEX,
+  ARTIFACTS_STORE,
   CURRENT_DB_VERSION,
   DEFAULT_DB_NAME,
   LAST_MODIFIED_INDEX,
   METADATA_STORE,
+  MIGRATION_NOTES_KEY,
   SESSIONS_STORE,
 };
 
-export function upgradeTandemwebDatabase(db: IDBDatabase, oldVersion: number): void {
+export function upgradeTandemwebDatabase(
+  db: IDBDatabase,
+  oldVersion: number,
+  tx?: IDBTransaction,
+): void {
   if (oldVersion < 1) {
     if (!db.objectStoreNames.contains(SESSIONS_STORE)) {
       db.createObjectStore(SESSIONS_STORE, { keyPath: "id" });
@@ -25,11 +84,167 @@ export function upgradeTandemwebDatabase(db: IDBDatabase, oldVersion: number): v
     }
   }
 
-  // v2 で追加された tool-results ストアは v3 で廃止。LLM 要約 (auto-compact) に
-  // 置き換えたためストア自体が不要になったので、既存ユーザのデータごと drop する。
   if (oldVersion < 3 && db.objectStoreNames.contains(LEGACY_TOOL_RESULTS_STORE)) {
     db.deleteObjectStore(LEGACY_TOOL_RESULTS_STORE);
   }
+
+  if (oldVersion < 4) {
+    const upgradeTx = tx;
+    if (!upgradeTx) {
+      throw new Error("IndexedDB upgrade transaction is required for artifact schema migration");
+    }
+    const artifactsStore = ensureArtifactsStore(db, upgradeTx);
+    const appMetaStore = ensureAppMetaStore(db, upgradeTx);
+    migrateLegacyArtifacts(db, oldVersion, artifactsStore, appMetaStore);
+  }
+}
+
+function ensureArtifactsStore(db: IDBDatabase, tx: IDBTransaction): IDBObjectStore {
+  if (db.objectStoreNames.contains(ARTIFACTS_STORE)) {
+    return tx.objectStore(ARTIFACTS_STORE);
+  }
+
+  const store = db.createObjectStore(ARTIFACTS_STORE, { keyPath: "key" });
+  store.createIndex(ARTIFACTS_SESSION_ID_INDEX, ARTIFACTS_SESSION_ID_INDEX, { unique: false });
+  store.createIndex(ARTIFACTS_SESSION_UPDATED_AT_INDEX, ["sessionId", "updatedAt"], {
+    unique: false,
+  });
+  return store;
+}
+
+function ensureAppMetaStore(db: IDBDatabase, tx: IDBTransaction): IDBObjectStore {
+  if (db.objectStoreNames.contains(APP_META_STORE)) {
+    return tx.objectStore(APP_META_STORE);
+  }
+
+  return db.createObjectStore(APP_META_STORE, { keyPath: "key" });
+}
+
+function migrateLegacyArtifacts(
+  db: IDBDatabase,
+  oldVersion: number,
+  artifactsStore: IDBObjectStore,
+  appMetaStore: IDBObjectStore,
+): void {
+  if (oldVersion >= 4) {
+    return;
+  }
+
+  const collisions: MigrationNote[] = [];
+  const migratedKeys = new Set<string>();
+
+  const migrateFiles = () => {
+    if (!db.objectStoreNames.contains(LEGACY_FILES_STORE)) {
+      finalizeMigration();
+      return;
+    }
+
+    const legacyFileStore = appMetaStore.transaction.objectStore(LEGACY_FILES_STORE);
+    const request = legacyFileStore.openCursor();
+
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) {
+        finalizeMigration();
+        return;
+      }
+
+      const legacy = cursor.value as LegacyFileArtifactRecord;
+      const record = toUnifiedFileRecord(legacy);
+      if (migratedKeys.has(record.key)) {
+        collisions.push({ name: legacy.name, losingKind: "json", timestamp: Date.now() });
+      }
+      artifactsStore.put(record);
+      migratedKeys.add(record.key);
+      cursor.continue();
+    };
+  };
+
+  const migrateJson = () => {
+    if (!db.objectStoreNames.contains(LEGACY_JSON_ARTIFACTS_STORE)) {
+      migrateFiles();
+      return;
+    }
+
+    const legacyJsonStore = appMetaStore.transaction.objectStore(LEGACY_JSON_ARTIFACTS_STORE);
+    const request = legacyJsonStore.openCursor();
+
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) {
+        migrateFiles();
+        return;
+      }
+
+      const legacy = cursor.value as LegacyJsonArtifactRecord;
+      const record = toUnifiedJsonRecord(legacy);
+      artifactsStore.put(record);
+      migratedKeys.add(record.key);
+      cursor.continue();
+    };
+  };
+
+  const finalizeMigration = () => {
+    appMetaStore.put({ key: ARTIFACTS_MIGRATION_DONE_KEY, value: true, updatedAt: Date.now() });
+    appMetaStore.put({ key: MIGRATION_NOTES_KEY, value: collisions, updatedAt: Date.now() });
+
+    if (db.objectStoreNames.contains(LEGACY_JSON_ARTIFACTS_STORE)) {
+      db.deleteObjectStore(LEGACY_JSON_ARTIFACTS_STORE);
+    }
+    if (db.objectStoreNames.contains(LEGACY_FILES_STORE)) {
+      db.deleteObjectStore(LEGACY_FILES_STORE);
+    }
+  };
+
+  migrateJson();
+}
+
+function toUnifiedJsonRecord(legacy: LegacyJsonArtifactRecord): UnifiedArtifactRecord {
+  const now = Date.now();
+  const sessionId = legacy.sessionId ?? null;
+  const encoded = new TextEncoder().encode(JSON.stringify(legacy.data));
+  return {
+    key: createArtifactKey(sessionId, legacy.name),
+    sessionId,
+    name: legacy.name,
+    kind: "json",
+    data: legacy.data,
+    size: encoded.byteLength,
+    visible: legacy.visible ?? true,
+    createdAt: legacy.createdAt ?? now,
+    updatedAt: legacy.updatedAt ?? legacy.createdAt ?? now,
+  };
+}
+
+function toUnifiedFileRecord(legacy: LegacyFileArtifactRecord): UnifiedArtifactRecord {
+  const now = Date.now();
+  const sessionId = legacy.sessionId ?? null;
+  const bytes = base64ToBytes(legacy.contentBase64);
+  return {
+    key: createArtifactKey(sessionId, legacy.name),
+    sessionId,
+    name: legacy.name,
+    kind: "file",
+    bytes,
+    mimeType: legacy.mimeType,
+    size: legacy.size ?? bytes.byteLength,
+    visible: legacy.visible ?? true,
+    createdAt: legacy.createdAt ?? now,
+    updatedAt: legacy.updatedAt ?? legacy.createdAt ?? now,
+  };
+}
+
+function createArtifactKey(sessionId: string | null, name: string): string {
+  return `${sessionId ?? GLOBAL_SESSION_KEY}::${name}`;
+}
+
+function base64ToBytes(base64: string): Uint8Array {
+  if (typeof atob === "function") {
+    const binary = atob(base64);
+    return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  }
+
+  return Uint8Array.from(Buffer.from(base64, "base64"));
 }
 
 export function openTandemwebDatabase(options?: {
@@ -43,7 +258,7 @@ export function openTandemwebDatabase(options?: {
     const req = indexedDB.open(dbName, CURRENT_DB_VERSION);
 
     req.onupgradeneeded = (event) => {
-      upgradeTandemwebDatabase(req.result, event.oldVersion);
+      upgradeTandemwebDatabase(req.result, event.oldVersion, req.transaction ?? undefined);
     };
 
     req.onsuccess = () => {

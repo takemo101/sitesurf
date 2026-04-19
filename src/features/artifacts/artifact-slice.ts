@@ -29,24 +29,17 @@ export function createArtifactSlice(
 
     loadArtifacts: async () => {
       const storage = getStorage();
-      const [jsonNames, fileNames] = await Promise.all([storage.list(), storage.listFiles()]);
-      const seen = new Set<string>();
-      const entries: ArtifactEntry[] = [];
-      for (const name of jsonNames) {
-        if (!seen.has(name)) {
-          seen.add(name);
-          const detectedType = detectType(name);
-          // JSON-sourced artifacts without a file extension get type "json"
-          const type = detectedType === "binary" ? "json" : detectedType;
-          entries.push({ name, type, source: "json", updatedAt: Date.now() });
-        }
-      }
-      for (const name of fileNames) {
-        if (!seen.has(name)) {
-          seen.add(name);
-          entries.push({ name, type: detectType(name), source: "file", updatedAt: Date.now() });
-        }
-      }
+      const artifacts = (await storage.list()).filter((artifact) => artifact.visible);
+      const entries: ArtifactEntry[] = artifacts.map((artifact) => {
+        const detectedType = detectType(artifact.name);
+        const type = artifact.kind === "json" && detectedType === "binary" ? "json" : detectedType;
+        return {
+          name: artifact.name,
+          type,
+          source: artifact.kind,
+          updatedAt: artifact.updatedAt,
+        };
+      });
       set({ artifacts: entries });
     },
 
@@ -61,11 +54,7 @@ export function createArtifactSlice(
       const storage = getStorage();
       const entry = get().artifacts.find((a) => a.name === name);
       if (!entry) return;
-      if (entry.source === "file") {
-        await storage.deleteFile(name);
-      } else {
-        await storage.delete(name);
-      }
+      await storage.delete(name);
       set((s) => ({
         artifacts: s.artifacts.filter((a) => a.name !== name),
         selectedArtifact: s.selectedArtifact === name ? null : s.selectedArtifact,

@@ -20,16 +20,17 @@ import { buildReplToolDef } from "@/features/tools/repl";
 let consoleInfoSpy: ReturnType<typeof vi.spyOn>;
 
 const mockArtifactStorage: ArtifactStoragePort & { setSessionId(id: string | null): void } = {
-  createOrUpdate: async () => {},
+  put: async () => {},
   get: async () => null,
   list: async () => [],
   delete: async () => {},
+  clearAll: async () => {},
+  setSessionId: () => {},
+  createOrUpdate: async () => {},
   saveFile: async () => {},
   getFile: async () => null,
   listFiles: async () => [],
   deleteFile: async () => {},
-  clearAll: async () => {},
-  setSessionId: () => {},
 };
 
 vi.mock("@/shared/utils", () => ({
@@ -1157,7 +1158,9 @@ describe("context budget integration", () => {
     await runAgentLoop(params);
 
     const firstCall = streamTextCalls[0] as { tools: Array<{ name: string; description: string }> };
-    const secondCall = streamTextCalls[1] as { tools: Array<{ name: string; description: string }> };
+    const secondCall = streamTextCalls[1] as {
+      tools: Array<{ name: string; description: string }>;
+    };
     expect(firstCall.tools[0].description).toContain("# Common Patterns");
     expect(secondCall.tools[0].description).not.toContain("# Common Patterns");
   });
@@ -1186,7 +1189,9 @@ describe("context budget integration", () => {
 
     await runAgentLoop(params);
 
-    const secondCall = streamTextCalls[1] as { tools: Array<{ name: string; description: string }> };
+    const secondCall = streamTextCalls[1] as {
+      tools: Array<{ name: string; description: string }>;
+    };
     expect(secondCall.tools[0].description).toContain("# Common Patterns");
   });
 });

@@ -238,21 +238,30 @@ async function collectFiles(
     return [];
   }
 
-  const allNames = await storage.listFiles();
-  const fileNames = allNames.filter((n) => names.has(n));
+  const fileNames = (await storage.list())
+    .filter((artifact) => artifact.kind === "file" && names.has(artifact.name))
+    .map((artifact) => artifact.name);
   const files = await Promise.all(
     fileNames.map(async (name) => {
-      const file = await storage.getFile(name);
-      if (!file) return null;
+      const file = await storage.get(name);
+      if (!file || file.kind !== "file") return null;
       return {
-        name: file.name,
+        name,
         mimeType: file.mimeType,
-        size: file.size,
-        contentBase64: file.contentBase64,
+        size: file.bytes.byteLength,
+        contentBase64: uint8ArrayToBase64(file.bytes),
       };
     }),
   );
   return files.filter((f): f is NonNullable<typeof f> => f !== null);
+}
+
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
 }
 
 /**
