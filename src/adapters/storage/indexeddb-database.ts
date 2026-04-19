@@ -1,3 +1,5 @@
+import { createArtifactKey, type StoredArtifactRecord } from "./artifact-record";
+
 const DEFAULT_DB_NAME = "tandemweb";
 const CURRENT_DB_VERSION = 4;
 const SESSIONS_STORE = "sessions";
@@ -12,7 +14,6 @@ const LEGACY_JSON_ARTIFACTS_STORE = "json-artifacts";
 const LEGACY_FILES_STORE = "files";
 const ARTIFACTS_MIGRATION_DONE_KEY = "artifacts-migration-v1-done";
 const MIGRATION_NOTES_KEY = "migration-notes";
-const GLOBAL_SESSION_KEY = "__global__";
 
 type LegacyJsonArtifactRecord = {
   name: string;
@@ -32,20 +33,6 @@ type LegacyFileArtifactRecord = {
   updatedAt?: number;
   visible?: boolean;
   sessionId?: string | null;
-};
-
-type UnifiedArtifactRecord = {
-  key: string;
-  sessionId: string | null;
-  name: string;
-  kind: "json" | "file";
-  data?: unknown;
-  bytes?: Uint8Array;
-  mimeType?: string;
-  size: number;
-  visible: boolean;
-  createdAt: number;
-  updatedAt: number;
 };
 
 type MigrationNote = {
@@ -199,7 +186,7 @@ function migrateLegacyArtifacts(
   migrateJson();
 }
 
-function toUnifiedJsonRecord(legacy: LegacyJsonArtifactRecord): UnifiedArtifactRecord {
+function toUnifiedJsonRecord(legacy: LegacyJsonArtifactRecord): StoredArtifactRecord {
   const now = Date.now();
   const sessionId = legacy.sessionId ?? null;
   const encoded = new TextEncoder().encode(JSON.stringify(legacy.data));
@@ -216,7 +203,7 @@ function toUnifiedJsonRecord(legacy: LegacyJsonArtifactRecord): UnifiedArtifactR
   };
 }
 
-function toUnifiedFileRecord(legacy: LegacyFileArtifactRecord): UnifiedArtifactRecord {
+function toUnifiedFileRecord(legacy: LegacyFileArtifactRecord): StoredArtifactRecord {
   const now = Date.now();
   const sessionId = legacy.sessionId ?? null;
   const bytes = base64ToBytes(legacy.contentBase64);
@@ -232,10 +219,6 @@ function toUnifiedFileRecord(legacy: LegacyFileArtifactRecord): UnifiedArtifactR
     createdAt: legacy.createdAt ?? now,
     updatedAt: legacy.updatedAt ?? legacy.createdAt ?? now,
   };
-}
-
-function createArtifactKey(sessionId: string | null, name: string): string {
-  return `${sessionId ?? GLOBAL_SESSION_KEY}::${name}`;
 }
 
 function base64ToBytes(base64: string): Uint8Array {

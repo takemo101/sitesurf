@@ -5,6 +5,7 @@ import type {
   ArtifactValue,
 } from "@/ports/artifact-storage";
 import { createLogger } from "@/shared/logger";
+import { GLOBAL_SESSION_KEY, type StoredArtifactRecord } from "./artifact-record";
 import {
   APP_META_STORE,
   ARTIFACTS_MIGRATION_DONE_KEY,
@@ -15,14 +16,6 @@ import {
 } from "./indexeddb-database";
 
 const log = createLogger("artifact-storage");
-const GLOBAL_SESSION_KEY = "__global__";
-
-type StoredArtifactRecord = ArtifactMeta & {
-  key: string;
-  sessionId: string | null;
-  data?: unknown;
-  bytes?: Uint8Array;
-};
 
 type AppMetaRecord = {
   key: string;
