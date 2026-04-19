@@ -129,6 +129,7 @@ export function createToolExecutorWithSkills(
           action: "pick_element" | "screenshot" | "extract_image";
           message?: string;
           selector?: string;
+          selectors?: string[];
           maxWidth?: number;
         });
       case "bg_fetch": {

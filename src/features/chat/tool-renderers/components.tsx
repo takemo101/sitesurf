@@ -183,6 +183,42 @@ interface ParsedExtractImageResult {
   errorText: string | null;
 }
 
+interface ParsedExtractImagesItem {
+  selector: string;
+  imageUrl: string | null;
+  info: ExtractImageInfo;
+  error: string | null;
+}
+
+function parseExtractImagesResult(result?: string): ParsedExtractImagesItem[] | null {
+  if (!result) return null;
+  try {
+    const parsed = JSON.parse(result);
+    if (!parsed || !Array.isArray(parsed.images)) return null;
+    return parsed.images.map((item: unknown): ParsedExtractImagesItem => {
+      const entry = (item ?? {}) as {
+        selector?: string;
+        ok?: boolean;
+        error?: string;
+        image?: { source?: { base64?: string; media_type?: string } };
+        info?: ExtractImageInfo;
+      };
+      let imageUrl: string | null = null;
+      if (entry.image?.source?.base64 && entry.image.source.media_type) {
+        imageUrl = `data:${entry.image.source.media_type};base64,${entry.image.source.base64}`;
+      }
+      return {
+        selector: typeof entry.selector === "string" ? entry.selector : "",
+        imageUrl,
+        info: entry.info && typeof entry.info === "object" ? entry.info : {},
+        error: entry.ok === false && typeof entry.error === "string" ? entry.error : null,
+      };
+    });
+  } catch {
+    return null;
+  }
+}
+
 interface ParsedArtifactResult {
   content?: string;
   isError?: boolean;
@@ -564,8 +600,76 @@ function ReplRendererView({ toolCall, consoleLogService }: ToolRendererContext) 
   );
 }
 
+function ExtractImagesGridView({ items }: { items: ParsedExtractImagesItem[] }) {
+  const successCount = items.filter((i) => i.imageUrl).length;
+  const failureCount = items.length - successCount;
+
+  return (
+    <Box mt="xs">
+      <Paper
+        p="sm"
+        radius="md"
+        mb="xs"
+        style={{
+          background: "var(--mantine-color-green-light)",
+          border: "1px solid var(--mantine-color-green-light)",
+        }}
+      >
+        <Group gap="sm">
+          <ImageIcon size={20} color="var(--mantine-color-green-6)" />
+          <Text size="sm" fw={600}>
+            {successCount} image{successCount === 1 ? "" : "s"} extracted
+            {failureCount > 0 ? ` · ${failureCount} failed` : ""}
+          </Text>
+        </Group>
+      </Paper>
+
+      <Box
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+          gap: 8,
+        }}
+      >
+        {items.map((item, idx) => (
+          <Paper
+            key={`${item.selector}-${idx}`}
+            withBorder
+            radius="md"
+            p={4}
+            style={{ overflow: "hidden" }}
+          >
+            {item.imageUrl ? (
+              <ImageLightbox src={item.imageUrl} alt={item.selector || `image ${idx + 1}`} />
+            ) : (
+              <Box p="xs" style={{ background: "var(--mantine-color-red-light-hover)" }}>
+                <Group gap={4} align="flex-start" wrap="nowrap">
+                  <XCircle size={14} color="var(--mantine-color-red-5)" />
+                  <Text size="xs" c="red" lineClamp={3}>
+                    {item.error ?? "failed"}
+                  </Text>
+                </Group>
+              </Box>
+            )}
+            <Text
+              size="xs"
+              c="dimmed"
+              mt={4}
+              lineClamp={1}
+              style={{ fontFamily: "monospace", padding: "0 4px 2px" }}
+              title={item.selector}
+            >
+              {item.selector}
+            </Text>
+          </Paper>
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
 function ExtractImageRendererView({ toolCall }: ToolRendererContext) {
-  const { imageUrl, info, errorText } = parseExtractImageResult(toolCall.result);
+  // Hooks must be called before any early returns.
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -574,6 +678,17 @@ function ExtractImageRendererView({ toolCall }: ToolRendererContext) {
     typeof (args as { action?: unknown }).action === "string"
       ? ((args as { action: string }).action as "screenshot" | "extract_image" | string)
       : null;
+
+  // action=extract_image で result が {images:[...]} 形式のときは複数画像ビューに委譲する。
+  if (action === "extract_image" && !toolCall.isRunning) {
+    const multi = parseExtractImagesResult(toolCall.result);
+    if (multi && multi.length > 0) {
+      return <ExtractImagesGridView items={multi} />;
+    }
+  }
+
+  const { imageUrl, info, errorText } = parseExtractImageResult(toolCall.result);
+
   const isScreenshot = action === "screenshot";
   const runningLabel = isScreenshot ? "Capturing screenshot..." : "Extracting image...";
   const failureLabel = isScreenshot ? "Failed to capture screenshot" : "Failed to extract image";

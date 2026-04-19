@@ -2,9 +2,14 @@ import type { ToolDefinition } from "@/ports/ai-provider";
 import type { BrowserExecutor, ElementInfo } from "@/ports/browser-executor";
 import type { BrowserError, Result, ToolError } from "@/shared/errors";
 import { err, ok } from "@/shared/errors";
-import { executeExtractImage, type ExtractImageResult } from "@/shared/extract-image-core";
+import {
+  executeExtractImage,
+  executeExtractImages,
+  type ExtractImageResult,
+  type ExtractImagesResult,
+} from "@/shared/extract-image-core";
 
-export type { ExtractImageResult };
+export type { ExtractImageResult, ExtractImagesResult };
 
 export interface ScreenshotResult {
   dataUrl: string;
@@ -15,7 +20,7 @@ export const inspectToolDef: ToolDefinition = {
   description: `Inspect the current page visually or interactively. Choose an action:
 - pick_element: Ask the user to click an element to select it. Returns CSS selector, tag, text, and attributes.
 - screenshot: Capture a screenshot of the visible viewport. Use to check the page's visual state.
-- extract_image: Extract an image from the page (img, canvas, video, background-image). Returns image data.`,
+- extract_image: Extract one or more images from the page (img, canvas, video, background-image). Pass \`selector\` for a single image or \`selectors\` for multiple in one call.`,
   parameters: {
     type: "object",
     properties: {
@@ -32,7 +37,13 @@ export const inspectToolDef: ToolDefinition = {
       selector: {
         type: "string",
         description:
-          "(extract_image only) CSS selector for the image element (e.g. 'img.hero', '#logo', 'canvas#main', 'video').",
+          "(extract_image only) CSS selector for a single image element (e.g. 'img.hero', '#logo', 'canvas#main', 'video'). Use `selectors` instead to extract multiple images in one call.",
+      },
+      selectors: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "(extract_image only) Multiple CSS selectors to extract in a single call. Prefer this over several separate inspect calls when you need two or more images.",
       },
       maxWidth: {
         type: "number",
@@ -51,9 +62,15 @@ export async function executeInspect(
     action: "pick_element" | "screenshot" | "extract_image";
     message?: string;
     selector?: string;
+    selectors?: string[];
     maxWidth?: number;
   },
-): Promise<Result<ElementInfo | null | ScreenshotResult | ExtractImageResult, ToolError | BrowserError>> {
+): Promise<
+  Result<
+    ElementInfo | null | ScreenshotResult | ExtractImageResult | ExtractImagesResult,
+    ToolError | BrowserError
+  >
+> {
   switch (args.action) {
     case "pick_element": {
       const tab = await browser.getActiveTab();
@@ -67,16 +84,21 @@ export async function executeInspect(
       return ok({ dataUrl });
     }
     case "extract_image": {
+      const maxWidth = typeof args.maxWidth === "number" ? args.maxWidth : undefined;
+      const hasPlural = Array.isArray(args.selectors) && args.selectors.length > 0;
+      if (hasPlural) {
+        return executeExtractImages(browser, { selectors: args.selectors!, maxWidth });
+      }
       if (typeof args.selector !== "string") {
         return {
           ok: false as const,
-          error: { code: "tool_script_error", message: "selector is required for extract_image" },
+          error: {
+            code: "tool_script_error",
+            message: "selector or selectors is required for extract_image",
+          },
         };
       }
-      return executeExtractImage(browser, {
-        selector: args.selector,
-        maxWidth: typeof args.maxWidth === "number" ? args.maxWidth : undefined,
-      });
+      return executeExtractImage(browser, { selector: args.selector, maxWidth });
     }
     default: {
       const exhaustive: never = args.action;
