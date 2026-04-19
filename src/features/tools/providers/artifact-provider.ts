@@ -64,60 +64,6 @@ const items = await listArtifacts();
 - \`returnFile(name, content, mimeType)\` → use \`saveArtifact(name, content, { mimeType })\``;
   }
 
-  getRuntimeCode(): string {
-    return `
-function __artifactRequest(action, payload) {
-  return new Promise((resolve, reject) => {
-    const id = 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    const handler = (event) => {
-      if (event.data?.type === 'sandbox-response' && event.data.id === id) {
-        window.removeEventListener('message', handler);
-        if (event.data.ok) {
-          resolve(event.data.value);
-        } else {
-          reject(new Error(event.data.error));
-        }
-      }
-    };
-    window.addEventListener('message', handler);
-    window.parent.postMessage({ type: 'sandbox-request', id, action, ...payload }, '*');
-  });
-}
-
-function saveArtifact(name, data, options) {
-  const opts = options || {};
-  return __artifactRequest('saveArtifact', {
-    name,
-    data,
-    mimeType: opts.mimeType,
-    visible: opts.visible,
-  });
-}
-
-function getArtifact(name) {
-  return __artifactRequest('getArtifact', { name });
-}
-
-function listArtifacts() {
-  return __artifactRequest('listArtifacts', {});
-}
-
-function deleteArtifact(name) {
-  return __artifactRequest('deleteArtifact', { name });
-}
-
-// --- Deprecated helpers (forward to saveArtifact) ---
-function createOrUpdateArtifact(name, data) {
-  console.warn('createOrUpdateArtifact() is deprecated; use saveArtifact(name, data).');
-  return saveArtifact(name, data);
-}
-
-function returnFile(name, content, mimeType) {
-  console.warn('returnFile() is deprecated; use saveArtifact(name, content, { mimeType }).');
-  return saveArtifact(name, content, { mimeType });
-}`;
-  }
-
   async handleRequest(
     request: SandboxRequest,
     context: ProviderContext,
@@ -161,7 +107,9 @@ function returnFile(name, content, mimeType) {
           return ok({ success: true, name });
         }
 
-        // --- Legacy wire protocol (no longer emitted by getRuntimeCode, kept for safety) ---
+        // --- Legacy wire protocol: sandbox.html の deprecation wrapper (createOrUpdateArtifact /
+        // returnFile) が送ってくる action を引き続き受ける。これらは saveArtifact に forward するだけ。
+        // #137 で sandbox.html 側の wrapper と合わせて v0.1.7 で削除予定。 ---
         case "createOrUpdateArtifact": {
           const { name, data } = request as unknown as { name: string; data: unknown };
           await artifactStorage.put(name, { kind: "json", data });

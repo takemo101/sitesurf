@@ -83,27 +83,6 @@ await browserjs(() => {
 \`\`\``;
   }
 
-  getRuntimeCode(): string {
-    return `
-function browserjs(fn, ...args) {
-  return new Promise((resolve, reject) => {
-    const id = 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-    const handler = (event) => {
-      if (event.data?.type === 'sandbox-response' && event.data.id === id) {
-        window.removeEventListener('message', handler);
-        if (event.data.ok) {
-          resolve(event.data.value);
-        } else {
-          reject(new Error(event.data.error));
-        }
-      }
-    };
-    window.addEventListener('message', handler);
-    window.parent.postMessage({ type: 'sandbox-request', id, action: 'browserjs', code: fn.toString(), args }, '*');
-  });
-}`;
-  }
-
   async handleRequest(
     request: SandboxRequest,
     context: ProviderContext,

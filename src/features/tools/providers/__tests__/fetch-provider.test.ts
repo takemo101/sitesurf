@@ -19,7 +19,9 @@ function setEnableBgFetch(enabled: boolean): void {
 }
 
 function stubSendMessage(response: BgFetchResponse) {
-  const sendMessage = vi.fn<(msg: BgFetchMessage) => Promise<BgFetchResponse>>(async () => response);
+  const sendMessage = vi.fn<(msg: BgFetchMessage) => Promise<BgFetchResponse>>(
+    async () => response,
+  );
   const runtime = { sendMessage } as unknown as typeof chrome.runtime;
   (globalThis as unknown as { chrome: { runtime: typeof chrome.runtime } }).chrome = { runtime };
   return sendMessage;
@@ -36,12 +38,6 @@ describe("FetchProvider", () => {
     expect(provider.actions).toContain("bgFetch");
   });
 
-  it("getRuntimeCode は bgFetch 関数定義を含む", () => {
-    const code = new FetchProvider().getRuntimeCode();
-    expect(code).toContain("async function bgFetch(url, options)");
-    expect(code).toContain("action: 'bgFetch'");
-  });
-
   it("getDescription は repl description と同じ bgFetch helper 説明を再利用する", () => {
     const description = new FetchProvider().getDescription();
     expect(description).toBe(buildBgFetchHelperDescription());
@@ -52,10 +48,7 @@ describe("FetchProvider", () => {
 
   it("url 欠落時は tool_script_error を返す", async () => {
     const provider = new FetchProvider();
-    const result = await provider.handleRequest(
-      { id: "req-1", action: "bgFetch" },
-      makeContext(),
-    );
+    const result = await provider.handleRequest({ id: "req-1", action: "bgFetch" }, makeContext());
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe("tool_script_error");
