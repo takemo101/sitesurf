@@ -48,11 +48,14 @@ describe("ArtifactPanel", () => {
     currentSessionId = "session-1";
     artifactStorage = {
       put: vi.fn(),
-      get: vi.fn(async () => ({
-        kind: "file",
-        bytes: new TextEncoder().encode(currentSessionId === "session-1" ? "first" : "second"),
-        mimeType: "text/plain",
-      })),
+      get: vi.fn(
+        async () =>
+          ({
+            kind: "file",
+            bytes: new TextEncoder().encode(currentSessionId === "session-1" ? "first" : "second"),
+            mimeType: "text/plain",
+          }) as const,
+      ),
       list: vi.fn(),
       delete: vi.fn(),
       clearAll: vi.fn(),
