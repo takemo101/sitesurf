@@ -959,7 +959,7 @@ AIに送信されるメッセージ:
 ```
 
 AIは周辺DOMから `<span class="price">¥298,800</span>` を認識し、
-read_page を呼ばずに回答できる。
+REPL 内 `readPage()` を呼ばずに回答できる。
 
 ### pendingElement の状態管理
 
