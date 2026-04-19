@@ -62,11 +62,6 @@ describe("ArtifactPanel", () => {
       setSessionId: vi.fn((sessionId: string | null) => {
         currentSessionId = sessionId;
       }),
-      createOrUpdate: vi.fn(),
-      saveFile: vi.fn(),
-      getFile: vi.fn(),
-      listFiles: vi.fn(),
-      deleteFile: vi.fn(),
     };
 
     initStore(artifactStorage);

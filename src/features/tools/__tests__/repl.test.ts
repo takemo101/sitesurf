@@ -36,11 +36,6 @@ describe("buildReplToolDef", () => {
 });
 
 describe("isFileSaveAction", () => {
-  it("returnFile は常に true", () => {
-    expect(isFileSaveAction("returnFile", { success: true })).toBe(true);
-    expect(isFileSaveAction("returnFile", null)).toBe(true);
-  });
-
   it("saveArtifact + kind:file は true", () => {
     expect(isFileSaveAction("saveArtifact", { success: true, name: "x.html", kind: "file" })).toBe(
       true,
@@ -59,7 +54,8 @@ describe("isFileSaveAction", () => {
     expect(isFileSaveAction("saveArtifact", {})).toBe(false);
   });
 
-  it("関係ない action は false", () => {
+  it("関係ない action は false (legacy returnFile も含む)", () => {
+    expect(isFileSaveAction("returnFile", { success: true })).toBe(false);
     expect(isFileSaveAction("getArtifact", { kind: "file" })).toBe(false);
     expect(isFileSaveAction("listArtifacts", [])).toBe(false);
     expect(isFileSaveAction("createOrUpdateArtifact", { success: true })).toBe(false);

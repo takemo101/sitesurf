@@ -96,17 +96,8 @@ describe("sandbox.html contract", () => {
     const emitted = extractSendToParentActions(sandboxHtml);
 
     for (const { name, provider } of providers) {
-      // Artifact provider は deprecated wire action (createOrUpdateArtifact, returnFile) も
-      // 受理するが、sandbox 側は新 action しか emit しないのでスキップする
-      const emittedRequired =
-        name === "ArtifactProvider"
-          ? provider.actions.filter(
-              (a) => !["createOrUpdateArtifact", "returnFile"].includes(a),
-            )
-          : provider.actions;
-
       it(`${name}: 宣言された action を sandbox から emit できる`, () => {
-        for (const action of emittedRequired) {
+        for (const action of provider.actions) {
           expect(
             emitted.has(action),
             `sandbox.html が sendToParent("${action}", ...) を呼んでいません (${name})`,

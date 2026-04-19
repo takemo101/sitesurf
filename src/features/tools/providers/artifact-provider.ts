@@ -9,19 +9,10 @@ import { ok, err } from "@/shared/errors";
  *
  * AI は `saveArtifact / getArtifact / listArtifacts / deleteArtifact` の 4 helper で
  * JSON 値・ファイルを同一ネームスペースで扱う。旧 `createOrUpdateArtifact` /
- * `returnFile` は deprecation wrapper として残し、内部で `saveArtifact` へ forward する。
+ * `returnFile` は v0.1.6 で deprecation wrapper として残していたが、v0.1.7 (#137) で完全削除。
  */
 export class ArtifactProvider implements RuntimeProvider {
-  readonly actions = [
-    "saveArtifact",
-    "getArtifact",
-    "listArtifacts",
-    "deleteArtifact",
-    // Legacy action names still accepted; wrapper helpers ride on them as a safety net
-    // even though the emitted runtime now sends only the new names.
-    "createOrUpdateArtifact",
-    "returnFile",
-  ] as const;
+  readonly actions = ["saveArtifact", "getArtifact", "listArtifacts", "deleteArtifact"] as const;
 
   getDescription(): string {
     return `## Artifact Functions (Data Persistence)
@@ -56,12 +47,7 @@ await saveArtifact("_debug", logEntries, { visible: false });
 // Inspect what you have
 const items = await listArtifacts();
 // items => [{ name: "products", kind: "json", size: 24, visible: true, ... }, ...]
-\`\`\`
-
-### Deprecated (will be removed in a future release)
-
-- \`createOrUpdateArtifact(name, data)\` → use \`saveArtifact(name, data)\`
-- \`returnFile(name, content, mimeType)\` → use \`saveArtifact(name, content, { mimeType })\``;
+\`\`\``;
   }
 
   async handleRequest(
@@ -105,33 +91,6 @@ const items = await listArtifacts();
           const { name } = request as unknown as { name: string };
           await artifactStorage.delete(name);
           return ok({ success: true, name });
-        }
-
-        // --- Legacy wire protocol: sandbox.html の deprecation wrapper (createOrUpdateArtifact /
-        // returnFile) が送ってくる action を引き続き受ける。これらは saveArtifact に forward するだけ。
-        // #137 で sandbox.html 側の wrapper と合わせて v0.1.7 で削除予定。 ---
-        case "createOrUpdateArtifact": {
-          const { name, data } = request as unknown as { name: string; data: unknown };
-          await artifactStorage.put(name, { kind: "json", data });
-          return ok({ success: true, name });
-        }
-
-        case "returnFile": {
-          const { name, contentBase64, mimeType } = request as unknown as {
-            name: string;
-            contentBase64: string;
-            mimeType: string;
-          };
-          await artifactStorage.put(name, {
-            kind: "file",
-            bytes: base64ToBytes(contentBase64),
-            mimeType,
-          });
-          return ok({
-            success: true,
-            fileName: name,
-            mimeType,
-          });
         }
 
         default:
@@ -182,8 +141,4 @@ export function inferArtifactValue(
 
 function hasFileExtension(name: string): boolean {
   return /\.[^./\\]+$/.test(name);
-}
-
-function base64ToBytes(base64: string): Uint8Array {
-  return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
 }

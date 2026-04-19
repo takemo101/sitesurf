@@ -1,9 +1,4 @@
-import type {
-  ArtifactFile,
-  ArtifactMeta,
-  ArtifactStoragePort,
-  ArtifactValue,
-} from "@/ports/artifact-storage";
+import type { ArtifactMeta, ArtifactStoragePort, ArtifactValue } from "@/ports/artifact-storage";
 import { createLogger } from "@/shared/logger";
 import { GLOBAL_SESSION_KEY, type StoredArtifactRecord } from "./artifact-record";
 import {
@@ -134,52 +129,6 @@ export class ChromeArtifactStorage implements ArtifactStoragePort {
     return Array.isArray(record?.value) ? record.value : [];
   }
 
-  async createOrUpdate(name: string, data: unknown): Promise<void> {
-    await this.put(name, { kind: "json", data });
-  }
-
-  async saveFile(name: string, contentBase64: string, mimeType: string): Promise<void> {
-    await this.put(name, {
-      kind: "file",
-      bytes: base64ToBytes(contentBase64),
-      mimeType,
-    });
-  }
-
-  async getFile(name: string): Promise<ArtifactFile | null> {
-    const value = await this.get(name);
-    if (!value || value.kind !== "file") {
-      return null;
-    }
-
-    const record = await this.readRecord(name);
-    if (!record) {
-      return null;
-    }
-
-    return {
-      name,
-      contentBase64: bytesToBase64(value.bytes),
-      mimeType: value.mimeType,
-      size: value.bytes.byteLength,
-      createdAt: record.createdAt,
-    };
-  }
-
-  async listFiles(): Promise<string[]> {
-    const artifacts = await this.list();
-    return artifacts
-      .filter((artifact) => artifact.kind === "file")
-      .map((artifact) => artifact.name);
-  }
-
-  async deleteFile(name: string): Promise<void> {
-    const value = await this.get(name);
-    if (value?.kind === "file") {
-      await this.delete(name);
-    }
-  }
-
   private async getDB(): Promise<IDBDatabase> {
     if (this.db) {
       return this.db;
@@ -254,22 +203,4 @@ function toMeta(record: StoredArtifactRecord): ArtifactMeta {
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
-}
-
-function base64ToBytes(base64: string): Uint8Array {
-  if (typeof atob === "function") {
-    return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
-  }
-  return Uint8Array.from(Buffer.from(base64, "base64"));
-}
-
-function bytesToBase64(bytes: Uint8Array): string {
-  if (typeof btoa === "function") {
-    let binary = "";
-    for (const byte of bytes) {
-      binary += String.fromCharCode(byte);
-    }
-    return btoa(binary);
-  }
-  return Buffer.from(bytes).toString("base64");
 }

@@ -26,11 +26,6 @@ const mockArtifactStorage: ArtifactStoragePort & { setSessionId(id: string | nul
   delete: async () => {},
   clearAll: async () => {},
   setSessionId: () => {},
-  createOrUpdate: async () => {},
-  saveFile: async () => {},
-  getFile: async () => null,
-  listFiles: async () => [],
-  deleteFile: async () => {},
 };
 
 vi.mock("@/shared/utils", () => ({

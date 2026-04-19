@@ -12,11 +12,6 @@ function makeStorage(
     delete: vi.fn(),
     clearAll: vi.fn(),
     setSessionId: () => undefined,
-    createOrUpdate: vi.fn(),
-    saveFile: vi.fn(),
-    getFile: vi.fn().mockResolvedValue(null),
-    listFiles: vi.fn().mockResolvedValue([]),
-    deleteFile: vi.fn(),
     ...overrides,
   };
 }
