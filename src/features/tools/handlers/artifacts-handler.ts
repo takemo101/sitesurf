@@ -1,4 +1,5 @@
-import type { ArtifactStoragePort } from "@/ports/artifact-storage";
+import type { ArtifactStoragePort, ArtifactValue } from "@/ports/artifact-storage";
+import { getMimeType } from "@/shared/artifact-mime";
 import type { ArtifactEntry } from "@/shared/artifact-types";
 import { detectType } from "@/shared/artifact-types";
 
@@ -25,7 +26,6 @@ export async function handleArtifactsTool(
   artifactSlice: ArtifactSlice,
   signal?: AbortSignal,
 ): Promise<{ content: string; isError?: boolean }> {
-  // Validate args
   if (!args) {
     return { content: "Error: No arguments provided", isError: true };
   }
@@ -47,7 +47,6 @@ export async function handleArtifactsTool(
           return { content: "Error: content is required for create command", isError: true };
         }
 
-        // Check if file already exists
         const existing = artifactSlice.artifacts.find((a) => a.name === filename);
         if (existing) {
           return {
@@ -56,31 +55,23 @@ export async function handleArtifactsTool(
           };
         }
 
-        // Determine type and save
+        const value = stringContentToArtifactValue(filename, args.content);
+        if (!value.ok) {
+          return { content: value.error, isError: true };
+        }
+
+        await artifactStorage.put(filename, value.value);
+
         const type = detectType(filename);
         const entry: ArtifactEntry = {
           name: filename,
           type,
-          source: type === "json" ? "json" : "file",
+          source: value.value.kind,
           updatedAt: Date.now(),
         };
-
-        if (type === "json") {
-          await artifactStorage.put(filename, { kind: "json", data: JSON.parse(args.content) });
-        } else {
-          const mimeType = getMimeType(filename);
-          await artifactStorage.put(filename, {
-            kind: "file",
-            bytes: new TextEncoder().encode(args.content),
-            mimeType,
-          });
-        }
-
-        // Update store
         artifactSlice.setArtifacts([...artifactSlice.artifacts, entry]);
         artifactSlice.selectArtifact(filename);
 
-        // Auto-open panel for previewable files
         if (type === "html" || type === "markdown") {
           artifactSlice.setArtifactPanelOpen(true);
         }
@@ -101,19 +92,13 @@ export async function handleArtifactsTool(
           };
         }
 
-        const type = detectType(filename);
-        if (type === "json") {
-          await artifactStorage.put(filename, { kind: "json", data: JSON.parse(args.content) });
-        } else {
-          const mimeType = getMimeType(filename);
-          await artifactStorage.put(filename, {
-            kind: "file",
-            bytes: new TextEncoder().encode(args.content),
-            mimeType,
-          });
+        const value = stringContentToArtifactValue(filename, args.content);
+        if (!value.ok) {
+          return { content: value.error, isError: true };
         }
 
-        // Update timestamp
+        await artifactStorage.put(filename, value.value);
+
         const updated = artifactSlice.artifacts.map((a) =>
           a.name === filename ? { ...a, updatedAt: Date.now() } : a,
         );
@@ -135,20 +120,13 @@ export async function handleArtifactsTool(
           return { content: `Error: File ${filename} not found`, isError: true };
         }
 
-        // Get current content
-        let currentContent: string;
-        if (existing.type === "json") {
-          const artifact = await artifactStorage.get(filename);
-          currentContent = artifact?.kind === "json" ? JSON.stringify(artifact.data, null, 2) : "";
-        } else {
-          const file = await artifactStorage.get(filename);
-          if (!file || file.kind !== "file") {
-            return { content: `Error: Could not read file ${filename}`, isError: true };
-          }
-          currentContent = new TextDecoder().decode(file.bytes);
+        const stored = await artifactStorage.get(filename);
+        if (!stored) {
+          return { content: `Error: Could not read file ${filename}`, isError: true };
         }
 
-        // Check if old_str exists
+        const currentContent = artifactValueToString(stored);
+
         if (!args.old_str || !currentContent.includes(args.old_str)) {
           return {
             content: `Error: String not found in file. Here is the full content:\n\n${currentContent}`,
@@ -156,21 +134,14 @@ export async function handleArtifactsTool(
           };
         }
 
-        // Apply update
         const newContent = currentContent.replace(args.old_str, args.new_str);
-
-        if (existing.type === "json") {
-          await artifactStorage.put(filename, { kind: "json", data: JSON.parse(newContent) });
-        } else {
-          const mimeType = getMimeType(filename);
-          await artifactStorage.put(filename, {
-            kind: "file",
-            bytes: new TextEncoder().encode(newContent),
-            mimeType,
-          });
+        const value = stringContentToArtifactValue(filename, newContent);
+        if (!value.ok) {
+          return { content: value.error, isError: true };
         }
 
-        // Update timestamp
+        await artifactStorage.put(filename, value.value);
+
         const updated = artifactSlice.artifacts.map((a) =>
           a.name === filename ? { ...a, updatedAt: Date.now() } : a,
         );
@@ -185,19 +156,12 @@ export async function handleArtifactsTool(
           return { content: `Error: File ${filename} not found`, isError: true };
         }
 
-        let content: string;
-        if (existing.type === "json") {
-          const artifact = await artifactStorage.get(filename);
-          content = artifact?.kind === "json" ? JSON.stringify(artifact.data, null, 2) : "";
-        } else {
-          const file = await artifactStorage.get(filename);
-          if (!file || file.kind !== "file") {
-            return { content: `Error: Could not read file ${filename}`, isError: true };
-          }
-          content = new TextDecoder().decode(file.bytes);
+        const stored = await artifactStorage.get(filename);
+        if (!stored) {
+          return { content: `Error: Could not read file ${filename}`, isError: true };
         }
 
-        return { content };
+        return { content: artifactValueToString(stored) };
       }
 
       case "delete": {
@@ -219,8 +183,6 @@ export async function handleArtifactsTool(
       }
 
       case "logs": {
-        // For HTML files, logs are collected by the HtmlSandbox component
-        // Return a placeholder - actual logs would need to be tracked
         return {
           content:
             "Logs feature requires HTML file execution. Use the artifacts panel to view console output.",
@@ -238,21 +200,40 @@ export async function handleArtifactsTool(
   }
 }
 
-function getMimeType(filename: string): string {
-  const ext = filename.split(".").pop()?.toLowerCase() || "";
-  const mimeTypes: Record<string, string> = {
-    html: "text/html",
-    css: "text/css",
-    js: "application/javascript",
-    json: "application/json",
-    png: "image/png",
-    jpg: "image/jpeg",
-    jpeg: "image/jpeg",
-    gif: "image/gif",
-    svg: "image/svg+xml",
-    md: "text/markdown",
-    txt: "text/plain",
-    csv: "text/csv",
+// top-level `artifacts` tool は string content を受け取る。拡張子で kind を
+// 決めるのは「content をどう解釈するか」の content 層の判断であり、
+// ADR-007 が排除したかった "どの store に保存するか" の storage 層の判断とは別物。
+// `.json` のみ JSON parse + JSON kind、他はすべて file kind として保存する。
+function stringContentToArtifactValue(
+  filename: string,
+  content: string,
+): { ok: true; value: ArtifactValue } | { ok: false; error: string } {
+  const isJsonFile = detectType(filename) === "json";
+
+  if (isJsonFile) {
+    try {
+      return { ok: true, value: { kind: "json", data: JSON.parse(content) } };
+    } catch (e) {
+      return {
+        ok: false,
+        error: `Error: Invalid JSON content for ${filename}: ${e instanceof Error ? e.message : String(e)}`,
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    value: {
+      kind: "file",
+      bytes: new TextEncoder().encode(content),
+      mimeType: getMimeType(filename),
+    },
   };
-  return mimeTypes[ext] || "application/octet-stream";
+}
+
+function artifactValueToString(value: ArtifactValue): string {
+  if (value.kind === "json") {
+    return JSON.stringify(value.data, null, 2);
+  }
+  return new TextDecoder().decode(value.bytes);
 }
