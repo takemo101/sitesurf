@@ -148,19 +148,31 @@ export class SkillRegistry {
         return true;
       })
       .map((skill): SkillMatch => {
-        // Path-scoped skills narrow the match beyond a broad host, so instruction
-        // guidance is task-relevant enough for contextual activation.
-        // Host-only skills stay passive to avoid over-firing on unrelated pages
-        // (e.g. repo-analysis guidance on a GitHub issue-comment task).
-        const pathMatched = skill.matchers.paths !== undefined && skill.matchers.paths.length > 0;
+        // Specific path-scoped skills narrow the match beyond a broad host, so
+        // instruction guidance is task-relevant enough for contextual activation.
+        // Host-only skills, or skills whose paths are all catch-alls like "/"
+        // or "/**", stay passive so we don't over-fire task-specific guidance
+        // on unrelated pages (e.g. repo-analysis guidance on a GitHub
+        // issue-comment task).
+        const hasSpecificPath = (skill.matchers.paths ?? []).some(isSpecificPathPattern);
         return {
           skill,
           availableExtractors: skill.extractors,
           confidence: this.calculateConfidence(skill, url, domSnapshot),
-          activationLevel: pathMatched ? "contextual" : "passive",
+          activationLevel: hasSpecificPath ? "contextual" : "passive",
         };
       })
       .filter((match) => match.confidence >= minConfidence)
       .sort((a, b) => b.confidence - a.confidence);
   }
+}
+
+// A path pattern is "specific" if it contains at least one non-wildcard
+// segment (for example `/repos/` or a segment like `tree`). Purely wildcard
+// patterns such as `/`, a single wildcard segment, or double-wildcard match
+// every page on the host and give no more information than the host itself.
+function isSpecificPathPattern(pattern: string): boolean {
+  const segments = pattern.split("/").filter((seg) => seg.length > 0);
+  if (segments.length === 0) return false;
+  return segments.some((seg) => !/^\*+$/.test(seg));
 }

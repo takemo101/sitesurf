@@ -541,8 +541,10 @@ describe("skill instruction activation level", () => {
     const section = generateSkillsSectionForLoop([skill], new Set());
 
     expect(section).toContain("Guidance (contextual):");
-    expect(section).toContain("- repo 全体の分析では API / bgFetch を優先すること。");
-    expect(section).toContain("- DOM extractor は可視範囲の補助取得に限定する。");
+    expect(section).toContain("  > repo 全体の分析では API / bgFetch を優先すること。");
+    expect(section).toContain("  > DOM extractor は可視範囲の補助取得に限定する。");
+    // Non-bullet prefix keeps Guidance visually distinct from extractor APIs.
+    expect(section).not.toContain("- repo 全体の分析では");
     // Content after the blank line (next paragraph) is still not injected.
     expect(section).not.toContain("次のセクションに書かれた詳細");
   });
@@ -565,5 +567,113 @@ describe("skill instruction activation level", () => {
     expect(section).toContain("  Guidance: repo 全体の分析では");
     expect(section).not.toContain("Guidance (contextual):");
     expect(section).not.toContain("- DOM extractor は可視範囲");
+  });
+
+  it("renders a mixed skill (extractors + contextual guidance) without merging the Guidance lines into the extractor bullets", () => {
+    const extractor = {
+      id: "getFileList",
+      name: "Get File List",
+      description: "リポジトリ内のファイル一覧を取得する",
+      code: "function () { return []; }",
+      outputSchema: "string[]",
+    };
+    const mixed: SkillMatch = {
+      skill: {
+        id: "gh-repo",
+        name: "GitHub Repo",
+        description: "GitHub リポジトリの分析",
+        matchers: { hosts: ["github.com"], paths: ["/*/*/tree/**"] },
+        version: "0.2.0",
+        extractors: [extractor],
+        instructionsMarkdown:
+          "repo 全体の分析では API / bgFetch を優先すること。\nDOM extractor は可視範囲の補助取得に限定する。",
+      },
+      availableExtractors: [extractor],
+      confidence: 100,
+      activationLevel: "contextual",
+    };
+
+    const section = generateSkillsSectionForLoop([mixed], new Set());
+
+    expect(section).toContain("Guidance (contextual):");
+    // Guidance uses '  > ' so it doesn't visually merge with '-' extractor bullets.
+    expect(section).toContain("  > repo 全体の分析では API / bgFetch を優先すること。");
+    expect(section).toContain("- getFileList(): string[] — リポジトリ内のファイル一覧を取得する");
+    // Guidance body must not be rendered as an extractor-style bullet.
+    expect(section).not.toContain("- repo 全体の分析では");
+    expect(section).not.toContain("- DOM extractor は可視範囲");
+  });
+
+  it("attaches extractor-scoped cautions parsed from `## Extractor: <id>` blocks to the matching extractor bullet", () => {
+    const extractor = {
+      id: "getVisibleFileList",
+      name: "Get Visible File List",
+      description: "現在表示中のファイルの一覧",
+      code: "function () { return []; }",
+      outputSchema: "string[]",
+    };
+    const skill: SkillMatch = {
+      skill: {
+        id: "gh-repo",
+        name: "GitHub Repo",
+        description: "GitHub リポジトリの分析",
+        matchers: { hosts: ["github.com"], paths: ["/*/*/tree/**"] },
+        version: "0.2.0",
+        extractors: [extractor],
+        instructionsMarkdown: [
+          "repo 分析では API / bgFetch を優先すること。",
+          "",
+          "## Extractor: getVisibleFileList",
+          "この extractor は可視範囲のみを返す。tree 全体ではない。",
+        ].join("\n"),
+      },
+      availableExtractors: [extractor],
+      confidence: 100,
+      activationLevel: "contextual",
+    };
+
+    const section = generateSkillsSectionForLoop([skill], new Set());
+
+    expect(section).toContain(
+      "  Caution: この extractor は可視範囲のみを返す。tree 全体ではない。",
+    );
+    // Top-level Guidance must not duplicate extractor-scoped content: Guidance
+    // body uses "  > " and extractor caution uses "  Caution: ", so the phrase
+    // must never appear under the "  > " prefix.
+    expect(section).not.toContain("  > この extractor は可視範囲のみを返す");
+  });
+
+  it("does not attach a caution when an `## Extractor:` block references an unknown extractor", () => {
+    const extractor = {
+      id: "getTitle",
+      name: "Get Title",
+      description: "ページタイトルを取得する",
+      code: "function () { return document.title; }",
+      outputSchema: "string",
+    };
+    const skill: SkillMatch = {
+      skill: {
+        id: "gh-repo",
+        name: "GitHub Repo",
+        description: "desc",
+        matchers: { hosts: ["github.com"], paths: ["/*/*/tree/**"] },
+        version: "0.2.0",
+        extractors: [extractor],
+        instructionsMarkdown: [
+          "repo 分析では API を優先すること。",
+          "",
+          "## Extractor: missingExtractor",
+          "このセクションはどの extractor にも紐付かない。",
+        ].join("\n"),
+      },
+      availableExtractors: [extractor],
+      confidence: 100,
+      activationLevel: "contextual",
+    };
+
+    const section = generateSkillsSectionForLoop([skill], new Set());
+
+    expect(section).not.toContain("Caution:");
+    expect(section).not.toContain("このセクションはどの extractor にも紐付かない");
   });
 });
