@@ -12,6 +12,10 @@
     {
       "id": "dom-mutation",
       "file": "dom-mutation.md"
+    },
+    {
+      "id": "github-guidance",
+      "file": "github-guidance.md"
     }
   ]
 }

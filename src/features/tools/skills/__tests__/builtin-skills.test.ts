@@ -16,6 +16,10 @@ const domMutationMarkdown = readFileSync(
   resolve(__dirname, "../../../../../public/skills/dom-mutation.md"),
   "utf-8",
 );
+const githubGuidanceMarkdown = readFileSync(
+  resolve(__dirname, "../../../../../public/skills/github-guidance.md"),
+  "utf-8",
+);
 
 describe("Builtin Skills Markdown", () => {
   describe("youtube.md", () => {
@@ -259,6 +263,41 @@ describe("Builtin Skills Markdown", () => {
       expect(extractor?.code).toContain('closest("nav")');
       expect(extractor?.code).toContain("appendChild");
       expect(extractor?.code).not.toContain("insertBefore");
+    });
+  });
+
+  describe("github-guidance.md (instruction-only)", () => {
+    it("パースできる", () => {
+      const result = parseSkillMarkdown(githubGuidanceMarkdown);
+      expect(result.ok).toBe(true);
+    });
+
+    it("instruction-only skill として extractors を持たない", () => {
+      const result = parseSkillMarkdown(githubGuidanceMarkdown);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      expect(result.skill.id).toBe("github-guidance");
+      expect(result.skill.extractors).toHaveLength(0);
+    });
+
+    it("instructionsMarkdown を保持する", () => {
+      const result = parseSkillMarkdown(githubGuidanceMarkdown);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      expect(result.skill.instructionsMarkdown).toContain("GitHub では task に応じて");
+      expect(result.skill.instructionsMarkdown).toContain("Repository Analysis");
+    });
+
+    it("github.com を対象にした site-scoped skill として登録される", () => {
+      const result = parseSkillMarkdown(githubGuidanceMarkdown);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      expect(result.skill.matchers.hosts).toContain("github.com");
+      // catch-all paths を使っていないため、host-only 扱いで passive に落ち着く想定。
+      expect(result.skill.matchers.paths).toBeUndefined();
     });
   });
 });
