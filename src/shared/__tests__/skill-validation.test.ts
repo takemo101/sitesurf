@@ -227,7 +227,7 @@ describe("validateSkillDraftDefinition", () => {
       expect.arrayContaining([
         "Skill name is required",
         "Skill matchers.hosts is required and must not be empty",
-        "Skill extractors is required and must have at least one extractor",
+        "Skill must have instructions or at least one extractor",
       ]),
     );
   });
@@ -248,7 +248,7 @@ describe("validateSkillDraftDefinition", () => {
     expect(result.errors.map((error) => error.message)).toEqual(
       expect.arrayContaining([
         "Skill matchers.hosts is required and must not be empty",
-        "Skill extractors is required and must have at least one extractor",
+        "Skill must have instructions or at least one extractor",
       ]),
     );
   });
@@ -267,7 +267,7 @@ describe("validateSkillDraftDefinition", () => {
     const result = validateSkillDefinition(malformedSkill);
     expect(result.valid).toBe(false);
     expect(result.errors.map((error) => error.message)).toContain(
-      "Skill extractors is required and must have at least one extractor",
+      "Skill must have instructions or at least one extractor",
     );
   });
 
@@ -397,5 +397,151 @@ describe("validateSkillDraftDefinition", () => {
     expect(result.errors.map((error) => error.message)).toContain(
       "Skill matchers.hosts is required and must not be empty",
     );
+  });
+});
+
+describe("instruction-only skills", () => {
+  it("accepts an instruction-only global skill with no extractors", () => {
+    const skill: Skill = {
+      id: "github-guidance",
+      name: "GitHub Guidance",
+      description: "GitHub でのタスク選択に関する軽いガイダンス",
+      scope: "global",
+      matchers: { hosts: [] },
+      extractors: [],
+      version: "0.1.0",
+      instructionsMarkdown: "repo 分析でない限り repo-analysis guidance を過剰適用しないこと。",
+    };
+
+    const result = validateSkillDefinition(skill);
+    expect(result.valid).toBe(true);
+  });
+
+  it("draft validation accepts an instruction-only skill as ok or warning", () => {
+    const skill: Skill = {
+      id: "github-guidance",
+      name: "GitHub Guidance",
+      description: "GitHub でのタスク選択に関する軽いガイダンス",
+      scope: "global",
+      matchers: { hosts: [] },
+      extractors: [],
+      version: "0.1.0",
+      instructionsMarkdown: "repo 分析でない限り repo-analysis guidance を過剰適用しないこと。",
+    };
+
+    const result = validateSkillDraftDefinition(skill);
+    expect(result.status).not.toBe("reject");
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("rejects a skill that has neither instructions nor extractors", () => {
+    const skill: Skill = {
+      id: "empty-skill",
+      name: "Empty Skill",
+      description: "Neither instructions nor extractors",
+      scope: "global",
+      matchers: { hosts: [] },
+      extractors: [],
+      version: "0.1.0",
+    };
+
+    const result = validateSkillDefinition(skill);
+    expect(result.valid).toBe(false);
+    expect(result.errors.map((e) => e.message)).toContain(
+      "Skill must have instructions or at least one extractor",
+    );
+  });
+
+  it("rejects instructionsMarkdown that embeds top-level '# Instructions' markers", () => {
+    const skill: Skill = {
+      id: "broken-instructions",
+      name: "Broken Instructions",
+      description: "instructions contain a top-level # Instructions marker",
+      scope: "global",
+      matchers: { hosts: [] },
+      extractors: [],
+      version: "0.1.0",
+      instructionsMarkdown: "intro paragraph\n\n# Instructions\n\nmore content",
+    };
+
+    const result = validateSkillDefinition(skill);
+    expect(result.valid).toBe(false);
+    expect(result.errors.map((e) => e.message).join(" ")).toMatch(/top-level/);
+  });
+
+  it("allows '# Instructions' inside a fenced code block in instructionsMarkdown", () => {
+    const skill: Skill = {
+      id: "doc-instructions",
+      name: "Doc Instructions",
+      description: "Instructions that document the skill format via fenced code",
+      scope: "global",
+      matchers: { hosts: [] },
+      extractors: [],
+      version: "0.1.0",
+      instructionsMarkdown: "skill の書式例:\n\n```md\n# Instructions\n\nthis is an example\n```\n",
+    };
+
+    const result = validateSkillDefinition(skill);
+    expect(result.valid).toBe(true);
+  });
+});
+
+describe("bgFetch() usage warning", () => {
+  it("warns when extractor code calls bgFetch()", () => {
+    const result = validateSkillDraftDefinition(
+      createSkill({
+        extractors: [
+          {
+            id: "loader",
+            name: "Loader",
+            description: "Load data using bgFetch from the extractor context",
+            code: 'function () { return bgFetch("https://example.com/api"); }',
+            outputSchema: "object",
+          },
+        ],
+      }),
+    );
+
+    expect(result.status).toBe("warning");
+    expect(result.warnings.some((w) => w.message.includes("bgFetch"))).toBe(true);
+    expect(result.warnings.some((w) => w.message.includes("Not available in page context"))).toBe(
+      true,
+    );
+  });
+
+  it("does not warn when bgFetch appears as a method/property access (not a call)", () => {
+    const result = validateSkillDraftDefinition(
+      createSkill({
+        extractors: [
+          {
+            id: "loader",
+            name: "Loader",
+            description: "Returns a string that happens to mention bgFetch",
+            code: 'function () { return { note: "see docs about bgFetch in background" }; }',
+            outputSchema: "object",
+          },
+        ],
+      }),
+    );
+
+    expect(result.warnings.every((w) => !w.message.includes("bgFetch"))).toBe(true);
+  });
+
+  it("does not warn on property-style .bgFetch(", () => {
+    const result = validateSkillDraftDefinition(
+      createSkill({
+        extractors: [
+          {
+            id: "loader",
+            name: "Loader",
+            description: "References an unrelated api.bgFetch method on a user object",
+            code: 'function () { return window.customApi.bgFetch("x"); }',
+            outputSchema: "object",
+          },
+        ],
+      }),
+    );
+
+    expect(result.warnings.every((w) => !w.message.includes("bgFetch"))).toBe(true);
   });
 });

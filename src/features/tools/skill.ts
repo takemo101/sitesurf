@@ -88,6 +88,7 @@ export interface CreateSkillDraftArgs {
   scope?: SkillScope;
   matchers: SkillMatchers;
   extractors: SkillExtractor[];
+  instructionsMarkdown?: string;
 }
 
 export interface CreateSkillDraftResult {
@@ -499,6 +500,7 @@ export async function executeUpdateSkillDraft(
       ? { ...existingSkill.matchers, ...args.updates.matchers }
       : existingSkill.matchers,
     extractors: args.updates.extractors ?? existingSkill.extractors,
+    instructionsMarkdown: args.updates.instructionsMarkdown ?? existingSkill.instructionsMarkdown,
   };
 
   const parsedArgs = parseCreateSkillDraftArgs(mergedArgs);
@@ -544,7 +546,7 @@ export async function executeDeleteSkillDraft(
   if (typeof args !== "object" || args === null) {
     return err({
       code: "tool_script_error",
-      message: "skill(action: \"delete_draft\") arguments must be an object",
+      message: 'skill(action: "delete_draft") arguments must be an object',
     });
   }
 
@@ -910,8 +912,9 @@ function validateSkill(skill: Skill): string | null {
 function normalizeDraftSkill(args: CreateSkillDraftArgs): Skill {
   const trimmedName = (args.name ?? "").trim();
   const generatedId = slugifySkillId(trimmedName || "skill-draft");
+  const instructions = (args.instructionsMarkdown ?? "").trim();
 
-  return {
+  const skill: Skill = {
     id: generatedId,
     name: trimmedName,
     description: (args.description ?? "").trim(),
@@ -931,6 +934,12 @@ function normalizeDraftSkill(args: CreateSkillDraftArgs): Skill {
       outputSchema: (extractor.outputSchema ?? "").trim(),
     })),
   };
+
+  if (instructions.length > 0) {
+    skill.instructionsMarkdown = instructions;
+  }
+
+  return skill;
 }
 
 function validateDraftAgainstRegistry(
@@ -1030,7 +1039,7 @@ function parseCreateSkillDraftArgs(
   args: CreateSkillDraftArgs,
 ): { ok: true; value: CreateSkillDraftArgs } | { ok: false; error: string } {
   if (typeof args !== "object" || args === null) {
-    return { ok: false, error: "skill(action: \"create_draft\") arguments must be an object" };
+    return { ok: false, error: 'skill(action: "create_draft") arguments must be an object' };
   }
 
   if (typeof args.name !== "string") {
@@ -1075,6 +1084,10 @@ function parseCreateSkillDraftArgs(
 
   if (!Array.isArray(args.extractors)) {
     return { ok: false, error: "extractors must be an array" };
+  }
+
+  if (args.instructionsMarkdown !== undefined && typeof args.instructionsMarkdown !== "string") {
+    return { ok: false, error: "instructionsMarkdown must be a string when provided" };
   }
 
   for (const extractor of args.extractors) {
