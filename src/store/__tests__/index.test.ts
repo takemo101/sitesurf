@@ -325,6 +325,20 @@ describe("AppStore", () => {
       expect(s.maxTokens).toBe(DEFAULT_MAX_TOKENS);
     });
 
+    it("未設定の kimi / kimi-coding に切り替えたときは K2.6 系の既定値にフォールバックする", () => {
+      useStore.getState().setSettings({
+        model: "claude-opus-4-1",
+        reasoningLevel: "high",
+        maxTokens: 32768,
+      });
+
+      useStore.getState().setSettings({ provider: "kimi" });
+      expect(useStore.getState().settings.model).toBe("kimi-k2.6");
+
+      useStore.getState().setSettings({ provider: "kimi-coding" });
+      expect(useStore.getState().settings.model).toBe("k2p6");
+    });
+
     it("空文字 model を保存した provider へ戻っても default model を使う", () => {
       useStore.getState().setSettings({ provider: "openai", model: "gpt-4.1" });
       useStore.getState().setSettings({ provider: "anthropic" });

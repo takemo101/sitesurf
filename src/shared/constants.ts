@@ -92,8 +92,9 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
   kimi: {
     id: "kimi",
     name: "Kimi (Moonshot AI)",
-    defaultModel: defaultFor("kimi", "kimi-k2.5"),
+    defaultModel: defaultFor("kimi", "kimi-k2.6"),
     models: modelsFor("kimi", [
+      "kimi-k2.6",
       "kimi-k2.5",
       "kimi-k2-turbo-preview",
       "kimi-k2-0905-preview",
@@ -109,8 +110,8 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
   "kimi-coding": {
     id: "kimi-coding",
     name: "Kimi for Coding",
-    defaultModel: defaultFor("kimi-coding", "k2p5"),
-    models: modelsFor("kimi-coding", ["k2p5", "kimi-k2-thinking"]),
+    defaultModel: defaultFor("kimi-coding", "k2p6"),
+    models: modelsFor("kimi-coding", ["k2p6", "k2p5", "kimi-k2-thinking"]),
     authType: "apikey",
     placeholder: "sk-...",
   },

@@ -68,6 +68,16 @@ describe("PROVIDERS定数", () => {
   it("google は apikey 認証", () => {
     expect(PROVIDERS.google.authType).toBe("apikey");
   });
+
+  it("kimi は K2.6 をデフォルトに含む", () => {
+    expect(PROVIDERS.kimi.defaultModel).toBe("kimi-k2.6");
+    expect(PROVIDERS.kimi.models).toContain("kimi-k2.6");
+  });
+
+  it("kimi-coding は k2p6 をデフォルトに含む", () => {
+    expect(PROVIDERS["kimi-coding"].defaultModel).toBe("k2p6");
+    expect(PROVIDERS["kimi-coding"].models).toContain("k2p6");
+  });
 });
 
 describe("THEME_STORAGE_KEY", () => {

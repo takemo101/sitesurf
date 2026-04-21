@@ -490,11 +490,16 @@ export const GENERATED_MODELS: Record<string, ProviderModels> = {
     ],
   },
   "kimi-coding": {
-    defaultModel: "k2p5",
+    defaultModel: "k2p6",
     models: [
       {
         id: "k2p5",
         name: "Kimi K2.5",
+        reasoning: true,
+      },
+      {
+        id: "k2p6",
+        name: "Kimi K2.6",
         reasoning: true,
       },
       {
