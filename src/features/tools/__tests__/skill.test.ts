@@ -90,6 +90,13 @@ describe("skill tool", () => {
       expect(skillToolDef.description).toContain("custom skill としては保存されません");
     });
 
+    it("documents the instruction layer and its validation rules", () => {
+      expect(skillToolDef.description).toContain("instructionsMarkdown");
+      expect(skillToolDef.description).toContain("Instructions layer");
+      expect(skillToolDef.description).toContain("instructionsMarkdown か extractors");
+      expect(skillToolDef.description).toContain("bgFetch()");
+    });
+
     it("returns a tool error for malformed skill arguments", async () => {
       const storage = new InMemoryStorage();
       const registry = new SkillRegistry();
@@ -830,6 +837,148 @@ describe("skill tool", () => {
       const loadedRegistry = await loadSkillRegistry(storage);
       const matches = loadedRegistry.getAvailableSkills("https://example.com/article");
       expect(matches.some((match) => match.skill.id === "approved-draft-skill")).toBe(true);
+    });
+
+    it("approved instruction-only drafts round-trip through storage with instructions preserved", async () => {
+      const storage = new InMemoryStorage();
+      const registry = new SkillRegistry();
+
+      const instructionsBody =
+        "このサイトでは API / bgFetch を優先すること。DOM extractor は可視範囲の補助取得に限定する。";
+
+      const createResult = await executeCreateSkillDraft(storage, registry, {
+        name: "Instructions Only Draft",
+        description: "AI 向けガイダンスのみを提供する global skill",
+        scope: "global",
+        matchers: { hosts: [] },
+        extractors: [],
+        instructionsMarkdown: instructionsBody,
+      });
+
+      expect(createResult.ok).toBe(true);
+      if (!createResult.ok) return;
+      expect(createResult.value.validation.status).not.toBe("reject");
+
+      const drafts = (await storage.get<StoredSkillDraft[]>("sitesurf_skill_drafts")) ?? [];
+      const approval = approveSkillDraft([], drafts, createResult.value.draftId);
+      expect(approval.ok).toBe(true);
+      if (!approval.ok) return;
+
+      await saveCustomSkills(storage, approval.updatedSkills);
+      await storage.set("sitesurf_skill_drafts", approval.remainingDrafts);
+
+      const loadedRegistry = await loadSkillRegistry(storage);
+      const loaded = loadedRegistry.get("instructions-only-draft");
+      expect(loaded).toBeDefined();
+      expect(loaded?.extractors).toHaveLength(0);
+      expect(loaded?.instructionsMarkdown).toContain("API / bgFetch を優先");
+    });
+
+    it("approved mixed drafts preserve both instructions and extractors across storage", async () => {
+      const storage = new InMemoryStorage();
+      const registry = new SkillRegistry();
+
+      const createResult = await executeCreateSkillDraft(storage, registry, {
+        name: "Mixed Draft",
+        description: "Instructions と extractors を両方持つ site-scoped skill",
+        scope: "site",
+        matchers: { hosts: ["example.com"] },
+        extractors: [
+          {
+            id: "getTitle",
+            name: "Get Title",
+            description: "ページタイトルを取得する",
+            code: "function () { return document.title; }",
+            outputSchema: "string",
+          },
+        ],
+        instructionsMarkdown: "## Always\nこのサイトでは extractor を万能手段として扱わない。",
+      });
+
+      expect(createResult.ok).toBe(true);
+      if (!createResult.ok) return;
+
+      const drafts = (await storage.get<StoredSkillDraft[]>("sitesurf_skill_drafts")) ?? [];
+      const approval = approveSkillDraft([], drafts, createResult.value.draftId);
+      expect(approval.ok).toBe(true);
+      if (!approval.ok) return;
+
+      await saveCustomSkills(storage, approval.updatedSkills);
+
+      const loadedRegistry = await loadSkillRegistry(storage);
+      const loaded = loadedRegistry.get("mixed-draft");
+      expect(loaded).toBeDefined();
+      expect(loaded?.extractors).toHaveLength(1);
+      expect(loaded?.extractors[0].id).toBe("getTitle");
+      expect(loaded?.instructionsMarkdown).toContain("extractor を万能手段として扱わない");
+    });
+
+    it("provides a suggestedFix when a draft has neither instructions nor extractors", async () => {
+      const storage = new InMemoryStorage();
+      const registry = new SkillRegistry();
+
+      const result = await executeCreateSkillDraft(storage, registry, {
+        name: "Empty",
+        description: "Neither instructions nor extractors",
+        scope: "global",
+        matchers: { hosts: [] },
+        extractors: [],
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      expect(result.value.validation.status).toBe("reject");
+      expect(result.value.suggestedFixes.join(" ")).toContain(
+        "instructionsMarkdown（AI 向けガイダンス）か extractors",
+      );
+    });
+
+    it("provides a suggestedFix for bgFetch() usage warning in extractor code", async () => {
+      const storage = new InMemoryStorage();
+      const registry = new SkillRegistry();
+
+      const result = await executeCreateSkillDraft(storage, registry, {
+        name: "bgFetch Draft",
+        description: "Extractor that incorrectly tries to call bgFetch",
+        scope: "site",
+        matchers: { hosts: ["example.com"] },
+        extractors: [
+          {
+            id: "loader",
+            name: "Loader",
+            description: "Tries to load via bgFetch from page context",
+            code: 'function () { return bgFetch("https://example.com/api"); }',
+            outputSchema: "object",
+          },
+        ],
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      expect(result.value.validation.status).toBe("warning");
+      expect(result.value.suggestedFixes.join(" ")).toContain("bg_fetch ツール");
+    });
+
+    it("provides a suggestedFix when instructionsMarkdown embeds a top-level marker", async () => {
+      const storage = new InMemoryStorage();
+      const registry = new SkillRegistry();
+
+      const result = await executeCreateSkillDraft(storage, registry, {
+        name: "Broken Instructions",
+        description: "Instruction body embeds a top-level # Instructions heading",
+        scope: "global",
+        matchers: { hosts: [] },
+        extractors: [],
+        instructionsMarkdown: "intro\n\n# Instructions\n\nmore content",
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      expect(result.value.validation.status).toBe("reject");
+      expect(result.value.suggestedFixes.join(" ")).toContain("コードフェンス");
     });
   });
 
