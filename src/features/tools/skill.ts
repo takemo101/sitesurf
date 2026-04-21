@@ -150,6 +150,12 @@ export const skillToolDef: ToolDefinition = {
   name: "skill",
   description: `サイト固有の自動化ライブラリ（Skill）を管理するツール。
 
+Skill には 2 つのレイヤーがある:
+- **Instructions layer**: AI 向けのサイトスコープのガイダンス（markdown）
+- **Extractors layer**: ページコンテキストで実行される site-specific な関数
+
+どちらか一方だけ、または両方を持てる。instructions-only / extractors-only / mixed の 3 形態を許容する。
+
 ## アクション
 
 ### 1. list - スキル一覧
@@ -167,6 +173,7 @@ call skill({ action: "get", id: "youtube-extractor", includeLibraryCode: true })
 
 ### 3. create - スキル作成
 新しいスキルを作成する。IDは一意である必要がある。
+instructionsMarkdown を渡すと AI 向けガイダンスも保存できる（extractors と同居・instruction-only どちらも可）。
 
 call skill({
   action: "create",
@@ -176,6 +183,7 @@ call skill({
     description: "説明文",
     matchers: { hosts: ["example.com"] },
     version: "0.0.0",
+    instructionsMarkdown: "このサイトでは API / bgFetch を優先すること。",
     extractors: [{
       id: "getTitle",
       name: "タイトル取得",
@@ -225,6 +233,7 @@ call skill({ action: "list_drafts" })
 ### 8. create_draft - スキル下書き作成
 チャットから Skill の下書きを作成する。下書きとして保存されるが、custom skill としては保存されません。
 validation 結果を返し、Settings の下書き一覧で内容を確認したうえで明示承認した時だけ custom skill に反映される。
+instructionsMarkdown を渡すと instruction-only または mixed な下書きにできる（extractors 空でも可）。
 
 call skill({
   action: "create_draft",
@@ -233,6 +242,7 @@ call skill({
     description: "説明文",
     scope: "site",
     matchers: { hosts: ["example.com"] },
+    instructionsMarkdown: "このサイトでは...",
     extractors: [{
       id: "getTitle",
       name: "タイトル取得",
@@ -263,14 +273,17 @@ call skill({ action: "delete_draft", id: "draft-id" })
 - code 内で **ナビゲーション操作は禁止**: window.location, location.href=, location.assign(), location.replace(), location.reload(), history.pushState(), history.replaceState()
 - code 内で **危険な関数は禁止**: eval(), Function(), new Function(), setTimeout("string"), document.write(), .constructor.constructor(), .submit(), new Image()
 - scope が "site" のとき **matchers.hosts は必須**で1つ以上のホストが必要
+- **instructionsMarkdown か extractors のどちらか**は必須（両方空は reject）
 - 各 extractor に **id, name, description, code, outputSchema** はすべて必須
 - **括弧の対応が不一致**（(), [], {} のバランス）
+- instructionsMarkdown 内で **top-level の "# Instructions" / "# Extractors" 見出しは使用禁止**（markdown の round-trip を壊すため）。必要ならコードフェンス内に書く
 
 ### warning（承認可能だが品質向上のため推奨）
 - description が **10文字未満**だと警告 → 用途がわかる具体的な説明にする
 - outputSchema が "unknown" だと警告 → 返却値の型を具体的に記述する（例: "{ title: string, url: string }"）
 - code に **return 文がない**と警告 → 明示的に return で結果を返す
 - code 内の fetch(), XMLHttpRequest, WebSocket は警告（使用可能だが注意）
+- code 内の **bgFetch() は警告** → extractor は page context で実行されるため bgFetch helper にアクセスできない。bg_fetch が必要なら別の経路で呼び出す
 
 ### 自動補正
 - code が bare code（return document.title; など）の場合は自動的に function () { ... } でラップされる
@@ -1018,6 +1031,27 @@ function buildSuggestedFixes(validation: SkillDraftValidation): string[] {
     if (issue.message.includes("full function source")) {
       fixes.add(
         "extractor code は bare な文ではなく、`function () { ... }` か `async function () { ... }` の形で保存してください。",
+      );
+    }
+
+    if (issue.message.includes("must have instructions or at least one extractor")) {
+      fixes.add(
+        "instructionsMarkdown（AI 向けガイダンス）か extractors（関数）のどちらかを指定してください。両方空の Skill は保存できません。",
+      );
+    }
+
+    if (
+      issue.message.includes("instructionsMarkdown must not contain top-level") ||
+      issue.message.includes("top-level '# Instructions'")
+    ) {
+      fixes.add(
+        "instructionsMarkdown の本文から top-level の '# Instructions' / '# Extractors' 見出しを取り除いてください。説明で書式例を示したい場合はコードフェンス（```md ... ```）の中に書いてください。",
+      );
+    }
+
+    if (issue.message.includes("Not available in page context: bgFetch")) {
+      fixes.add(
+        "extractor code はページコンテキストで実行されるため bgFetch() は呼び出せません。ネットワークアクセスが必要なら extractor から外して bg_fetch ツールを利用してください。",
       );
     }
   }
