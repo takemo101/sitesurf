@@ -14,7 +14,6 @@ import { useDisclosure } from "@mantine/hooks";
 import { motion } from "framer-motion";
 import { Bot, Brain, Check, ChevronDown, ChevronRight, Copy, Wrench, User } from "lucide-react";
 import type { ChatMessage, ToolCallInfo } from "@/ports/session-types";
-import { useStore } from "@/store/index";
 import { messageStyles, type StyledRole } from "./theme";
 import { MarkdownContent } from "@/shared/ui/MarkdownContent";
 import { ToolCallBlock } from "./ToolCallBlock";
@@ -108,12 +107,19 @@ function ToolCallGroup({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
   );
 }
 
-export function ChatBubble({ msg, isLast }: { msg: ChatMessage; isLast?: boolean }) {
+export function ChatBubble({
+  msg,
+  isLast,
+  isStreaming,
+}: {
+  msg: ChatMessage;
+  isLast?: boolean;
+  isStreaming?: boolean;
+}) {
   const role = msg.role as StyledRole;
   const config = roleConfig[role as keyof typeof roleConfig];
   const style = messageStyles[role];
   const Icon = config.icon;
-  const isStreaming = useStore((s) => s.isStreaming);
   const isAssistant = role === "assistant";
 
   return (
@@ -157,7 +163,7 @@ export function ChatBubble({ msg, isLast }: { msg: ChatMessage; isLast?: boolean
         {msg.reasoning && (
           <ReasoningBlock
             text={msg.reasoning}
-            isThinking={isLast === true && isStreaming && !msg.content}
+            isThinking={isLast === true && isStreaming === true && !msg.content}
           />
         )}
 

@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -23,9 +24,13 @@ function CodeBlock({ lang, children }: { lang: string; children: string }) {
   const headerBg = isDark ? "var(--mantine-color-dark-5)" : "var(--mantine-color-gray-3)";
   const bodyBg = isDark ? "var(--mantine-color-dark-6)" : "var(--mantine-color-gray-2)";
 
-  const highlighted = hljs.getLanguage(lang)
-    ? hljs.highlight(children, { language: lang, ignoreIllegals: true }).value
-    : null;
+  const highlighted = useMemo(
+    () =>
+      hljs.getLanguage(lang)
+        ? hljs.highlight(children, { language: lang, ignoreIllegals: true }).value
+        : null,
+    [lang, children],
+  );
 
   return (
     <Box
@@ -253,7 +258,7 @@ const components = {
   ),
 };
 
-export function MarkdownContent({ content }: { content: string }) {
+export const MarkdownContent = memo(function MarkdownContent({ content }: { content: string }) {
   return (
     <Box className="markdown-content">
       <Markdown remarkPlugins={[remarkGfm]} components={components}>
@@ -261,4 +266,4 @@ export function MarkdownContent({ content }: { content: string }) {
       </Markdown>
     </Box>
   );
-}
+});

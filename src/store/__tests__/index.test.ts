@@ -144,6 +144,106 @@ describe("AppStore", () => {
       expect(tc.result).toBe("Timed out");
     });
 
+    describe("参照保存の不変条件 (React.memo 最適化の前提)", () => {
+      it("appendDelta は末尾以外のメッセージ参照を維持する", () => {
+        useStore.getState().addUserMessage("first");
+        useStore.getState().startNewAssistantMessage();
+        const beforeMsgs = useStore.getState().messages;
+        const firstRef = beforeMsgs[0];
+
+        useStore.getState().appendDelta("hello");
+
+        const afterMsgs = useStore.getState().messages;
+        expect(afterMsgs[0]).toBe(firstRef);
+        expect(afterMsgs[1]).not.toBe(beforeMsgs[1]);
+      });
+
+      it("appendReasoning は末尾以外のメッセージ参照を維持する", () => {
+        useStore.getState().addUserMessage("first");
+        useStore.getState().startNewAssistantMessage();
+        const firstRef = useStore.getState().messages[0];
+
+        useStore.getState().appendReasoning("thinking...");
+
+        expect(useStore.getState().messages[0]).toBe(firstRef);
+      });
+
+      it("appendToolInputDelta は末尾以外のメッセージ参照を維持する", () => {
+        useStore.getState().startNewAssistantMessage();
+        useStore.getState().appendDelta("reply 1");
+        useStore.getState().addUserMessage("next");
+        useStore.getState().startNewAssistantMessage();
+        useStore.getState().addToolCall({
+          id: "tc1",
+          name: "test",
+          args: {},
+          isRunning: true,
+        });
+        const before = useStore.getState().messages;
+        const firstAssistantRef = before[0];
+        const userRef = before[1];
+
+        useStore.getState().appendToolInputDelta("tc1", '{"a":');
+
+        const after = useStore.getState().messages;
+        expect(after[0]).toBe(firstAssistantRef);
+        expect(after[1]).toBe(userRef);
+        expect(after[2]).not.toBe(before[2]);
+      });
+
+      it("updateToolCallArgs は末尾以外のメッセージ参照を維持する", () => {
+        useStore.getState().startNewAssistantMessage();
+        useStore.getState().addToolCall({
+          id: "old",
+          name: "prev",
+          args: {},
+          isRunning: false,
+        });
+        useStore.getState().addUserMessage("next");
+        useStore.getState().startNewAssistantMessage();
+        useStore.getState().addToolCall({
+          id: "tc1",
+          name: "curr",
+          args: {},
+          isRunning: true,
+        });
+        const before = useStore.getState().messages;
+
+        useStore.getState().updateToolCallArgs("tc1", { foo: "bar" });
+
+        const after = useStore.getState().messages;
+        expect(after[0]).toBe(before[0]);
+        expect(after[1]).toBe(before[1]);
+        expect(after[2]).not.toBe(before[2]);
+      });
+
+      it("updateToolCallResult は末尾以外のメッセージ参照を維持する", () => {
+        useStore.getState().startNewAssistantMessage();
+        useStore.getState().addToolCall({
+          id: "old",
+          name: "prev",
+          args: {},
+          isRunning: false,
+        });
+        useStore.getState().addUserMessage("next");
+        useStore.getState().startNewAssistantMessage();
+        useStore.getState().addToolCall({
+          id: "tc1",
+          name: "curr",
+          args: {},
+          isRunning: true,
+        });
+        const before = useStore.getState().messages;
+
+        useStore.getState().updateToolCallResult("tc1", ok("done"));
+
+        const after = useStore.getState().messages;
+        expect(after[0]).toBe(before[0]);
+        expect(after[1]).toBe(before[1]);
+        expect(after[2]).not.toBe(before[2]);
+      });
+    });
+
     it("addSystemMessage でシステムメッセージを追加する", () => {
       useStore.getState().addSystemMessage("system info");
       const msg = useStore.getState().messages[0];
