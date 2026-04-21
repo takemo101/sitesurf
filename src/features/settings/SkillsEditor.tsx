@@ -65,6 +65,13 @@ hosts:
   - example.com
 ---
 
+# Instructions
+
+AI 向けのサイトスコープのガイダンスをここに書く。省略可。
+instructions-only の skill にしたい場合は下の # Extractors セクションを書かない。
+
+# Extractors
+
 ## pageTitle
 Extract the page title
 \`\`\`js
@@ -529,6 +536,13 @@ function SkillEditModal({
             },
           }}
         />
+
+        <Text size="xs" c="dimmed">
+          本文はトップレベルの <code>{"# Instructions"}</code> と <code>{"# Extractors"}</code>{" "}
+          で構成できます。instructions-only / extractors-only /
+          両方入りのいずれも保存可能です。どちらも省略した場合は旧形式 (本文すべて extractors
+          として解釈) とみなされます。
+        </Text>
 
         {errors.length > 0 && (
           <Alert icon={<AlertCircle size={16} />} color="red">

@@ -12,6 +12,16 @@
 3. **保守性**: サイト変更時にスキル1箇所を修正するだけで済む
 4. **LLMの負荷軽減**: DOM探索やセレクター選定を毎回行う必要がなくなる
 
+### Skill の 2 レイヤー構造
+
+SiteSurf の Skill は 2 つのレイヤーを 1 つの Markdown ファイル内で同居させる。
+
+- **Instructions layer**: AI に対するサイトスコープの guidance (markdown 本文)
+- **Extractors layer**: ページコンテキストで実行可能な site-specific 関数群
+
+`instructions-only` / `extractors-only` / `instructions + extractors` の 3 形態を許容する。
+詳細な設計意図は [skill-instructions-layer.md](./skill-instructions-layer.md)。
+
 ---
 
 ## アーキテクチャ
@@ -41,8 +51,9 @@ export interface Skill {
   description: string; // 詳細説明
   version?: string; // セマンティックバージョニング（例: "1.0.0"）
   matchers: SkillMatchers;
-  extractors: SkillExtractor[];
+  extractors: SkillExtractor[]; // instruction-only skill では空配列でもよい
   metadata?: SkillMetadata;
+  instructionsMarkdown?: string; // AI 向けサイトスコープ・ガイダンス本文
 }
 
 export interface SkillMatchers {
@@ -72,10 +83,13 @@ export interface SkillMetadata {
   tags?: string[];
 }
 
+export type SkillActivationLevel = "passive" | "contextual";
+
 export interface SkillMatch {
   skill: Skill;
   confidence: number; // マッチング信頼スコア（0〜100）
   availableExtractors: SkillExtractor[];
+  activationLevel?: SkillActivationLevel; // instruction 提示の強さ (registry が算定)
 }
 ```
 
