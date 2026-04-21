@@ -149,6 +149,10 @@ const NAVIGATION_WARNING_PATTERNS: readonly { pattern: RegExp; description: stri
   { pattern: /(?<![\w.])navigate\s*\(/g, description: "navigate()" },
 ];
 
+const USAGE_WARNING_PATTERNS: readonly { pattern: RegExp; description: string }[] = [
+  { pattern: /(?<![\w.])bgFetch\s*\(/g, description: "bgFetch()" },
+];
+
 export function validateSkillCode(code: string): ValidationResult {
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
@@ -159,6 +163,7 @@ export function validateSkillCode(code: string): ValidationResult {
   checkSecurityPatterns(sanitized, errors);
   checkSecurityWarningPatterns(sanitized, warnings);
   checkNavigationWarningPatterns(sanitized, warnings);
+  checkUsageWarningPatterns(sanitized, warnings);
 
   return { valid: errors.length === 0, errors, warnings };
 }
@@ -391,11 +396,21 @@ function collectSkillStructureErrors(skill: Skill): ValidationError[] {
   }
 
   const extractors = Array.isArray(skill.extractors) ? skill.extractors : [];
+  const instructions = safeTrim(skill.instructionsMarkdown);
+  const hasInstructions = instructions.length > 0;
 
-  if (extractors.length === 0) {
+  if (!hasInstructions && extractors.length === 0) {
     errors.push({
       type: "syntax",
-      message: "Skill extractors is required and must have at least one extractor",
+      message: "Skill must have instructions or at least one extractor",
+    });
+  }
+
+  if (hasInstructions && instructionsContainTopLevelSectionMarker(instructions)) {
+    errors.push({
+      type: "syntax",
+      message:
+        "instructionsMarkdown must not contain top-level '# Instructions' or '# Extractors' headings (they would break markdown round-trip)",
     });
   }
 
@@ -417,6 +432,22 @@ function collectSkillStructureErrors(skill: Skill): ValidationError[] {
   }
 
   return errors;
+}
+
+function instructionsContainTopLevelSectionMarker(instructions: string): boolean {
+  const lines = instructions.split("\n");
+  let inFence = false;
+  for (const line of lines) {
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+    if (/^#\s+(Instructions|Extractors)\s*$/.test(line)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function safeTrim(value: unknown): string {
@@ -510,6 +541,12 @@ function checkNavigationWarningPatterns(code: string, warnings: ValidationWarnin
     "Potentially risky navigation",
     warnings,
   );
+}
+
+function checkUsageWarningPatterns(code: string, warnings: ValidationWarning[]): void {
+  // Extractor code is executed in the page context where helpers like bgFetch()
+  // are not injected. Warn so authors can switch to a runtime-appropriate API.
+  checkPatterns(code, USAGE_WARNING_PATTERNS, "quality", "Not available in page context", warnings);
 }
 
 function lineNumber(code: string, index: number): number {

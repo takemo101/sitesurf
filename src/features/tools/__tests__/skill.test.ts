@@ -331,12 +331,9 @@ describe("skill tool", () => {
       const storage = new InMemoryStorage();
       const registry = new SkillRegistry();
 
-      const result = await executeSkill(
-        storage,
-        registry,
-        undefined,
-        { action: "create" } as unknown as Parameters<typeof executeSkill>[3],
-      );
+      const result = await executeSkill(storage, registry, undefined, {
+        action: "create",
+      } as unknown as Parameters<typeof executeSkill>[3]);
 
       expect(result.ok).toBe(false);
       if (result.ok) return;
@@ -705,8 +702,52 @@ describe("skill tool", () => {
         expect.arrayContaining([
           "Skill name is required",
           "Skill matchers.hosts is required and must not be empty",
-          "Skill extractors is required and must have at least one extractor",
+          "Skill must have instructions or at least one extractor",
         ]),
+      );
+    });
+
+    it("accepts an instruction-only draft with no extractors", async () => {
+      const storage = new InMemoryStorage();
+      const registry = new SkillRegistry();
+
+      const result = await executeCreateSkillDraft(storage, registry, {
+        name: "GitHub Guidance",
+        description: "GitHub の task 選択に関する軽いガイダンス",
+        scope: "global",
+        matchers: { hosts: [] },
+        extractors: [],
+        instructionsMarkdown: "repo 分析でない限り repo-analysis guidance を過剰適用しないこと。",
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      const value = result.value as CreateSkillDraftResult;
+      expect(value.validation.status).not.toBe("reject");
+      expect(value.validation.errors).toHaveLength(0);
+      expect(value.normalizedSkill.instructionsMarkdown).toContain("repo 分析でない限り");
+    });
+
+    it("rejects a draft that has neither instructions nor extractors", async () => {
+      const storage = new InMemoryStorage();
+      const registry = new SkillRegistry();
+
+      const result = await executeCreateSkillDraft(storage, registry, {
+        name: "Empty Draft",
+        description: "A draft with no extractors and no instructions",
+        scope: "global",
+        matchers: { hosts: [] },
+        extractors: [],
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      const value = result.value as CreateSkillDraftResult;
+      expect(value.validation.status).toBe("reject");
+      expect(value.validation.errors.map((e) => e.message)).toEqual(
+        expect.arrayContaining(["Skill must have instructions or at least one extractor"]),
       );
     });
 
@@ -1277,12 +1318,10 @@ describe("skill tool", () => {
       const storage = new InMemoryStorage();
       const registry = new SkillRegistry();
 
-      const result = await executeSkill(
-        storage,
-        registry,
-        undefined,
-        { action: "update", id: "test-skill" } as unknown as Parameters<typeof executeSkill>[3],
-      );
+      const result = await executeSkill(storage, registry, undefined, {
+        action: "update",
+        id: "test-skill",
+      } as unknown as Parameters<typeof executeSkill>[3]);
 
       expect(result.ok).toBe(false);
       if (result.ok) return;
@@ -1465,12 +1504,10 @@ describe("skill tool", () => {
       const storage = new InMemoryStorage();
       const registry = new SkillRegistry();
 
-      const result = await executeSkill(
-        storage,
-        registry,
-        undefined,
-        { action: "patch", id: "test-skill" } as unknown as Parameters<typeof executeSkill>[3],
-      );
+      const result = await executeSkill(storage, registry, undefined, {
+        action: "patch",
+        id: "test-skill",
+      } as unknown as Parameters<typeof executeSkill>[3]);
 
       expect(result.ok).toBe(false);
       if (result.ok) return;
@@ -1481,16 +1518,11 @@ describe("skill tool", () => {
       const storage = new InMemoryStorage();
       const registry = new SkillRegistry();
 
-      const result = await executeSkill(
-        storage,
-        registry,
-        undefined,
-        {
-          action: "patch",
-          id: "test-skill",
-          patches: [] as unknown as SkillPatches,
-        } as unknown as Parameters<typeof executeSkill>[3],
-      );
+      const result = await executeSkill(storage, registry, undefined, {
+        action: "patch",
+        id: "test-skill",
+        patches: [] as unknown as SkillPatches,
+      } as unknown as Parameters<typeof executeSkill>[3]);
 
       expect(result.ok).toBe(false);
       if (result.ok) return;
