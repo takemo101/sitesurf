@@ -445,4 +445,49 @@ describe("skill instruction layer in prompt", () => {
     expect(prompt).not.toContain("Skills: Site-Specific Extraction");
     expect(prompt).not.toContain("Skills: Global");
   });
+
+  it("skips fenced code blocks when summarizing instructions", () => {
+    const body = [
+      "```js",
+      "// 書式例をまず示す",
+      "function () { return { files: [] }; }",
+      "```",
+      "",
+      "repo 分析では API / bgFetch を優先すること。",
+    ].join("\n");
+    const skill = makeInstructionOnlySkill("github-repo", "GitHub Repo", body);
+    const section = generateSkillsSectionForLoop([skill], new Set());
+
+    expect(section).toContain("Guidance: repo 分析では API / bgFetch を優先すること。");
+    // Code fence markers and code content must not appear in the prompt.
+    expect(section).not.toContain("```js");
+    expect(section).not.toContain("function () { return { files: [] }; }");
+    // And the opening fence must not have been picked up as the Guidance line.
+    expect(section).not.toMatch(/^Guidance:\s*```/m);
+  });
+
+  it("hides instruction-only skills whose body is only headings (no summarizable content)", () => {
+    const body = ["## Always", "", "## Task: Repository Analysis"].join("\n");
+    const skill = makeInstructionOnlySkill("headings-only", "Headings Only", body);
+    const prompt = getSystemPromptV2({ includeSkills: true, skills: [skill] });
+
+    expect(prompt).not.toContain("Skills: Global");
+    expect(prompt).not.toContain("**Headings Only**");
+    expect(prompt).not.toContain("Headings Only description");
+  });
+
+  it("hides instruction-only skills whose body is only a code block", () => {
+    const body = ["```js", "// nothing useful for the AI here", "```"].join("\n");
+    const skill = makeInstructionOnlySkill("fenced-only", "Fenced Only", body);
+    const prompt = getSystemPromptV2({ includeSkills: true, skills: [skill] });
+
+    expect(prompt).not.toContain("**Fenced Only**");
+  });
+
+  it("excludes unsummarizable instruction-only skills from getActiveSkillIds", () => {
+    const summarizable = makeInstructionOnlySkill("ok", "Ok", "Good guidance.");
+    const headingsOnly = makeInstructionOnlySkill("headings", "Headings", "## One\n## Two");
+    const ids = getActiveSkillIds([summarizable, headingsOnly]);
+    expect(ids).toEqual(["ok"]);
+  });
 });
