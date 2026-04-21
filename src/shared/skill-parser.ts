@@ -1,5 +1,8 @@
 import type { Skill, SkillParseResult } from "./skill-types";
 
+const INSTRUCTIONS_HEADING = /^#\s+Instructions\s*$/;
+const EXTRACTORS_HEADING = /^#\s+Extractors\s*$/;
+
 interface ParsedFrontmatter {
   version?: string;
   scope?: string;
@@ -37,10 +40,23 @@ export function parseSkillMarkdown(markdown: string): SkillParseResult {
     return { ok: false, errors };
   }
 
-  const extractors = extractExtractors(body);
+  const { instructionsBody, extractorsBody, hasInstructionsSection, hasExtractorsSection } =
+    splitInstructionsAndExtractors(body);
 
-  if (extractors.length === 0) {
-    errors.push("At least one extractor (## heading + ```js code block) is required");
+  const extractors = extractExtractors(extractorsBody);
+  const instructionsMarkdown = hasInstructionsSection ? instructionsBody.trim() : "";
+
+  const hasInstructions = instructionsMarkdown.length > 0;
+  const hasAnySectionMarker = hasInstructionsSection || hasExtractorsSection;
+
+  if (!hasAnySectionMarker) {
+    if (extractors.length === 0) {
+      errors.push("At least one extractor (## heading + ```js code block) is required");
+    }
+  } else if (!hasInstructions && extractors.length === 0) {
+    errors.push(
+      "Skill must contain either an '# Instructions' section with content or at least one extractor under '# Extractors'",
+    );
   }
 
   for (const ext of extractors) {
@@ -73,7 +89,86 @@ export function parseSkillMarkdown(markdown: string): SkillParseResult {
     })),
   };
 
+  if (hasInstructions) {
+    skill.instructionsMarkdown = instructionsMarkdown;
+  }
+
   return { ok: true, skill };
+}
+
+interface SplitBody {
+  instructionsBody: string;
+  extractorsBody: string;
+  hasInstructionsSection: boolean;
+  hasExtractorsSection: boolean;
+}
+
+/**
+ * 本文を `# Instructions` / `# Extractors` で分割する。
+ * いずれも存在しない場合、本文全体を extractorsBody として返し (旧形式 fallback)、
+ * 両フラグは false になる。コードブロック内の `#` 行は section marker とみなさない。
+ */
+function splitInstructionsAndExtractors(body: string): SplitBody {
+  const lines = body.split("\n");
+  let instructionsIndex = -1;
+  let extractorsIndex = -1;
+  let inCodeBlock = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^\s*```/.test(line)) {
+      inCodeBlock = !inCodeBlock;
+      continue;
+    }
+    if (inCodeBlock) continue;
+
+    if (instructionsIndex === -1 && INSTRUCTIONS_HEADING.test(line)) {
+      instructionsIndex = i;
+      continue;
+    }
+    if (extractorsIndex === -1 && EXTRACTORS_HEADING.test(line)) {
+      extractorsIndex = i;
+    }
+  }
+
+  const hasInstructionsSection = instructionsIndex !== -1;
+  const hasExtractorsSection = extractorsIndex !== -1;
+
+  if (!hasInstructionsSection && !hasExtractorsSection) {
+    return {
+      instructionsBody: "",
+      extractorsBody: body,
+      hasInstructionsSection: false,
+      hasExtractorsSection: false,
+    };
+  }
+
+  const sliceLines = (start: number, end: number): string =>
+    lines.slice(start, end === -1 ? lines.length : end).join("\n");
+
+  let instructionsBody = "";
+  let extractorsBody = "";
+
+  if (hasInstructionsSection && hasExtractorsSection) {
+    if (instructionsIndex < extractorsIndex) {
+      instructionsBody = sliceLines(instructionsIndex + 1, extractorsIndex);
+      extractorsBody = sliceLines(extractorsIndex + 1, -1);
+    } else {
+      extractorsBody = sliceLines(extractorsIndex + 1, instructionsIndex);
+      instructionsBody = sliceLines(instructionsIndex + 1, -1);
+    }
+  } else if (hasInstructionsSection) {
+    instructionsBody = sliceLines(instructionsIndex + 1, -1);
+  } else {
+    extractorsBody = sliceLines(extractorsIndex + 1, -1);
+  }
+
+  return {
+    instructionsBody,
+    extractorsBody,
+    hasInstructionsSection,
+    hasExtractorsSection,
+  };
 }
 
 function extractFrontmatter(

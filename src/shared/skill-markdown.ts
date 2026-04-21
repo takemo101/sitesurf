@@ -45,7 +45,11 @@ export function renderSkillMarkdown(skill: Skill): string {
 
   frontmatter.push(`version: ${skill.version}`, "---", "");
 
-  const sections = skill.extractors.flatMap((extractor) => [
+  const instructionsMarkdown = skill.instructionsMarkdown?.trim() ?? "";
+  const hasInstructions = instructionsMarkdown.length > 0;
+  const hasExtractors = skill.extractors.length > 0;
+
+  const extractorLines = skill.extractors.flatMap((extractor) => [
     `## ${extractor.name}`,
     `<!-- extractor-id: ${extractor.id} -->`,
     `<!-- output-schema: ${extractor.outputSchema} -->`,
@@ -56,5 +60,16 @@ export function renderSkillMarkdown(skill: Skill): string {
     "",
   ]);
 
-  return [...frontmatter, ...sections].join("\n").trimEnd();
+  const bodyLines: string[] = [];
+
+  if (hasInstructions) {
+    bodyLines.push("# Instructions", "", instructionsMarkdown, "");
+    if (hasExtractors) {
+      bodyLines.push("# Extractors", "");
+    }
+  }
+
+  bodyLines.push(...extractorLines);
+
+  return [...frontmatter, ...bodyLines].join("\n").trimEnd();
 }

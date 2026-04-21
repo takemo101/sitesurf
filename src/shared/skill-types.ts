@@ -9,6 +9,7 @@ export interface Skill {
   version: string;
   scope?: SkillScope;
   metadata?: SkillMetadata;
+  instructionsMarkdown?: string;
 }
 
 export interface SkillMetadata {

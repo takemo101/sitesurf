@@ -474,4 +474,163 @@ paths:
       expect(result.errors).toContain("Missing or empty 'hosts' array in frontmatter");
     });
   });
+
+  describe("instruction layer", () => {
+    it("# Instructions だけの skill を instructionsMarkdown 付きでパースできる", () => {
+      const markdown = `---
+id: github-guidance
+name: GitHub Guidance
+scope: global
+version: 0.1.0
+---
+
+# Instructions
+
+GitHub では task に応じて API / DOM のどれが最適かを先に判断すること。
+`;
+      const result = parseSkillMarkdown(markdown);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      expect(result.skill.extractors).toHaveLength(0);
+      expect(result.skill.instructionsMarkdown).toContain("GitHub では task に応じて");
+      expect(result.skill.instructionsMarkdown?.endsWith("\n")).toBe(false);
+    });
+
+    it("# Instructions と # Extractors が両方ある skill をパースできる", () => {
+      const markdown = `---
+id: github-repo-analyzer
+name: GitHub Repo Analyzer
+scope: global
+version: 0.2.0
+---
+
+# Instructions
+
+## Always
+GitHub pages may have CSP limitations.
+
+## Task: Repository Analysis
+repo 全体の分析では DOM extractor を万能手段として扱わない。
+
+# Extractors
+
+## Get Visible File List
+<!-- extractor-id: getVisibleFileList -->
+<!-- output-schema: { files: string[] } -->
+現在表示中のファイル一覧だけを取得する。
+
+\`\`\`js
+function () {
+  return { files: [] };
+}
+\`\`\`
+`;
+      const result = parseSkillMarkdown(markdown);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      expect(result.skill.extractors).toHaveLength(1);
+      expect(result.skill.extractors[0].id).toBe("getVisibleFileList");
+      expect(result.skill.instructionsMarkdown).toContain("GitHub pages may have CSP limitations.");
+      expect(result.skill.instructionsMarkdown).toContain("repo 全体の分析では");
+      // Instructions セクションに Extractors 見出しの中身が混入していないこと
+      expect(result.skill.instructionsMarkdown).not.toContain("getVisibleFileList");
+    });
+
+    it("旧形式 (section marker なし) の skill には instructionsMarkdown が付かない", () => {
+      const markdown = `---
+id: youtube
+name: YouTube
+hosts:
+  - youtube.com
+---
+
+## videoInfo
+
+タイトルを取得する。
+
+\`\`\`js
+return { title: document.title };
+\`\`\`
+`;
+      const result = parseSkillMarkdown(markdown);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      expect(result.skill.instructionsMarkdown).toBeUndefined();
+      expect(result.skill.extractors).toHaveLength(1);
+    });
+
+    it("instruction も extractor も空ならエラー", () => {
+      const markdown = `---
+id: empty-skill
+name: Empty Skill
+scope: global
+---
+
+# Instructions
+
+# Extractors
+`;
+      const result = parseSkillMarkdown(markdown);
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+
+      expect(result.errors.join(" ")).toMatch(/either an '# Instructions'/);
+    });
+
+    it("コードブロック内の # Instructions は section marker として扱わない", () => {
+      const markdown = `---
+id: yt
+name: YT
+hosts:
+  - youtube.com
+---
+
+## sample
+
+\`\`\`js
+// # Instructions should not be a section here
+return document.title;
+\`\`\`
+`;
+      const result = parseSkillMarkdown(markdown);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      expect(result.skill.extractors).toHaveLength(1);
+      expect(result.skill.instructionsMarkdown).toBeUndefined();
+    });
+
+    it("## Instructions は section marker として扱わない (top-level のみ認識)", () => {
+      const markdown = `---
+id: yt
+name: YT
+hosts:
+  - youtube.com
+---
+
+## Instructions
+
+\`\`\`js
+return { note: "this heading should be treated as an extractor heading" };
+\`\`\`
+`;
+      const result = parseSkillMarkdown(markdown);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      // '## Instructions' は top-level section marker ではなく extractor heading として扱われる
+      expect(result.skill.extractors).toHaveLength(1);
+      expect(result.skill.extractors[0].id).toBe("instructions");
+      expect(result.skill.instructionsMarkdown).toBeUndefined();
+    });
+  });
 });
