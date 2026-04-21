@@ -29,7 +29,8 @@ export interface ProviderInfo {
 
 function modelsFor(key: string, fallback?: string[]): string[] {
   const generated = (GENERATED_MODELS[key]?.models ?? []).map((m) => m.id);
-  return generated.length > 0 ? generated : (fallback ?? []);
+  if (generated.length === 0) return fallback ?? [];
+  return [...new Set([...generated, ...(fallback ?? [])])];
 }
 
 function defaultFor(key: string, fallback: string): string {
