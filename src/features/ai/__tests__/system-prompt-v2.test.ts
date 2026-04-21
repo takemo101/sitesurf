@@ -192,7 +192,7 @@ describe("generateSkillsSectionForLoop / shownSkillIds diff rendering", () => {
     expect(section).toContain("github-ext():");
   });
 
-  it("getActiveSkillIds returns only skills with available extractors", () => {
+  it("getActiveSkillIds returns only skills that are visible in the prompt", () => {
     const withExt = makeSkillMatch("yt", "YouTube");
     const noExt: SkillMatch = {
       ...withExt,
@@ -201,6 +201,24 @@ describe("generateSkillsSectionForLoop / shownSkillIds diff rendering", () => {
     };
     const ids = getActiveSkillIds([withExt, noExt]);
     expect(ids).toEqual(["yt"]);
+  });
+
+  it("getActiveSkillIds includes instruction-only skills", () => {
+    const withExt = makeSkillMatch("yt", "YouTube");
+    const instructionOnly: SkillMatch = {
+      ...withExt,
+      skill: {
+        ...withExt.skill,
+        id: "guidance",
+        name: "Guidance",
+        extractors: [],
+        instructionsMarkdown: "Use API over DOM when possible.",
+      },
+      availableExtractors: [],
+    };
+    const ids = getActiveSkillIds([withExt, instructionOnly]);
+    expect(ids).toEqual(expect.arrayContaining(["yt", "guidance"]));
+    expect(ids).toHaveLength(2);
   });
 
   it("getSystemPromptV2 with shownSkillIds renders short format for seen skill", () => {
@@ -254,5 +272,177 @@ describe("generateVisitedUrlsSection", () => {
     });
     expect(prompt).toContain("## Current Session: Visited URLs");
     expect(prompt).toContain("https://example.com");
+  });
+});
+
+describe("skill instruction layer in prompt", () => {
+  function makeExtractorSkill(id: string, name: string, scope?: "global"): SkillMatch {
+    const extractor = {
+      id: `${id}-ext`,
+      name: "Extractor",
+      description: "Gets data",
+      code: "function() {}",
+      outputSchema: "string",
+    };
+    return {
+      skill: {
+        id,
+        name,
+        description: `${name} description`,
+        matchers: scope ? { hosts: [] } : { hosts: [`${id}.com`] },
+        version: "0.0.0",
+        scope,
+        extractors: [extractor],
+      },
+      availableExtractors: [extractor],
+      confidence: 80,
+    };
+  }
+
+  function makeInstructionOnlySkill(
+    id: string,
+    name: string,
+    instructionsMarkdown: string,
+    scope: "global" | undefined = "global",
+  ): SkillMatch {
+    return {
+      skill: {
+        id,
+        name,
+        description: `${name} description`,
+        matchers: scope === "global" ? { hosts: [] } : { hosts: [`${id}.com`] },
+        version: "0.0.0",
+        scope,
+        extractors: [],
+        instructionsMarkdown,
+      },
+      availableExtractors: [],
+      confidence: 100,
+    };
+  }
+
+  it("keeps extractor-only skills free of the Guidance line", () => {
+    const section = generateSkillsSectionForLoop([makeExtractorSkill("yt", "YouTube")], new Set());
+    expect(section).not.toContain("Guidance:");
+    expect(section).toContain("yt-ext():");
+    expect(section).toContain("browserjs");
+  });
+
+  it("renders an instruction-only skill without extractor bullets or browserjs example", () => {
+    const skill = makeInstructionOnlySkill(
+      "github-guidance",
+      "GitHub Guidance",
+      "Use API / bgFetch over DOM for repo analysis tasks.",
+    );
+    const section = generateSkillsSectionForLoop([skill], new Set());
+    expect(section).toContain("**GitHub Guidance**");
+    expect(section).toContain("Guidance: Use API / bgFetch over DOM for repo analysis tasks.");
+    expect(section).not.toContain("browserjs");
+    expect(section).not.toMatch(/^-\s+\w+\(\):/m);
+  });
+
+  it("renders a mixed skill with both extractor metadata and a Guidance line", () => {
+    const extractor = {
+      id: "getTitle",
+      name: "Get Title",
+      description: "Returns the page title",
+      code: "function () { return document.title; }",
+      outputSchema: "string",
+    };
+    const mixed: SkillMatch = {
+      skill: {
+        id: "github-repo",
+        name: "GitHub Repo",
+        description: "Analysis helpers for GitHub repositories",
+        matchers: { hosts: ["github.com"] },
+        version: "0.2.0",
+        extractors: [extractor],
+        instructionsMarkdown:
+          "Prefer static API retrieval before relying on DOM extractors for repo analysis.",
+      },
+      availableExtractors: [extractor],
+      confidence: 100,
+    };
+    const section = generateSkillsSectionForLoop([mixed], new Set());
+    expect(section).toContain("**GitHub Repo**");
+    expect(section).toContain("- getTitle(): string — Returns the page title");
+    expect(section).toContain("browserjs");
+    expect(section).toContain("Guidance: Prefer static API retrieval");
+  });
+
+  it("does not inject the full instruction markdown into the prompt", () => {
+    const longBody = [
+      "## Always",
+      "First body line: keep this short.",
+      "",
+      "## Task: Repository Analysis",
+      "Another multi-line section describing how to proceed for repo analysis tasks.",
+      "More detail that should never appear in the prompt verbatim.",
+    ].join("\n");
+    const skill = makeInstructionOnlySkill("github-long", "GitHub Long", longBody);
+    const section = generateSkillsSectionForLoop([skill], new Set());
+    // The first non-heading body line becomes the passive summary.
+    expect(section).toContain("Guidance: First body line: keep this short.");
+    // Headings and subsequent sections must not leak into the prompt.
+    expect(section).not.toContain("## Always");
+    expect(section).not.toContain("## Task: Repository Analysis");
+    expect(section).not.toContain("Another multi-line section");
+    expect(section).not.toContain("More detail that should never appear");
+  });
+
+  it("truncates overlong first-line summaries with an ellipsis", () => {
+    const long = "x".repeat(200);
+    const skill = makeInstructionOnlySkill("long", "Long", long);
+    const section = generateSkillsSectionForLoop([skill], new Set());
+    const guidanceLine = section.split("\n").find((line) => line.startsWith("Guidance:"));
+    expect(guidanceLine).toBeDefined();
+    if (!guidanceLine) return;
+    expect(guidanceLine.endsWith("…")).toBe(true);
+    // "Guidance: " + up to 120 chars.
+    expect(guidanceLine.length).toBeLessThanOrEqual("Guidance: ".length + 120);
+  });
+
+  it("skips markdown heading lines when summarizing", () => {
+    const body = "## Always\n\nThe actual guidance body is on this line.";
+    const skill = makeInstructionOnlySkill("heading-first", "Heading First", body);
+    const section = generateSkillsSectionForLoop([skill], new Set());
+    expect(section).toContain("Guidance: The actual guidance body is on this line.");
+  });
+
+  it("strips leading list markers when summarizing", () => {
+    const body = "- First bullet point with guidance.";
+    const skill = makeInstructionOnlySkill("list-first", "List First", body);
+    const section = generateSkillsSectionForLoop([skill], new Set());
+    expect(section).toContain("Guidance: First bullet point with guidance.");
+  });
+
+  it("also surfaces Guidance in short format for already-seen skills", () => {
+    const skill = makeInstructionOnlySkill("seen", "Seen", "Some passive guidance line.");
+    const section = generateSkillsSectionForLoop([skill], new Set(["seen"]));
+    expect(section).toContain("- Seen (id: seen):");
+    expect(section).toContain("Guidance: Some passive guidance line.");
+  });
+
+  it("includes instruction-only global skills in the Global skills section", () => {
+    const skill = makeInstructionOnlySkill(
+      "github-guidance",
+      "GitHub Guidance",
+      "General guidance.",
+    );
+    const prompt = getSystemPromptV2({ includeSkills: true, skills: [skill] });
+    expect(prompt).toContain("Skills: Global");
+    expect(prompt).toContain("**GitHub Guidance**");
+    expect(prompt).toContain("Guidance: General guidance.");
+  });
+
+  it("still omits the skills section when no skill carries extractors or instructions", () => {
+    const skill: SkillMatch = {
+      ...makeExtractorSkill("empty", "Empty"),
+      availableExtractors: [],
+    };
+    skill.skill = { ...skill.skill, instructionsMarkdown: undefined, extractors: [] };
+    const prompt = getSystemPromptV2({ includeSkills: true, skills: [skill] });
+    expect(prompt).not.toContain("Skills: Site-Specific Extraction");
+    expect(prompt).not.toContain("Skills: Global");
   });
 });
