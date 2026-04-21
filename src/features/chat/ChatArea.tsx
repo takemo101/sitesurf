@@ -126,9 +126,17 @@ export function ChatArea({ onSend }: { onSend?: (text: string) => void }) {
         }}
       >
         <Stack gap="xs" p="sm">
-          {messages.map((msg, i) => (
-            <MessageBubble key={msg.id} msg={msg} isLast={i === messages.length - 1} />
-          ))}
+          {messages.map((msg, i) => {
+            const isLast = i === messages.length - 1;
+            return (
+              <MessageBubble
+                key={msg.id}
+                msg={msg}
+                isLast={isLast}
+                isStreaming={isLast ? isStreaming : undefined}
+              />
+            );
+          })}
           {isStreaming && <StreamingIndicator />}
         </Stack>
       </div>

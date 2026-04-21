@@ -43,6 +43,10 @@ export interface ChatSlice {
   resetShownSkillIds(): void;
 }
 
+// Invariant: mutating actions must only replace the reference of the message(s)
+// they actually change. Non-target messages must keep the same object reference
+// so React.memo on MessageBubble / MarkdownContent can skip re-renders during
+// streaming. `s.messages.map(m => ({ ...m }))` is forbidden.
 function findLastAssistantIndex(messages: ChatMessage[]): number {
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i].role === "assistant") return i;
@@ -167,30 +171,32 @@ export const createChatSlice: StateCreator<AppStore, [], [], ChatSlice> = (set, 
     }),
 
   appendToolInputDelta: (id, delta) =>
-    set((s) => ({
-      messages: s.messages.map((m) =>
-        m.toolCalls
-          ? {
-              ...m,
-              toolCalls: m.toolCalls.map((tc) =>
-                tc.id === id ? { ...tc, inputDelta: (tc.inputDelta ?? "") + delta } : tc,
-              ),
-            }
-          : m,
-      ),
-    })),
+    set((s) => {
+      const idx = findLastAssistantIndex(s.messages);
+      if (idx < 0) return s;
+      const target = s.messages[idx];
+      if (!target.toolCalls) return s;
+      const nextToolCalls = target.toolCalls.map((tc) =>
+        tc.id === id ? { ...tc, inputDelta: (tc.inputDelta ?? "") + delta } : tc,
+      );
+      if (nextToolCalls === target.toolCalls) return s;
+      const msgs = [...s.messages];
+      msgs[idx] = { ...target, toolCalls: nextToolCalls };
+      return { messages: msgs };
+    }),
 
   updateToolCallArgs: (id, args) =>
-    set((s) => ({
-      messages: s.messages.map((m) =>
-        m.toolCalls
-          ? {
-              ...m,
-              toolCalls: m.toolCalls.map((tc) => (tc.id === id ? { ...tc, args } : tc)),
-            }
-          : m,
-      ),
-    })),
+    set((s) => {
+      const idx = findLastAssistantIndex(s.messages);
+      if (idx < 0) return s;
+      const target = s.messages[idx];
+      if (!target.toolCalls) return s;
+      const nextToolCalls = target.toolCalls.map((tc) => (tc.id === id ? { ...tc, args } : tc));
+      if (nextToolCalls === target.toolCalls) return s;
+      const msgs = [...s.messages];
+      msgs[idx] = { ...target, toolCalls: nextToolCalls };
+      return { messages: msgs };
+    }),
 
   updateToolCallResult: (
     toolIdOrMsgId: string,
@@ -201,42 +207,43 @@ export const createChatSlice: StateCreator<AppStore, [], [], ChatSlice> = (set, 
     if (typeof resultOrToolId === "string") {
       const msgId = toolIdOrMsgId;
       const toolId = resultOrToolId;
-      set((s) => ({
-        messages: s.messages.map((m) => {
-          if (m.id !== msgId) return m;
-          return {
-            ...m,
-            toolCalls: m.toolCalls?.map((tc) =>
-              tc.id === toolId
-                ? { ...tc, result: resultStr, success, isRunning: false, inputDelta: undefined }
-                : tc,
-            ),
-          };
-        }),
-      }));
+      set((s) => {
+        const idx = s.messages.findIndex((m) => m.id === msgId);
+        if (idx < 0) return s;
+        const target = s.messages[idx];
+        if (!target.toolCalls) return s;
+        const nextToolCalls = target.toolCalls.map((tc) =>
+          tc.id === toolId
+            ? { ...tc, result: resultStr, success, isRunning: false, inputDelta: undefined }
+            : tc,
+        );
+        const msgs = [...s.messages];
+        msgs[idx] = { ...target, toolCalls: nextToolCalls };
+        return { messages: msgs };
+      });
     } else {
       const toolId = toolIdOrMsgId;
       const result = resultOrToolId;
-      set((s) => ({
-        messages: s.messages.map((m) =>
-          m.toolCalls
+      set((s) => {
+        const idx = findLastAssistantIndex(s.messages);
+        if (idx < 0) return s;
+        const target = s.messages[idx];
+        if (!target.toolCalls) return s;
+        const nextToolCalls = target.toolCalls.map((tc) =>
+          tc.id === toolId
             ? {
-                ...m,
-                toolCalls: m.toolCalls.map((tc) =>
-                  tc.id === toolId
-                    ? {
-                        ...tc,
-                        result: result.ok ? JSON.stringify(result.value) : result.error.message,
-                        success: result.ok,
-                        isRunning: false,
-                        inputDelta: undefined,
-                      }
-                    : tc,
-                ),
+                ...tc,
+                result: result.ok ? JSON.stringify(result.value) : result.error.message,
+                success: result.ok,
+                isRunning: false,
+                inputDelta: undefined,
               }
-            : m,
-        ),
-      }));
+            : tc,
+        );
+        const msgs = [...s.messages];
+        msgs[idx] = { ...target, toolCalls: nextToolCalls };
+        return { messages: msgs };
+      });
     }
   },
 
