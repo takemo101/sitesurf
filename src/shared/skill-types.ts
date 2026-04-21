@@ -42,10 +42,18 @@ export interface SkillExtractor {
   outputSchema: string;
 }
 
+/**
+ * Instruction activation level: どれだけ強く guidance を prompt に出すかを決める。
+ * - passive: skill が match しただけ (host-only / global)。ノイズを避けるため 1 行だけ出す
+ * - contextual: path 等が一致して skill が task に近い状況。より詳細な guidance を出す
+ */
+export type SkillActivationLevel = "passive" | "contextual";
+
 export interface SkillMatch {
   skill: Skill;
   availableExtractors: SkillExtractor[];
   confidence: number;
+  activationLevel?: SkillActivationLevel;
 }
 
 export interface SkillParseSuccess {

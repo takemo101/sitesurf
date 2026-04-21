@@ -54,6 +54,9 @@ export class SkillRegistry {
         skill,
         availableExtractors: skill.extractors,
         confidence: 100,
+        // Global skills cover any page, so host alone is never a strong signal.
+        // Keep guidance passive until a stronger activation rule is added.
+        activationLevel: "passive" as const,
       }));
   }
 
@@ -144,11 +147,19 @@ export class SkillRegistry {
 
         return true;
       })
-      .map((skill) => ({
-        skill,
-        availableExtractors: skill.extractors,
-        confidence: this.calculateConfidence(skill, url, domSnapshot),
-      }))
+      .map((skill): SkillMatch => {
+        // Path-scoped skills narrow the match beyond a broad host, so instruction
+        // guidance is task-relevant enough for contextual activation.
+        // Host-only skills stay passive to avoid over-firing on unrelated pages
+        // (e.g. repo-analysis guidance on a GitHub issue-comment task).
+        const pathMatched = skill.matchers.paths !== undefined && skill.matchers.paths.length > 0;
+        return {
+          skill,
+          availableExtractors: skill.extractors,
+          confidence: this.calculateConfidence(skill, url, domSnapshot),
+          activationLevel: pathMatched ? "contextual" : "passive",
+        };
+      })
       .filter((match) => match.confidence >= minConfidence)
       .sort((a, b) => b.confidence - a.confidence);
   }
