@@ -369,5 +369,44 @@ describe("findMatchingSkills with confidence", () => {
       expect(matches).toHaveLength(1);
       expect(matches[0].activationLevel).toBe("passive");
     });
+
+    it("catch-all の paths (/**) しか持たない skill は passive のままにする", () => {
+      const registry = new SkillRegistry();
+      const skill = createTestSkill({
+        id: "broad-skill",
+        matchers: { hosts: ["example.com"], paths: ["/**"] },
+      });
+      registry.register(skill);
+
+      const matches = registry.findMatchingSkills("https://example.com/anywhere");
+      expect(matches).toHaveLength(1);
+      expect(matches[0].activationLevel).toBe("passive");
+    });
+
+    it("ルート / のみの paths も passive として扱う", () => {
+      const registry = new SkillRegistry();
+      const skill = createTestSkill({
+        id: "root-only",
+        matchers: { hosts: ["example.com"], paths: ["/"] },
+      });
+      registry.register(skill);
+
+      const matches = registry.findMatchingSkills("https://example.com/anywhere");
+      expect(matches).toHaveLength(1);
+      expect(matches[0].activationLevel).toBe("passive");
+    });
+
+    it("catch-all と specific path が混在するときは specific path があれば contextual に昇格", () => {
+      const registry = new SkillRegistry();
+      const skill = createTestSkill({
+        id: "mixed-paths",
+        matchers: { hosts: ["github.com"], paths: ["/**", "/*/*/tree/**"] },
+      });
+      registry.register(skill);
+
+      const matches = registry.findMatchingSkills("https://github.com/owner/repo/tree/main");
+      expect(matches).toHaveLength(1);
+      expect(matches[0].activationLevel).toBe("contextual");
+    });
   });
 });
