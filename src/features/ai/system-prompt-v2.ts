@@ -39,22 +39,28 @@ function formatWindowSkillCall(skillId: string, extractorId: string): string {
 
 const INSTRUCTION_SUMMARY_MAX_LEN = 120;
 
-function hasInstructions(match: SkillMatch): boolean {
-  return (match.skill.instructionsMarkdown ?? "").trim().length > 0;
-}
-
 function isPromptVisibleSkill(match: SkillMatch): boolean {
-  return match.availableExtractors.length > 0 || hasInstructions(match);
+  if (match.availableExtractors.length > 0) return true;
+  // instructions があっても summarize 可能な本文が無ければ prompt には出さない。
+  // 例: 見出しだけ / コードフェンスだけの instructions は AI にとってノイズにしかならない。
+  return summarizeInstructions(match.skill.instructionsMarkdown) !== null;
 }
 
 /**
  * instructionsMarkdown の先頭本文から 1 行のサマリを作る。
- * 見出し / 空行 / リスト記号は除去し、INSTRUCTION_SUMMARY_MAX_LEN で打ち切る。
+ * 見出し / 空行 / リスト記号 / コードフェンス内は除去し、
+ * INSTRUCTION_SUMMARY_MAX_LEN で打ち切る。
  * 本文を全文注入しない passive activation を初期実装として採用する。
  */
 function summarizeInstructions(instructionsMarkdown: string | undefined): string | null {
   if (!instructionsMarkdown) return null;
+  let inFence = false;
   for (const raw of instructionsMarkdown.split("\n")) {
+    if (/^\s*```/.test(raw)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
     const line = raw.trim();
     if (line.length === 0) continue;
     if (/^#{1,6}\s/.test(line)) continue;
