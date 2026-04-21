@@ -14,634 +14,679 @@ export interface ProviderModels {
 }
 
 export const GENERATED_MODELS: Record<string, ProviderModels> = {
-  anthropic: {
-    defaultModel: "claude-sonnet-4-6",
-    models: [
+  "anthropic": {
+    "defaultModel": "claude-sonnet-4-6",
+    "models": [
       {
-        id: "claude-3-5-haiku-20241022",
-        name: "Claude Haiku 3.5",
-        reasoning: false,
+        "id": "claude-3-5-haiku-20241022",
+        "name": "Claude Haiku 3.5",
+        "reasoning": false
       },
       {
-        id: "claude-3-5-haiku-latest",
-        name: "Claude Haiku 3.5 (latest)",
-        reasoning: false,
+        "id": "claude-3-5-haiku-latest",
+        "name": "Claude Haiku 3.5 (latest)",
+        "reasoning": false
       },
       {
-        id: "claude-3-5-sonnet-20240620",
-        name: "Claude Sonnet 3.5",
-        reasoning: false,
+        "id": "claude-3-5-sonnet-20240620",
+        "name": "Claude Sonnet 3.5",
+        "reasoning": false
       },
       {
-        id: "claude-3-5-sonnet-20241022",
-        name: "Claude Sonnet 3.5 v2",
-        reasoning: false,
+        "id": "claude-3-5-sonnet-20241022",
+        "name": "Claude Sonnet 3.5 v2",
+        "reasoning": false
       },
       {
-        id: "claude-3-haiku-20240307",
-        name: "Claude Haiku 3",
-        reasoning: false,
+        "id": "claude-3-haiku-20240307",
+        "name": "Claude Haiku 3",
+        "reasoning": false
       },
       {
-        id: "claude-3-opus-20240229",
-        name: "Claude Opus 3",
-        reasoning: false,
+        "id": "claude-3-opus-20240229",
+        "name": "Claude Opus 3",
+        "reasoning": false
       },
       {
-        id: "claude-3-sonnet-20240229",
-        name: "Claude Sonnet 3",
-        reasoning: false,
+        "id": "claude-3-sonnet-20240229",
+        "name": "Claude Sonnet 3",
+        "reasoning": false
       },
       {
-        id: "claude-3-7-sonnet-20250219",
-        name: "Claude Sonnet 3.7",
-        reasoning: true,
+        "id": "claude-3-7-sonnet-20250219",
+        "name": "Claude Sonnet 3.7",
+        "reasoning": true
       },
       {
-        id: "claude-haiku-4-5",
-        name: "Claude Haiku 4.5 (latest)",
-        reasoning: true,
+        "id": "claude-haiku-4-5",
+        "name": "Claude Haiku 4.5 (latest)",
+        "reasoning": true
       },
       {
-        id: "claude-haiku-4-5-20251001",
-        name: "Claude Haiku 4.5",
-        reasoning: true,
+        "id": "claude-haiku-4-5-20251001",
+        "name": "Claude Haiku 4.5",
+        "reasoning": true
       },
       {
-        id: "claude-opus-4-0",
-        name: "Claude Opus 4 (latest)",
-        reasoning: true,
+        "id": "claude-opus-4-0",
+        "name": "Claude Opus 4 (latest)",
+        "reasoning": true
       },
       {
-        id: "claude-opus-4-1",
-        name: "Claude Opus 4.1 (latest)",
-        reasoning: true,
+        "id": "claude-opus-4-1",
+        "name": "Claude Opus 4.1 (latest)",
+        "reasoning": true
       },
       {
-        id: "claude-opus-4-1-20250805",
-        name: "Claude Opus 4.1",
-        reasoning: true,
+        "id": "claude-opus-4-1-20250805",
+        "name": "Claude Opus 4.1",
+        "reasoning": true
       },
       {
-        id: "claude-opus-4-20250514",
-        name: "Claude Opus 4",
-        reasoning: true,
+        "id": "claude-opus-4-20250514",
+        "name": "Claude Opus 4",
+        "reasoning": true
       },
       {
-        id: "claude-opus-4-5",
-        name: "Claude Opus 4.5 (latest)",
-        reasoning: true,
+        "id": "claude-opus-4-5",
+        "name": "Claude Opus 4.5 (latest)",
+        "reasoning": true
       },
       {
-        id: "claude-opus-4-5-20251101",
-        name: "Claude Opus 4.5",
-        reasoning: true,
+        "id": "claude-opus-4-5-20251101",
+        "name": "Claude Opus 4.5",
+        "reasoning": true
       },
       {
-        id: "claude-opus-4-6",
-        name: "Claude Opus 4.6",
-        reasoning: true,
+        "id": "claude-opus-4-6",
+        "name": "Claude Opus 4.6",
+        "reasoning": true
       },
       {
-        id: "claude-opus-4-7",
-        name: "Claude Opus 4.7",
-        reasoning: true,
+        "id": "claude-opus-4-7",
+        "name": "Claude Opus 4.7",
+        "reasoning": true
       },
       {
-        id: "claude-sonnet-4-0",
-        name: "Claude Sonnet 4 (latest)",
-        reasoning: true,
+        "id": "claude-sonnet-4-0",
+        "name": "Claude Sonnet 4 (latest)",
+        "reasoning": true
       },
       {
-        id: "claude-sonnet-4-20250514",
-        name: "Claude Sonnet 4",
-        reasoning: true,
+        "id": "claude-sonnet-4-20250514",
+        "name": "Claude Sonnet 4",
+        "reasoning": true
       },
       {
-        id: "claude-sonnet-4-5",
-        name: "Claude Sonnet 4.5 (latest)",
-        reasoning: true,
+        "id": "claude-sonnet-4-5",
+        "name": "Claude Sonnet 4.5 (latest)",
+        "reasoning": true
       },
       {
-        id: "claude-sonnet-4-5-20250929",
-        name: "Claude Sonnet 4.5",
-        reasoning: true,
+        "id": "claude-sonnet-4-5-20250929",
+        "name": "Claude Sonnet 4.5",
+        "reasoning": true
       },
       {
-        id: "claude-sonnet-4-6",
-        name: "Claude Sonnet 4.6",
-        reasoning: true,
-      },
-    ],
+        "id": "claude-sonnet-4-6",
+        "name": "Claude Sonnet 4.6",
+        "reasoning": true
+      }
+    ]
   },
-  openai: {
-    defaultModel: "gpt-5.4",
-    models: [
+  "openai": {
+    "defaultModel": "gpt-5.4",
+    "models": [
       {
-        id: "gpt-4",
-        name: "GPT-4",
-        reasoning: false,
+        "id": "gpt-4",
+        "name": "GPT-4",
+        "reasoning": false
       },
       {
-        id: "gpt-4-turbo",
-        name: "GPT-4 Turbo",
-        reasoning: false,
+        "id": "gpt-4-turbo",
+        "name": "GPT-4 Turbo",
+        "reasoning": false
       },
       {
-        id: "gpt-4.1",
-        name: "GPT-4.1",
-        reasoning: false,
+        "id": "gpt-4.1",
+        "name": "GPT-4.1",
+        "reasoning": false
       },
       {
-        id: "gpt-4.1-mini",
-        name: "GPT-4.1 mini",
-        reasoning: false,
+        "id": "gpt-4.1-mini",
+        "name": "GPT-4.1 mini",
+        "reasoning": false
       },
       {
-        id: "gpt-4.1-nano",
-        name: "GPT-4.1 nano",
-        reasoning: false,
+        "id": "gpt-4.1-nano",
+        "name": "GPT-4.1 nano",
+        "reasoning": false
       },
       {
-        id: "gpt-4o",
-        name: "GPT-4o",
-        reasoning: false,
+        "id": "gpt-4o",
+        "name": "GPT-4o",
+        "reasoning": false
       },
       {
-        id: "gpt-4o-2024-05-13",
-        name: "GPT-4o (2024-05-13)",
-        reasoning: false,
+        "id": "gpt-4o-2024-05-13",
+        "name": "GPT-4o (2024-05-13)",
+        "reasoning": false
       },
       {
-        id: "gpt-4o-2024-08-06",
-        name: "GPT-4o (2024-08-06)",
-        reasoning: false,
+        "id": "gpt-4o-2024-08-06",
+        "name": "GPT-4o (2024-08-06)",
+        "reasoning": false
       },
       {
-        id: "gpt-4o-2024-11-20",
-        name: "GPT-4o (2024-11-20)",
-        reasoning: false,
+        "id": "gpt-4o-2024-11-20",
+        "name": "GPT-4o (2024-11-20)",
+        "reasoning": false
       },
       {
-        id: "gpt-4o-mini",
-        name: "GPT-4o mini",
-        reasoning: false,
+        "id": "gpt-4o-mini",
+        "name": "GPT-4o mini",
+        "reasoning": false
       },
       {
-        id: "gpt-5.3-chat-latest",
-        name: "GPT-5.3 Chat (latest)",
-        reasoning: false,
+        "id": "gpt-5.3-chat-latest",
+        "name": "GPT-5.3 Chat (latest)",
+        "reasoning": false
       },
       {
-        id: "gpt-5",
-        name: "GPT-5",
-        reasoning: true,
+        "id": "gpt-5",
+        "name": "GPT-5",
+        "reasoning": true
       },
       {
-        id: "gpt-5-mini",
-        name: "GPT-5 Mini",
-        reasoning: true,
+        "id": "gpt-5-mini",
+        "name": "GPT-5 Mini",
+        "reasoning": true
       },
       {
-        id: "gpt-5-nano",
-        name: "GPT-5 Nano",
-        reasoning: true,
+        "id": "gpt-5-nano",
+        "name": "GPT-5 Nano",
+        "reasoning": true
       },
       {
-        id: "gpt-5-pro",
-        name: "GPT-5 Pro",
-        reasoning: true,
+        "id": "gpt-5-pro",
+        "name": "GPT-5 Pro",
+        "reasoning": true
       },
       {
-        id: "gpt-5.1",
-        name: "GPT-5.1",
-        reasoning: true,
+        "id": "gpt-5.1",
+        "name": "GPT-5.1",
+        "reasoning": true
       },
       {
-        id: "gpt-5.1-chat-latest",
-        name: "GPT-5.1 Chat",
-        reasoning: true,
+        "id": "gpt-5.1-chat-latest",
+        "name": "GPT-5.1 Chat",
+        "reasoning": true
       },
       {
-        id: "gpt-5.2",
-        name: "GPT-5.2",
-        reasoning: true,
+        "id": "gpt-5.2",
+        "name": "GPT-5.2",
+        "reasoning": true
       },
       {
-        id: "gpt-5.2-chat-latest",
-        name: "GPT-5.2 Chat",
-        reasoning: true,
+        "id": "gpt-5.2-chat-latest",
+        "name": "GPT-5.2 Chat",
+        "reasoning": true
       },
       {
-        id: "gpt-5.2-pro",
-        name: "GPT-5.2 Pro",
-        reasoning: true,
+        "id": "gpt-5.2-pro",
+        "name": "GPT-5.2 Pro",
+        "reasoning": true
       },
       {
-        id: "gpt-5.4",
-        name: "GPT-5.4",
-        reasoning: true,
+        "id": "gpt-5.4",
+        "name": "GPT-5.4",
+        "reasoning": true
       },
       {
-        id: "gpt-5.4-mini",
-        name: "GPT-5.4 mini",
-        reasoning: true,
+        "id": "gpt-5.4-mini",
+        "name": "GPT-5.4 mini",
+        "reasoning": true
       },
       {
-        id: "gpt-5.4-nano",
-        name: "GPT-5.4 nano",
-        reasoning: true,
+        "id": "gpt-5.4-nano",
+        "name": "GPT-5.4 nano",
+        "reasoning": true
       },
       {
-        id: "gpt-5.4-pro",
-        name: "GPT-5.4 Pro",
-        reasoning: true,
+        "id": "gpt-5.4-pro",
+        "name": "GPT-5.4 Pro",
+        "reasoning": true
       },
       {
-        id: "o1",
-        name: "o1",
-        reasoning: true,
+        "id": "o1",
+        "name": "o1",
+        "reasoning": true
       },
       {
-        id: "o1-pro",
-        name: "o1-pro",
-        reasoning: true,
+        "id": "o1-pro",
+        "name": "o1-pro",
+        "reasoning": true
       },
       {
-        id: "o3",
-        name: "o3",
-        reasoning: true,
+        "id": "o3",
+        "name": "o3",
+        "reasoning": true
       },
       {
-        id: "o3-deep-research",
-        name: "o3-deep-research",
-        reasoning: true,
+        "id": "o3-deep-research",
+        "name": "o3-deep-research",
+        "reasoning": true
       },
       {
-        id: "o3-mini",
-        name: "o3-mini",
-        reasoning: true,
+        "id": "o3-mini",
+        "name": "o3-mini",
+        "reasoning": true
       },
       {
-        id: "o3-pro",
-        name: "o3-pro",
-        reasoning: true,
+        "id": "o3-pro",
+        "name": "o3-pro",
+        "reasoning": true
       },
       {
-        id: "o4-mini",
-        name: "o4-mini",
-        reasoning: true,
+        "id": "o4-mini",
+        "name": "o4-mini",
+        "reasoning": true
       },
       {
-        id: "o4-mini-deep-research",
-        name: "o4-mini-deep-research",
-        reasoning: true,
-      },
-    ],
+        "id": "o4-mini-deep-research",
+        "name": "o4-mini-deep-research",
+        "reasoning": true
+      }
+    ]
   },
-  google: {
-    defaultModel: "gemini-2.5-flash",
-    models: [
+  "google": {
+    "defaultModel": "gemini-2.5-flash",
+    "models": [
       {
-        id: "gemini-1.5-flash",
-        name: "Gemini 1.5 Flash",
-        reasoning: false,
+        "id": "gemini-1.5-flash",
+        "name": "Gemini 1.5 Flash",
+        "reasoning": false
       },
       {
-        id: "gemini-1.5-flash-8b",
-        name: "Gemini 1.5 Flash-8B",
-        reasoning: false,
+        "id": "gemini-1.5-flash-8b",
+        "name": "Gemini 1.5 Flash-8B",
+        "reasoning": false
       },
       {
-        id: "gemini-1.5-pro",
-        name: "Gemini 1.5 Pro",
-        reasoning: false,
+        "id": "gemini-1.5-pro",
+        "name": "Gemini 1.5 Pro",
+        "reasoning": false
       },
       {
-        id: "gemini-2.0-flash",
-        name: "Gemini 2.0 Flash",
-        reasoning: false,
+        "id": "gemini-2.0-flash",
+        "name": "Gemini 2.0 Flash",
+        "reasoning": false
       },
       {
-        id: "gemini-2.0-flash-lite",
-        name: "Gemini 2.0 Flash Lite",
-        reasoning: false,
+        "id": "gemini-2.0-flash-lite",
+        "name": "Gemini 2.0 Flash Lite",
+        "reasoning": false
       },
       {
-        id: "gemini-2.5-flash",
-        name: "Gemini 2.5 Flash",
-        reasoning: true,
+        "id": "gemini-2.5-flash",
+        "name": "Gemini 2.5 Flash",
+        "reasoning": true
       },
       {
-        id: "gemini-2.5-flash-lite",
-        name: "Gemini 2.5 Flash Lite",
-        reasoning: true,
+        "id": "gemini-2.5-flash-lite",
+        "name": "Gemini 2.5 Flash Lite",
+        "reasoning": true
       },
       {
-        id: "gemini-2.5-pro",
-        name: "Gemini 2.5 Pro",
-        reasoning: true,
+        "id": "gemini-2.5-pro",
+        "name": "Gemini 2.5 Pro",
+        "reasoning": true
       },
       {
-        id: "gemini-3-flash-preview",
-        name: "Gemini 3 Flash Preview",
-        reasoning: true,
+        "id": "gemini-3-flash-preview",
+        "name": "Gemini 3 Flash Preview",
+        "reasoning": true
       },
       {
-        id: "gemini-3-pro-preview",
-        name: "Gemini 3 Pro Preview",
-        reasoning: true,
+        "id": "gemini-3-pro-preview",
+        "name": "Gemini 3 Pro Preview",
+        "reasoning": true
       },
       {
-        id: "gemini-3.1-flash-lite-preview",
-        name: "Gemini 3.1 Flash Lite Preview",
-        reasoning: true,
+        "id": "gemini-3.1-flash-lite-preview",
+        "name": "Gemini 3.1 Flash Lite Preview",
+        "reasoning": true
       },
       {
-        id: "gemini-3.1-pro-preview",
-        name: "Gemini 3.1 Pro Preview",
-        reasoning: true,
+        "id": "gemini-3.1-pro-preview",
+        "name": "Gemini 3.1 Pro Preview",
+        "reasoning": true
       },
       {
-        id: "gemini-3.1-pro-preview-customtools",
-        name: "Gemini 3.1 Pro Preview Custom Tools",
-        reasoning: true,
+        "id": "gemini-3.1-pro-preview-customtools",
+        "name": "Gemini 3.1 Pro Preview Custom Tools",
+        "reasoning": true
       },
       {
-        id: "gemini-flash-latest",
-        name: "Gemini Flash Latest",
-        reasoning: true,
+        "id": "gemini-flash-latest",
+        "name": "Gemini Flash Latest",
+        "reasoning": true
       },
       {
-        id: "gemini-flash-lite-latest",
-        name: "Gemini Flash-Lite Latest",
-        reasoning: true,
+        "id": "gemini-flash-lite-latest",
+        "name": "Gemini Flash-Lite Latest",
+        "reasoning": true
       },
       {
-        id: "gemini-live-2.5-flash",
-        name: "Gemini Live 2.5 Flash",
-        reasoning: true,
+        "id": "gemini-live-2.5-flash",
+        "name": "Gemini Live 2.5 Flash",
+        "reasoning": true
       },
       {
-        id: "gemini-live-2.5-flash-preview-native-audio",
-        name: "Gemini Live 2.5 Flash Preview Native Audio",
-        reasoning: true,
-      },
-    ],
+        "id": "gemini-live-2.5-flash-preview-native-audio",
+        "name": "Gemini Live 2.5 Flash Preview Native Audio",
+        "reasoning": true
+      }
+    ]
   },
-  copilot: {
-    defaultModel: "gpt-4.1",
-    models: [
+  "copilot": {
+    "defaultModel": "gpt-4.1",
+    "models": [
       {
-        id: "gemini-2.5-pro",
-        name: "Gemini 2.5 Pro",
-        reasoning: false,
+        "id": "gemini-2.5-pro",
+        "name": "Gemini 2.5 Pro",
+        "reasoning": false
       },
       {
-        id: "gpt-4.1",
-        name: "GPT-4.1",
-        reasoning: false,
+        "id": "gpt-4.1",
+        "name": "GPT-4.1",
+        "reasoning": false
       },
       {
-        id: "gpt-4o",
-        name: "GPT-4o",
-        reasoning: false,
+        "id": "gpt-4o",
+        "name": "GPT-4o",
+        "reasoning": false
       },
       {
-        id: "claude-haiku-4.5",
-        name: "Claude Haiku 4.5",
-        reasoning: true,
+        "id": "claude-haiku-4.5",
+        "name": "Claude Haiku 4.5",
+        "reasoning": true
       },
       {
-        id: "claude-opus-4.5",
-        name: "Claude Opus 4.5",
-        reasoning: true,
+        "id": "claude-opus-4.5",
+        "name": "Claude Opus 4.5",
+        "reasoning": true
       },
       {
-        id: "claude-opus-4.6",
-        name: "Claude Opus 4.6",
-        reasoning: true,
+        "id": "claude-opus-4.6",
+        "name": "Claude Opus 4.6",
+        "reasoning": true
       },
       {
-        id: "claude-sonnet-4",
-        name: "Claude Sonnet 4",
-        reasoning: true,
+        "id": "claude-opus-4.7",
+        "name": "Claude Opus 4.7",
+        "reasoning": true
       },
       {
-        id: "claude-sonnet-4.5",
-        name: "Claude Sonnet 4.5",
-        reasoning: true,
+        "id": "claude-sonnet-4",
+        "name": "Claude Sonnet 4",
+        "reasoning": true
       },
       {
-        id: "claude-sonnet-4.6",
-        name: "Claude Sonnet 4.6",
-        reasoning: true,
+        "id": "claude-sonnet-4.5",
+        "name": "Claude Sonnet 4.5",
+        "reasoning": true
       },
       {
-        id: "gemini-3-flash-preview",
-        name: "Gemini 3 Flash",
-        reasoning: true,
+        "id": "claude-sonnet-4.6",
+        "name": "Claude Sonnet 4.6",
+        "reasoning": true
       },
       {
-        id: "gemini-3-pro-preview",
-        name: "Gemini 3 Pro Preview",
-        reasoning: true,
+        "id": "gemini-3-flash-preview",
+        "name": "Gemini 3 Flash",
+        "reasoning": true
       },
       {
-        id: "gemini-3.1-pro-preview",
-        name: "Gemini 3.1 Pro Preview",
-        reasoning: true,
+        "id": "gemini-3-pro-preview",
+        "name": "Gemini 3 Pro Preview",
+        "reasoning": true
       },
       {
-        id: "gpt-5",
-        name: "GPT-5",
-        reasoning: true,
+        "id": "gemini-3.1-pro-preview",
+        "name": "Gemini 3.1 Pro Preview",
+        "reasoning": true
       },
       {
-        id: "gpt-5-mini",
-        name: "GPT-5-mini",
-        reasoning: true,
+        "id": "gpt-5",
+        "name": "GPT-5",
+        "reasoning": true
       },
       {
-        id: "gpt-5.1",
-        name: "GPT-5.1",
-        reasoning: true,
+        "id": "gpt-5-mini",
+        "name": "GPT-5-mini",
+        "reasoning": true
       },
       {
-        id: "gpt-5.2",
-        name: "GPT-5.2",
-        reasoning: true,
+        "id": "gpt-5.1",
+        "name": "GPT-5.1",
+        "reasoning": true
       },
       {
-        id: "gpt-5.4",
-        name: "GPT-5.4",
-        reasoning: true,
+        "id": "gpt-5.2",
+        "name": "GPT-5.2",
+        "reasoning": true
       },
       {
-        id: "gpt-5.4-mini",
-        name: "GPT-5.4 Mini",
-        reasoning: true,
+        "id": "gpt-5.4",
+        "name": "GPT-5.4",
+        "reasoning": true
       },
       {
-        id: "grok-code-fast-1",
-        name: "Grok Code Fast 1",
-        reasoning: true,
+        "id": "gpt-5.4-mini",
+        "name": "GPT-5.4 Mini",
+        "reasoning": true
       },
-    ],
+      {
+        "id": "grok-code-fast-1",
+        "name": "Grok Code Fast 1",
+        "reasoning": true
+      }
+    ]
+  },
+  "kimi": {
+    "defaultModel": "kimi-k2.6",
+    "models": [
+      {
+        "id": "kimi-k2-0711-preview",
+        "name": "Kimi K2 0711",
+        "reasoning": false
+      },
+      {
+        "id": "kimi-k2-0905-preview",
+        "name": "Kimi K2 0905",
+        "reasoning": false
+      },
+      {
+        "id": "kimi-k2-turbo-preview",
+        "name": "Kimi K2 Turbo",
+        "reasoning": false
+      },
+      {
+        "id": "kimi-k2-thinking",
+        "name": "Kimi K2 Thinking",
+        "reasoning": true
+      },
+      {
+        "id": "kimi-k2-thinking-turbo",
+        "name": "Kimi K2 Thinking Turbo",
+        "reasoning": true
+      },
+      {
+        "id": "kimi-k2.5",
+        "name": "Kimi K2.5",
+        "reasoning": true
+      }
+    ]
   },
   "kimi-coding": {
-    defaultModel: "k2p5",
-    models: [
+    "defaultModel": "k2p6",
+    "models": [
       {
-        id: "k2p5",
-        name: "Kimi K2.5",
-        reasoning: true,
+        "id": "k2p5",
+        "name": "Kimi K2.5",
+        "reasoning": true
       },
       {
-        id: "kimi-k2-thinking",
-        name: "Kimi K2 Thinking",
-        reasoning: true,
+        "id": "k2p6",
+        "name": "Kimi K2.6",
+        "reasoning": true
       },
-    ],
+      {
+        "id": "kimi-k2-thinking",
+        "name": "Kimi K2 Thinking",
+        "reasoning": true
+      }
+    ]
   },
-  zai: {
-    defaultModel: "glm-5.1",
-    models: [
+  "zai": {
+    "defaultModel": "glm-5.1",
+    "models": [
       {
-        id: "glm-4.5",
-        name: "GLM-4.5",
-        reasoning: true,
+        "id": "glm-4.5",
+        "name": "GLM-4.5",
+        "reasoning": true
       },
       {
-        id: "glm-4.5-air",
-        name: "GLM-4.5-Air",
-        reasoning: true,
+        "id": "glm-4.5-air",
+        "name": "GLM-4.5-Air",
+        "reasoning": true
       },
       {
-        id: "glm-4.5-flash",
-        name: "GLM-4.5-Flash",
-        reasoning: true,
+        "id": "glm-4.5-flash",
+        "name": "GLM-4.5-Flash",
+        "reasoning": true
       },
       {
-        id: "glm-4.5v",
-        name: "GLM-4.5V",
-        reasoning: true,
+        "id": "glm-4.5v",
+        "name": "GLM-4.5V",
+        "reasoning": true
       },
       {
-        id: "glm-4.6",
-        name: "GLM-4.6",
-        reasoning: true,
+        "id": "glm-4.6",
+        "name": "GLM-4.6",
+        "reasoning": true
       },
       {
-        id: "glm-4.6v",
-        name: "GLM-4.6V",
-        reasoning: true,
+        "id": "glm-4.6v",
+        "name": "GLM-4.6V",
+        "reasoning": true
       },
       {
-        id: "glm-4.7",
-        name: "GLM-4.7",
-        reasoning: true,
+        "id": "glm-4.7",
+        "name": "GLM-4.7",
+        "reasoning": true
       },
       {
-        id: "glm-4.7-flash",
-        name: "GLM-4.7-Flash",
-        reasoning: true,
+        "id": "glm-4.7-flash",
+        "name": "GLM-4.7-Flash",
+        "reasoning": true
       },
       {
-        id: "glm-4.7-flashx",
-        name: "GLM-4.7-FlashX",
-        reasoning: true,
+        "id": "glm-4.7-flashx",
+        "name": "GLM-4.7-FlashX",
+        "reasoning": true
       },
       {
-        id: "glm-5",
-        name: "GLM-5",
-        reasoning: true,
+        "id": "glm-5",
+        "name": "GLM-5",
+        "reasoning": true
       },
       {
-        id: "glm-5-turbo",
-        name: "GLM-5-Turbo",
-        reasoning: true,
+        "id": "glm-5-turbo",
+        "name": "GLM-5-Turbo",
+        "reasoning": true
       },
       {
-        id: "glm-5.1",
-        name: "GLM-5.1",
-        reasoning: true,
+        "id": "glm-5.1",
+        "name": "GLM-5.1",
+        "reasoning": true
       },
       {
-        id: "glm-5v-turbo",
-        name: "glm-5v-turbo",
-        reasoning: true,
-      },
-    ],
+        "id": "glm-5v-turbo",
+        "name": "glm-5v-turbo",
+        "reasoning": true
+      }
+    ]
   },
   "zai-coding": {
-    defaultModel: "glm-5.1",
-    models: [
+    "defaultModel": "glm-5.1",
+    "models": [
       {
-        id: "glm-4.5",
-        name: "GLM-4.5",
-        reasoning: true,
+        "id": "glm-4.5",
+        "name": "GLM-4.5",
+        "reasoning": true
       },
       {
-        id: "glm-4.5-air",
-        name: "GLM-4.5-Air",
-        reasoning: true,
+        "id": "glm-4.5-air",
+        "name": "GLM-4.5-Air",
+        "reasoning": true
       },
       {
-        id: "glm-4.5-flash",
-        name: "GLM-4.5-Flash",
-        reasoning: true,
+        "id": "glm-4.5-flash",
+        "name": "GLM-4.5-Flash",
+        "reasoning": true
       },
       {
-        id: "glm-4.5v",
-        name: "GLM-4.5V",
-        reasoning: true,
+        "id": "glm-4.5v",
+        "name": "GLM-4.5V",
+        "reasoning": true
       },
       {
-        id: "glm-4.6",
-        name: "GLM-4.6",
-        reasoning: true,
+        "id": "glm-4.6",
+        "name": "GLM-4.6",
+        "reasoning": true
       },
       {
-        id: "glm-4.6v",
-        name: "GLM-4.6V",
-        reasoning: true,
+        "id": "glm-4.6v",
+        "name": "GLM-4.6V",
+        "reasoning": true
       },
       {
-        id: "glm-4.7",
-        name: "GLM-4.7",
-        reasoning: true,
+        "id": "glm-4.7",
+        "name": "GLM-4.7",
+        "reasoning": true
       },
       {
-        id: "glm-4.7-flash",
-        name: "GLM-4.7-Flash",
-        reasoning: true,
+        "id": "glm-4.7-flash",
+        "name": "GLM-4.7-Flash",
+        "reasoning": true
       },
       {
-        id: "glm-4.7-flashx",
-        name: "GLM-4.7-FlashX",
-        reasoning: true,
+        "id": "glm-4.7-flashx",
+        "name": "GLM-4.7-FlashX",
+        "reasoning": true
       },
       {
-        id: "glm-5",
-        name: "GLM-5",
-        reasoning: true,
+        "id": "glm-5",
+        "name": "GLM-5",
+        "reasoning": true
       },
       {
-        id: "glm-5-turbo",
-        name: "GLM-5-Turbo",
-        reasoning: true,
+        "id": "glm-5-turbo",
+        "name": "GLM-5-Turbo",
+        "reasoning": true
       },
       {
-        id: "glm-5.1",
-        name: "GLM-5.1",
-        reasoning: true,
+        "id": "glm-5.1",
+        "name": "GLM-5.1",
+        "reasoning": true
       },
       {
-        id: "glm-5v-turbo",
-        name: "glm-5v-turbo",
-        reasoning: true,
-      },
-    ],
-  },
+        "id": "glm-5v-turbo",
+        "name": "glm-5v-turbo",
+        "reasoning": true
+      }
+    ]
+  }
 } as const;

@@ -341,4 +341,26 @@ describe("persistence", () => {
 
     expect(result?.autoCompact).toBe(true);
   });
+
+  it("kimi / kimi-coding の保存済み model が空でも K2.6 系 default で復元される", async () => {
+    const kimiStorage = new InMemoryStorage();
+    await kimiStorage.set("sitesurf_settings", {
+      provider: "kimi",
+      model: "",
+      modelByProvider: { kimi: "" },
+    });
+
+    const kimiResult = await loadSettings(kimiStorage);
+    expect(kimiResult?.model).toBe("kimi-k2.6");
+
+    const codingStorage = new InMemoryStorage();
+    await codingStorage.set("sitesurf_settings", {
+      provider: "kimi-coding",
+      model: "",
+      modelByProvider: { "kimi-coding": "" },
+    });
+
+    const codingResult = await loadSettings(codingStorage);
+    expect(codingResult?.model).toBe("k2p6");
+  });
 });

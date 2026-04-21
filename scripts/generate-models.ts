@@ -25,7 +25,8 @@ const PROVIDER_MAP: Record<string, { key: string; defaultModel: string }> = {
   openai: { key: "openai", defaultModel: "gpt-5.4" },
   google: { key: "google", defaultModel: "gemini-2.5-flash" },
   "github-copilot": { key: "copilot", defaultModel: "gpt-4.1" },
-  "kimi-for-coding": { key: "kimi-coding", defaultModel: "k2p5" },
+  moonshotai: { key: "kimi", defaultModel: "kimi-k2.6" },
+  "kimi-for-coding": { key: "kimi-coding", defaultModel: "k2p6" },
   zai: { key: "zai", defaultModel: "glm-5.1" },
   "zai-coding-plan": { key: "zai-coding", defaultModel: "glm-5.1" },
 };

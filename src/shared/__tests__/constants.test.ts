@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PROVIDERS, THEME_STORAGE_KEY } from "../constants";
+import { GENERATED_MODELS } from "../models.generated";
 import type { ProviderId, ProviderInfo, ColorScheme } from "../constants";
 
 describe("PROVIDERS定数", () => {
@@ -67,6 +68,25 @@ describe("PROVIDERS定数", () => {
 
   it("google は apikey 認証", () => {
     expect(PROVIDERS.google.authType).toBe("apikey");
+  });
+
+  it("kimi は K2.6 をデフォルトに含む", () => {
+    expect(PROVIDERS.kimi.defaultModel).toBe("kimi-k2.6");
+    expect(PROVIDERS.kimi.models).toContain("kimi-k2.6");
+  });
+
+  it("kimi-coding は k2p6 をデフォルトに含む", () => {
+    expect(PROVIDERS["kimi-coding"].defaultModel).toBe("k2p6");
+    expect(PROVIDERS["kimi-coding"].models).toContain("k2p6");
+  });
+
+  it("kimi と kimi-coding は models.generated.ts から取得される", () => {
+    expect(GENERATED_MODELS.kimi).toBeDefined();
+    expect(GENERATED_MODELS.kimi.models.some((model) => model.id === "kimi-k2.5")).toBe(true);
+    expect(GENERATED_MODELS["kimi-coding"].defaultModel).toBe("k2p6");
+    expect(GENERATED_MODELS["kimi-coding"].models.some((model) => model.id === "k2p6")).toBe(
+      true,
+    );
   });
 });
 
