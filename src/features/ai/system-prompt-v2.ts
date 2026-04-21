@@ -38,6 +38,7 @@ function formatWindowSkillCall(skillId: string, extractorId: string): string {
 }
 
 const INSTRUCTION_SUMMARY_MAX_LEN = 120;
+const CONTEXTUAL_PARAGRAPH_MAX_LINES = 4;
 
 function isPromptVisibleSkill(match: SkillMatch): boolean {
   if (match.availableExtractors.length > 0) return true;
@@ -47,29 +48,69 @@ function isPromptVisibleSkill(match: SkillMatch): boolean {
 }
 
 /**
- * instructionsMarkdown の先頭本文から 1 行のサマリを作る。
+ * 本文行かどうか。見出し / 空行 / コードフェンスは本文ではない。
+ * 共通の fence tracking を closure で持つため、反復ごとに状態が進む。
+ */
+function makeBodyLineIterator(instructionsMarkdown: string): Generator<string, void, unknown> {
+  return (function* () {
+    let inFence = false;
+    for (const raw of instructionsMarkdown.split("\n")) {
+      if (/^\s*```/.test(raw)) {
+        inFence = !inFence;
+        continue;
+      }
+      if (inFence) continue;
+      const line = raw.trim();
+      if (line.length === 0) {
+        // 空行は paragraph 区切りとしても使いたいので yield する
+        yield "";
+        continue;
+      }
+      if (/^#{1,6}\s/.test(line)) continue;
+      const cleaned = line.replace(/^[-*+]\s+/, "").trim();
+      if (cleaned.length === 0) continue;
+      yield cleaned;
+    }
+  })();
+}
+
+/**
+ * instructionsMarkdown の先頭本文から 1 行のサマリを作る (passive activation)。
  * 見出し / 空行 / リスト記号 / コードフェンス内は除去し、
  * INSTRUCTION_SUMMARY_MAX_LEN で打ち切る。
- * 本文を全文注入しない passive activation を初期実装として採用する。
  */
 function summarizeInstructions(instructionsMarkdown: string | undefined): string | null {
   if (!instructionsMarkdown) return null;
-  let inFence = false;
-  for (const raw of instructionsMarkdown.split("\n")) {
-    if (/^\s*```/.test(raw)) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue;
-    const line = raw.trim();
-    if (line.length === 0) continue;
-    if (/^#{1,6}\s/.test(line)) continue;
-    const cleaned = line.replace(/^[-*+]\s+/, "").trim();
-    if (cleaned.length === 0) continue;
-    if (cleaned.length <= INSTRUCTION_SUMMARY_MAX_LEN) return cleaned;
-    return `${cleaned.slice(0, INSTRUCTION_SUMMARY_MAX_LEN - 1)}…`;
+  for (const line of makeBodyLineIterator(instructionsMarkdown)) {
+    if (line === "") continue;
+    if (line.length <= INSTRUCTION_SUMMARY_MAX_LEN) return line;
+    return `${line.slice(0, INSTRUCTION_SUMMARY_MAX_LEN - 1)}…`;
   }
   return null;
+}
+
+/**
+ * contextual activation 用に先頭パラグラフ (連続本文行の塊) を返す。
+ * 最大 CONTEXTUAL_PARAGRAPH_MAX_LINES 行まで。全文注入は避ける。
+ */
+function contextualInstructionParagraph(instructionsMarkdown: string | undefined): string[] | null {
+  if (!instructionsMarkdown) return null;
+  const collected: string[] = [];
+  let started = false;
+  for (const line of makeBodyLineIterator(instructionsMarkdown)) {
+    if (line === "") {
+      if (started) break; // 最初のパラグラフ終了
+      continue;
+    }
+    started = true;
+    if (line.length <= INSTRUCTION_SUMMARY_MAX_LEN) {
+      collected.push(line);
+    } else {
+      collected.push(`${line.slice(0, INSTRUCTION_SUMMARY_MAX_LEN - 1)}…`);
+    }
+    if (collected.length >= CONTEXTUAL_PARAGRAPH_MAX_LINES) break;
+  }
+  return collected.length > 0 ? collected : null;
 }
 
 function generateSkillsSection(
@@ -118,10 +159,12 @@ function renderSkillEntries(
 
   for (const match of skills) {
     const { skill, availableExtractors } = match;
+    const activationLevel = match.activationLevel ?? "passive";
     const guidanceSummary = summarizeInstructions(skill.instructionsMarkdown);
 
     if (shownSkillIds.has(skill.id)) {
-      // Short format for already-seen skills
+      // Short format for already-seen skills.
+      // 既読 skill はトークン節約のため level に関わらず 1 行 Guidance に揃える。
       lines.push(`- ${skill.name} (id: ${skill.id}): ${skill.description}`);
       if (guidanceSummary) {
         lines.push(`  Guidance: ${guidanceSummary}`);
@@ -134,8 +177,19 @@ function renderSkillEntries(
     const target = skill.scope === "global" ? "any page" : skill.matchers.hosts.join(", ");
     lines.push(`**${skill.name}** (id: ${skill.id}, ${target})`);
     lines.push(skill.description);
+
     if (guidanceSummary) {
-      lines.push(`Guidance: ${guidanceSummary}`);
+      if (activationLevel === "contextual") {
+        const paragraph = contextualInstructionParagraph(skill.instructionsMarkdown) ?? [
+          guidanceSummary,
+        ];
+        lines.push("Guidance (contextual):");
+        for (const bodyLine of paragraph) {
+          lines.push(`- ${bodyLine}`);
+        }
+      } else {
+        lines.push(`Guidance: ${guidanceSummary}`);
+      }
     }
     lines.push("");
 

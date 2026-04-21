@@ -491,3 +491,79 @@ describe("skill instruction layer in prompt", () => {
     expect(ids).toEqual(["ok"]);
   });
 });
+
+describe("skill instruction activation level", () => {
+  function makeGuidanceSkill(
+    id: string,
+    name: string,
+    activationLevel: "passive" | "contextual",
+    instructionsMarkdown: string,
+    scope: "global" | undefined = undefined,
+  ): SkillMatch {
+    return {
+      skill: {
+        id,
+        name,
+        description: `${name} description`,
+        matchers: scope === "global" ? { hosts: [] } : { hosts: [`${id}.com`] },
+        version: "0.0.0",
+        scope,
+        extractors: [],
+        instructionsMarkdown,
+      },
+      availableExtractors: [],
+      confidence: 80,
+      activationLevel,
+    };
+  }
+
+  const guidanceBody = [
+    "repo 全体の分析では API / bgFetch を優先すること。",
+    "DOM extractor は可視範囲の補助取得に限定する。",
+    "",
+    "次のセクションに書かれた詳細はここには載せない。",
+  ].join("\n");
+
+  it("renders passive-level skill as a single short Guidance line", () => {
+    const skill = makeGuidanceSkill("gh", "GitHub", "passive", guidanceBody);
+    const section = generateSkillsSectionForLoop([skill], new Set());
+
+    expect(section).toMatch(/^Guidance:\s+/m);
+    expect(section).not.toContain("Guidance (contextual):");
+    // The second body line must not leak into the passive rendering.
+    expect(section).not.toContain("DOM extractor は可視範囲");
+    // Content after the blank line is definitely kept out.
+    expect(section).not.toContain("次のセクションに書かれた詳細");
+  });
+
+  it("renders contextual-level skill with the Guidance (contextual) header and multi-line body", () => {
+    const skill = makeGuidanceSkill("gh-tree", "GitHub Tree", "contextual", guidanceBody);
+    const section = generateSkillsSectionForLoop([skill], new Set());
+
+    expect(section).toContain("Guidance (contextual):");
+    expect(section).toContain("- repo 全体の分析では API / bgFetch を優先すること。");
+    expect(section).toContain("- DOM extractor は可視範囲の補助取得に限定する。");
+    // Content after the blank line (next paragraph) is still not injected.
+    expect(section).not.toContain("次のセクションに書かれた詳細");
+  });
+
+  it("treats missing activationLevel as passive by default", () => {
+    const skill = makeGuidanceSkill("legacy", "Legacy", "passive", guidanceBody);
+    // Strip the activation level to simulate older matches.
+    const legacyMatch: SkillMatch = { ...skill, activationLevel: undefined };
+    const section = generateSkillsSectionForLoop([legacyMatch], new Set());
+
+    expect(section).toMatch(/^Guidance:\s+/m);
+    expect(section).not.toContain("Guidance (contextual):");
+  });
+
+  it("short format for already-seen skills keeps a single Guidance line regardless of level", () => {
+    const skill = makeGuidanceSkill("gh-tree", "GitHub Tree", "contextual", guidanceBody);
+    const section = generateSkillsSectionForLoop([skill], new Set(["gh-tree"]));
+
+    expect(section).toContain("- GitHub Tree (id: gh-tree):");
+    expect(section).toContain("  Guidance: repo 全体の分析では");
+    expect(section).not.toContain("Guidance (contextual):");
+    expect(section).not.toContain("- DOM extractor は可視範囲");
+  });
+});

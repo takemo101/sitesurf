@@ -311,4 +311,63 @@ describe("findMatchingSkills with confidence", () => {
 
     expect(withDom[0].confidence).toBeGreaterThan(withoutDom[0].confidence);
   });
+
+  describe("activation level", () => {
+    it("host-only match (no matchers.paths) は passive として返る", () => {
+      const registry = new SkillRegistry();
+      const skill = createTestSkill({
+        id: "github-broad",
+        matchers: { hosts: ["github.com"] },
+      });
+      registry.register(skill);
+
+      const matches = registry.findMatchingSkills("https://github.com/owner/repo");
+      expect(matches).toHaveLength(1);
+      expect(matches[0].activationLevel).toBe("passive");
+    });
+
+    it("paths が定義されている skill は path 一致時に contextual として返る", () => {
+      const registry = new SkillRegistry();
+      const skill = createTestSkill({
+        id: "github-tree",
+        matchers: { hosts: ["github.com"], paths: ["/*/*/tree/**"] },
+      });
+      registry.register(skill);
+
+      const matches = registry.findMatchingSkills("https://github.com/owner/repo/tree/main");
+      expect(matches).toHaveLength(1);
+      expect(matches[0].activationLevel).toBe("contextual");
+    });
+
+    it("同じ host-scoped skill に path 一致 / 不一致 の URL があると contextual / 非対象に分かれる", () => {
+      const registry = new SkillRegistry();
+      const treeSkill = createTestSkill({
+        id: "github-tree",
+        matchers: { hosts: ["github.com"], paths: ["/*/*/tree/**"] },
+      });
+      registry.register(treeSkill);
+
+      const onTree = registry.findMatchingSkills("https://github.com/owner/repo/tree/main");
+      const onIssue = registry.findMatchingSkills("https://github.com/owner/repo/issues/123");
+
+      expect(onTree.map((m) => m.skill.id)).toEqual(["github-tree"]);
+      expect(onTree[0].activationLevel).toBe("contextual");
+      // path が合わないと registry レベルで除外される → 過剰な activation を未然に防ぐ
+      expect(onIssue).toEqual([]);
+    });
+
+    it("global skill は常に passive として返る", () => {
+      const registry = new SkillRegistry();
+      const skill = createTestSkill({
+        id: "dom-mutation",
+        scope: "global",
+        matchers: { hosts: [] },
+      });
+      registry.register(skill);
+
+      const matches = registry.getGlobalSkills();
+      expect(matches).toHaveLength(1);
+      expect(matches[0].activationLevel).toBe("passive");
+    });
+  });
 });
