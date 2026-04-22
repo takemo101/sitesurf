@@ -149,6 +149,7 @@ vp lint --fix     # lint 修正
   - [005-extension-page-csp-constraints](docs/decisions/005-extension-page-csp-constraints.md)
   - [006-context-management-llm-compaction](docs/decisions/006-context-management-llm-compaction.md)
   - [007-artifact-storage-unification](docs/decisions/007-artifact-storage-unification.md)
+  - [008-skill-instruction-layer](docs/decisions/008-skill-instruction-layer.md)
 
 ## 既知の制約
 
