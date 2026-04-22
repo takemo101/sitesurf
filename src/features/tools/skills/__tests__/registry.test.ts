@@ -408,5 +408,21 @@ describe("findMatchingSkills with confidence", () => {
       expect(matches).toHaveLength(1);
       expect(matches[0].activationLevel).toBe("contextual");
     });
+
+    it("catch-all と specific の混在でも、実際に match したのが catch-all だけなら passive のまま", () => {
+      // GitHub の issue ページは `/**` だけがマッチし、`/*/*/tree/**` はマッチしない。
+      // 「skill の paths に specific なものが 1 つでもあれば contextual」
+      // だと repo-analysis guidance が issue タスクで過剰発火する。
+      const registry = new SkillRegistry();
+      const skill = createTestSkill({
+        id: "mixed-paths",
+        matchers: { hosts: ["github.com"], paths: ["/**", "/*/*/tree/**"] },
+      });
+      registry.register(skill);
+
+      const matches = registry.findMatchingSkills("https://github.com/owner/repo/issues/123");
+      expect(matches).toHaveLength(1);
+      expect(matches[0].activationLevel).toBe("passive");
+    });
   });
 });

@@ -1,3 +1,4 @@
+import { iterateAllMarkdownLines, iterateMarkdownBody } from "@/shared/markdown-section";
 import type { SkillMatch } from "@/shared/skill-types";
 import {
   CORE_IDENTITY,
@@ -53,20 +54,13 @@ function isPromptVisibleSkill(match: SkillMatch): boolean {
  */
 function collectBodyLines(instructionsMarkdown: string): string[] {
   const out: string[] = [];
-  let inFence = false;
-  for (const raw of instructionsMarkdown.split("\n")) {
-    if (/^\s*```/.test(raw)) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue;
-    const line = raw.trim();
-    if (line.length === 0) {
+  for (const line of iterateMarkdownBody(instructionsMarkdown)) {
+    if (line.isBlank) {
       out.push("");
       continue;
     }
-    if (/^#{1,6}\s/.test(line)) continue;
-    const cleaned = line.replace(/^[-*+]\s+/, "").trim();
+    if (line.isHeading) continue;
+    const cleaned = line.trimmed.replace(/^[-*+]\s+/, "").trim();
     if (cleaned.length === 0) continue;
     out.push(cleaned);
   }
@@ -98,13 +92,22 @@ function summarizeInstructions(instructionsMarkdown: string | undefined): string
  * extractor-scoped section (`## Extractor: <id>`) を markdown から除去する。
  * 次の `##` 見出しが来るまで、あるいは最後まで読み飛ばす。
  * contextual 要約が extractor 専用 caution を取り込まないようにするため。
+ *
+ * fence 内部の `## Extractor:` は section marker ではなくコード中のテキストなので
+ * 除去対象から外す (例: instruction でスキル書式の例を示しているケース)。
  */
 function stripExtractorSections(instructionsMarkdown: string): string {
-  const lines = instructionsMarkdown.split("\n");
   const out: string[] = [];
   let inExtractorBlock = false;
-  for (const raw of lines) {
-    const trimmed = raw.trim();
+  for (const { raw, trimmed, inFence, isFenceMarker } of iterateAllMarkdownLines(
+    instructionsMarkdown,
+  )) {
+    // fence marker / 内部は常に保持し、section 判定には使わない。
+    if (isFenceMarker || inFence) {
+      inExtractorBlock = false;
+      out.push(raw);
+      continue;
+    }
     const isExtractorHeading = /^##\s+Extractor:\s+.+$/.test(trimmed);
     const isOtherHeading = !isExtractorHeading && /^##\s+/.test(trimmed);
     if (isExtractorHeading) {
@@ -150,8 +153,6 @@ function extractExtractorCautions(instructionsMarkdown: string | undefined): Map
   const result = new Map<string, string>();
   if (!instructionsMarkdown) return result;
 
-  const lines = instructionsMarkdown.split("\n");
-  let inFence = false;
   let currentId: string | null = null;
   let currentBody: string[] = [];
 
@@ -166,32 +167,25 @@ function extractExtractorCautions(instructionsMarkdown: string | undefined): Map
     currentBody = [];
   };
 
-  for (const raw of lines) {
-    if (/^\s*```/.test(raw)) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue;
-
-    const trimmed = raw.trim();
-    const extractorMatch = /^##\s+Extractor:\s*(.+?)\s*$/.exec(trimmed);
+  for (const line of iterateMarkdownBody(instructionsMarkdown)) {
+    const extractorMatch = /^##\s+Extractor:\s*(.+?)\s*$/.exec(line.trimmed);
     if (extractorMatch) {
       finalize();
       currentId = extractorMatch[1];
       continue;
     }
-    if (/^#{1,6}\s/.test(trimmed)) {
+    if (line.isHeading) {
       // Any other heading terminates the current extractor block.
       finalize();
       continue;
     }
 
     if (currentId === null) continue;
-    if (trimmed.length === 0) {
+    if (line.isBlank) {
       if (currentBody.length > 0) currentBody.push("");
       continue;
     }
-    const cleaned = trimmed.replace(/^[-*+]\s+/, "").trim();
+    const cleaned = line.trimmed.replace(/^[-*+]\s+/, "").trim();
     if (cleaned.length > 0) currentBody.push(cleaned);
   }
   finalize();

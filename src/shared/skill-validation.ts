@@ -1,3 +1,4 @@
+import { iterateAllMarkdownLines } from "./markdown-section";
 import type { Skill } from "./skill-types";
 
 export interface ValidationError {
@@ -435,15 +436,9 @@ function collectSkillStructureErrors(skill: Skill): ValidationError[] {
 }
 
 function instructionsContainTopLevelSectionMarker(instructions: string): boolean {
-  const lines = instructions.split("\n");
-  let inFence = false;
-  for (const line of lines) {
-    if (/^\s*```/.test(line)) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue;
-    if (/^#\s+(Instructions|Extractors)\s*$/.test(line)) {
+  for (const { raw, inFence, isFenceMarker } of iterateAllMarkdownLines(instructions)) {
+    if (isFenceMarker || inFence) continue;
+    if (/^#\s+(Instructions|Extractors)\s*$/.test(raw)) {
       return true;
     }
   }

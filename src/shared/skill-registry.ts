@@ -134,34 +134,35 @@ export class SkillRegistry {
 
     return Array.from(this.skills.values())
       .filter((skill) => skill.scope !== "global")
-      .filter((skill) => {
+      .map((skill): SkillMatch | null => {
         const hostMatch = skill.matchers.hosts.some(
           (pattern) => hostname === pattern || hostname.endsWith(`.${pattern}`),
         );
-        if (!hostMatch) return false;
+        if (!hostMatch) return null;
 
-        if (skill.matchers.paths) {
-          const pathMatch = skill.matchers.paths.some((pattern) => matchPath(pathname, pattern));
-          if (!pathMatch) return false;
+        // Compute activation from the patterns that actually matched the URL,
+        // not from the skill's whole path list. Otherwise a catch-all such as
+        // "/**" mixed with a specific pattern would always escalate to
+        // contextual even on URLs where only "/**" was the reason for match.
+        let activationLevel: "passive" | "contextual" = "passive";
+        if (skill.matchers.paths !== undefined) {
+          const matchedPatterns = skill.matchers.paths.filter((pattern) =>
+            matchPath(pathname, pattern),
+          );
+          if (matchedPatterns.length === 0) return null;
+          if (matchedPatterns.some(isSpecificPathPattern)) {
+            activationLevel = "contextual";
+          }
         }
 
-        return true;
-      })
-      .map((skill): SkillMatch => {
-        // Specific path-scoped skills narrow the match beyond a broad host, so
-        // instruction guidance is task-relevant enough for contextual activation.
-        // Host-only skills, or skills whose paths are all catch-alls like "/"
-        // or "/**", stay passive so we don't over-fire task-specific guidance
-        // on unrelated pages (e.g. repo-analysis guidance on a GitHub
-        // issue-comment task).
-        const hasSpecificPath = (skill.matchers.paths ?? []).some(isSpecificPathPattern);
         return {
           skill,
           availableExtractors: skill.extractors,
           confidence: this.calculateConfidence(skill, url, domSnapshot),
-          activationLevel: hasSpecificPath ? "contextual" : "passive",
+          activationLevel,
         };
       })
+      .filter((match): match is SkillMatch => match !== null)
       .filter((match) => match.confidence >= minConfidence)
       .sort((a, b) => b.confidence - a.confidence);
   }
