@@ -71,7 +71,7 @@ describe("buildSkillDetectionMessage", () => {
     const text = getText(message);
 
     expect(text).toContain('Skill "GitHub Guidance" (id: github-guidance, site-specific)');
-    expect(text).toContain("Guidance: GitHub では task に応じて API / bgFetch を優先すること。");
+    expect(text).toContain("Apply: GitHub では task に応じて API / bgFetch を優先すること。");
     // instruction-only なので extractor bullet も browserjs() ヒントも不要。
     expect(text).not.toMatch(/^ {2}- github-guidance\./m);
     expect(text).not.toContain("browserjs(");
@@ -114,7 +114,7 @@ describe("buildSkillDetectionMessage", () => {
     const text = getText(message);
 
     expect(text).toContain("  - gh-repo.getTitle: ページタイトルを取得");
-    expect(text).toContain("Guidance: repo 全体の分析では API / bgFetch を優先すること。");
+    expect(text).toContain("Apply: repo 全体の分析では API / bgFetch を優先すること。");
     // extractor があるので browserjs() ヒントは出す。
     expect(text).toContain("browserjs(");
   });
@@ -154,6 +154,63 @@ describe("buildSkillDetectionMessage", () => {
     };
 
     expect(buildSkillDetectionMessage([headingsOnly])).toBeNull();
+  });
+
+  it("groups extractor skills and guidance skills into separate blocks with role-specific intros", () => {
+    const extractorMatch: SkillMatch = {
+      skill: {
+        id: "yt",
+        name: "YT",
+        description: "yt",
+        matchers: { hosts: ["youtube.com"] },
+        version: "1.0.0",
+        extractors: [
+          {
+            id: "get",
+            name: "Get",
+            description: "get",
+            code: "function () { return 1; }",
+            outputSchema: "number",
+          },
+        ],
+      },
+      availableExtractors: [
+        {
+          id: "get",
+          name: "Get",
+          description: "get",
+          code: "function () { return 1; }",
+          outputSchema: "number",
+        },
+      ],
+      confidence: 100,
+    };
+    const guidanceMatch: SkillMatch = {
+      skill: {
+        id: "guide",
+        name: "Guide",
+        description: "guide",
+        matchers: { hosts: ["example.com"] },
+        version: "0.1.0",
+        extractors: [],
+        instructionsMarkdown: "site guidance body.",
+      },
+      availableExtractors: [],
+      confidence: 80,
+    };
+
+    const text = getText(buildSkillDetectionMessage([extractorMatch, guidanceMatch]));
+
+    // Extractor-bearing intro comes first, invokes via browserjs().
+    expect(text).toContain("Callable extractors");
+    expect(text).toContain("browserjs(");
+    // Guidance intro comes second, tells the AI to apply even without being asked.
+    expect(text).toContain("Site guidance");
+    expect(text).toContain("apply the `Apply:` line");
+    // The guidance skill does not produce an extractor bullet.
+    expect(text).not.toMatch(/^ {2}- guide\./m);
+    // Order: extractor block appears before the guidance block.
+    expect(text.indexOf("Callable extractors")).toBeLessThan(text.indexOf("Site guidance"));
   });
 
   it("emits browserjs() tail only when at least one listed skill has extractors", () => {

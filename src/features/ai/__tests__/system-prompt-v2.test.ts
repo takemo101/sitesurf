@@ -54,7 +54,7 @@ describe("getSystemPromptV2", () => {
 
   it("excludes skills section when includeSkills is false", () => {
     const prompt = getSystemPromptV2({ includeSkills: false, skills: [mockSkillMatch] });
-    expect(prompt).not.toContain("Skills: Site-Specific Extraction");
+    expect(prompt).not.toContain("Skills: Extractors");
   });
 
   it("includes skill metadata and runtime usage when includeSkills is true and skills have available extractors", () => {
@@ -74,7 +74,7 @@ describe("getSystemPromptV2", () => {
       confidence: 85,
     };
     const prompt = getSystemPromptV2({ includeSkills: true, skills: [skillMatch] });
-    expect(prompt).toContain("Skills: Site-Specific Extraction");
+    expect(prompt).toContain("Skills: Extractors");
     expect(prompt).toContain("YouTube");
     expect(prompt).toContain("- getVideoInfo(): string — Extracts test data");
     expect(prompt).toContain("const info = await browserjs(() => window.youtube.getVideoInfo());");
@@ -83,7 +83,7 @@ describe("getSystemPromptV2", () => {
     expect(prompt).not.toContain("new Function(`return (${code})`)();");
   });
 
-  it("includes global skills in a separate section", () => {
+  it("places a global extractor-bearing skill under the Extractors section", () => {
     const skillMatch: SkillMatch = {
       ...mockSkillMatch,
       skill: {
@@ -98,18 +98,22 @@ describe("getSystemPromptV2", () => {
     };
 
     const prompt = getSystemPromptV2({ includeSkills: true, skills: [skillMatch] });
-    expect(prompt).toContain("Skills: Global");
+    // Role-based grouping: extractor-bearing skills go here regardless of scope.
+    expect(prompt).toContain("Skills: Extractors");
+    expect(prompt).not.toContain("Skills: Guidance");
     expect(prompt).toContain("DOM Mutation");
+    // Scope information still appears inline in the entry header.
+    expect(prompt).toContain("any page");
   });
 
   it("excludes skills section when skills have no available extractors", () => {
     const prompt = getSystemPromptV2({ includeSkills: true, skills: [mockSkillMatch] });
-    expect(prompt).not.toContain("Skills: Site-Specific Extraction");
+    expect(prompt).not.toContain("Skills: Extractors");
   });
 
   it("excludes skills section when includeSkills is true but no skills provided", () => {
     const prompt = getSystemPromptV2({ includeSkills: true, skills: [] });
-    expect(prompt).not.toContain("Skills: Site-Specific Extraction");
+    expect(prompt).not.toContain("Skills: Extractors");
   });
 
   it("contains Tool Philosophy in system prompt while keeping REPL-specific sections out", () => {
@@ -175,7 +179,10 @@ describe("generateSkillsSectionForLoop / shownSkillIds diff rendering", () => {
     const section = generateSkillsSectionForLoop([match], shownSkillIds);
     expect(section).toContain("- YouTube (id: yt):");
     expect(section).not.toContain("**YouTube**");
-    expect(section).not.toContain("browserjs");
+    // The per-skill browserjs() runtime example should not appear in short form.
+    // (The section intro paragraph mentions browserjs as part of the description,
+    //  so we check for the code-example shape specifically.)
+    expect(section).not.toContain("const info = await browserjs(");
     expect(section).not.toContain("yt-ext():");
   });
 
@@ -323,7 +330,7 @@ describe("skill instruction layer in prompt", () => {
 
   it("keeps extractor-only skills free of the Guidance line", () => {
     const section = generateSkillsSectionForLoop([makeExtractorSkill("yt", "YouTube")], new Set());
-    expect(section).not.toContain("Guidance:");
+    expect(section).not.toContain("Apply:");
     expect(section).toContain("yt-ext():");
     expect(section).toContain("browserjs");
   });
@@ -336,7 +343,7 @@ describe("skill instruction layer in prompt", () => {
     );
     const section = generateSkillsSectionForLoop([skill], new Set());
     expect(section).toContain("**GitHub Guidance**");
-    expect(section).toContain("Guidance: Use API / bgFetch over DOM for repo analysis tasks.");
+    expect(section).toContain("Apply: Use API / bgFetch over DOM for repo analysis tasks.");
     expect(section).not.toContain("browserjs");
     expect(section).not.toMatch(/^-\s+\w+\(\):/m);
   });
@@ -367,7 +374,7 @@ describe("skill instruction layer in prompt", () => {
     expect(section).toContain("**GitHub Repo**");
     expect(section).toContain("- getTitle(): string — Returns the page title");
     expect(section).toContain("browserjs");
-    expect(section).toContain("Guidance: Prefer static API retrieval");
+    expect(section).toContain("Apply: Prefer static API retrieval");
   });
 
   it("does not inject the full instruction markdown into the prompt", () => {
@@ -382,7 +389,7 @@ describe("skill instruction layer in prompt", () => {
     const skill = makeInstructionOnlySkill("github-long", "GitHub Long", longBody);
     const section = generateSkillsSectionForLoop([skill], new Set());
     // The first non-heading body line becomes the passive summary.
-    expect(section).toContain("Guidance: First body line: keep this short.");
+    expect(section).toContain("Apply: First body line: keep this short.");
     // Headings and subsequent sections must not leak into the prompt.
     expect(section).not.toContain("## Always");
     expect(section).not.toContain("## Task: Repository Analysis");
@@ -394,45 +401,79 @@ describe("skill instruction layer in prompt", () => {
     const long = "x".repeat(200);
     const skill = makeInstructionOnlySkill("long", "Long", long);
     const section = generateSkillsSectionForLoop([skill], new Set());
-    const guidanceLine = section.split("\n").find((line) => line.startsWith("Guidance:"));
-    expect(guidanceLine).toBeDefined();
-    if (!guidanceLine) return;
-    expect(guidanceLine.endsWith("…")).toBe(true);
-    // "Guidance: " + up to 120 chars.
-    expect(guidanceLine.length).toBeLessThanOrEqual("Guidance: ".length + 120);
+    const applyLine = section.split("\n").find((line) => line.startsWith("Apply: "));
+    expect(applyLine).toBeDefined();
+    if (!applyLine) return;
+    expect(applyLine.endsWith("…")).toBe(true);
+    // "Apply: " + up to 120 chars.
+    expect(applyLine.length).toBeLessThanOrEqual("Apply: ".length + 120);
   });
 
   it("skips markdown heading lines when summarizing", () => {
     const body = "## Always\n\nThe actual guidance body is on this line.";
     const skill = makeInstructionOnlySkill("heading-first", "Heading First", body);
     const section = generateSkillsSectionForLoop([skill], new Set());
-    expect(section).toContain("Guidance: The actual guidance body is on this line.");
+    expect(section).toContain("Apply: The actual guidance body is on this line.");
   });
 
   it("strips leading list markers when summarizing", () => {
     const body = "- First bullet point with guidance.";
     const skill = makeInstructionOnlySkill("list-first", "List First", body);
     const section = generateSkillsSectionForLoop([skill], new Set());
-    expect(section).toContain("Guidance: First bullet point with guidance.");
+    expect(section).toContain("Apply: First bullet point with guidance.");
   });
 
   it("also surfaces Guidance in short format for already-seen skills", () => {
     const skill = makeInstructionOnlySkill("seen", "Seen", "Some passive guidance line.");
     const section = generateSkillsSectionForLoop([skill], new Set(["seen"]));
     expect(section).toContain("- Seen (id: seen):");
-    expect(section).toContain("Guidance: Some passive guidance line.");
+    expect(section).toContain("Apply: Some passive guidance line.");
   });
 
-  it("includes instruction-only global skills in the Global skills section", () => {
+  it("splits the skills section by role: extractor-bearing vs instruction-only", () => {
+    const extractorSkill = makeExtractorSkill("yt", "YouTube");
+    const guidanceSkill = makeInstructionOnlySkill(
+      "gh-guide",
+      "GitHub Guide",
+      "このサイトでは API を優先すること。",
+    );
+
+    const prompt = getSystemPromptV2({
+      includeSkills: true,
+      skills: [guidanceSkill, extractorSkill],
+    });
+
+    // Both sections should appear, Extractors first.
+    expect(prompt).toContain("# Skills: Extractors");
+    expect(prompt).toContain("# Skills: Guidance");
+    expect(prompt.indexOf("# Skills: Extractors")).toBeLessThan(
+      prompt.indexOf("# Skills: Guidance"),
+    );
+
+    // Guidance section intro has the action-oriented phrasing for the model.
+    expect(prompt).toMatch(/Apply it to your tool choice and approach/);
+
+    // Extractor skill lives under Extractors; guidance skill under Guidance.
+    const extractorsHeader = prompt.indexOf("# Skills: Extractors");
+    const guidanceHeader = prompt.indexOf("# Skills: Guidance");
+    const ytEntryAt = prompt.indexOf("**YouTube**");
+    const ghEntryAt = prompt.indexOf("**GitHub Guide**");
+    expect(ytEntryAt).toBeGreaterThan(extractorsHeader);
+    expect(ytEntryAt).toBeLessThan(guidanceHeader);
+    expect(ghEntryAt).toBeGreaterThan(guidanceHeader);
+  });
+
+  it("places instruction-only global skills under the Guidance section", () => {
     const skill = makeInstructionOnlySkill(
       "github-guidance",
       "GitHub Guidance",
       "General guidance.",
     );
     const prompt = getSystemPromptV2({ includeSkills: true, skills: [skill] });
-    expect(prompt).toContain("Skills: Global");
+    expect(prompt).toContain("Skills: Guidance");
+    expect(prompt).not.toContain("Skills: Extractors");
     expect(prompt).toContain("**GitHub Guidance**");
-    expect(prompt).toContain("Guidance: General guidance.");
+    expect(prompt).toContain("Apply: General guidance.");
   });
 
   it("still omits the skills section when no skill carries extractors or instructions", () => {
@@ -442,8 +483,8 @@ describe("skill instruction layer in prompt", () => {
     };
     skill.skill = { ...skill.skill, instructionsMarkdown: undefined, extractors: [] };
     const prompt = getSystemPromptV2({ includeSkills: true, skills: [skill] });
-    expect(prompt).not.toContain("Skills: Site-Specific Extraction");
-    expect(prompt).not.toContain("Skills: Global");
+    expect(prompt).not.toContain("Skills: Extractors");
+    expect(prompt).not.toContain("Skills: Guidance");
   });
 
   it("skips fenced code blocks when summarizing instructions", () => {
@@ -458,12 +499,12 @@ describe("skill instruction layer in prompt", () => {
     const skill = makeInstructionOnlySkill("github-repo", "GitHub Repo", body);
     const section = generateSkillsSectionForLoop([skill], new Set());
 
-    expect(section).toContain("Guidance: repo 分析では API / bgFetch を優先すること。");
+    expect(section).toContain("Apply: repo 分析では API / bgFetch を優先すること。");
     // Code fence markers and code content must not appear in the prompt.
     expect(section).not.toContain("```js");
     expect(section).not.toContain("function () { return { files: [] }; }");
-    // And the opening fence must not have been picked up as the Guidance line.
-    expect(section).not.toMatch(/^Guidance:\s*```/m);
+    // And the opening fence must not have been picked up as the Apply line.
+    expect(section).not.toMatch(/^Apply:\s*```/m);
   });
 
   it("hides instruction-only skills whose body is only headings (no summarizable content)", () => {
@@ -471,7 +512,8 @@ describe("skill instruction layer in prompt", () => {
     const skill = makeInstructionOnlySkill("headings-only", "Headings Only", body);
     const prompt = getSystemPromptV2({ includeSkills: true, skills: [skill] });
 
-    expect(prompt).not.toContain("Skills: Global");
+    expect(prompt).not.toContain("Skills: Guidance");
+    expect(prompt).not.toContain("Skills: Extractors");
     expect(prompt).not.toContain("**Headings Only**");
     expect(prompt).not.toContain("Headings Only description");
   });
@@ -524,26 +566,29 @@ describe("skill instruction activation level", () => {
     "次のセクションに書かれた詳細はここには載せない。",
   ].join("\n");
 
-  it("renders passive-level skill as a single short Guidance line", () => {
+  it("renders passive-level skill as a single inline Apply line", () => {
     const skill = makeGuidanceSkill("gh", "GitHub", "passive", guidanceBody);
     const section = generateSkillsSectionForLoop([skill], new Set());
 
-    expect(section).toMatch(/^Guidance:\s+/m);
-    expect(section).not.toContain("Guidance (contextual):");
+    // Passive form puts the summary on the same line as the Apply: label.
+    expect(section).toMatch(/^Apply: \S/m);
+    // Contextual header+bullet form must NOT appear for passive.
+    expect(section).not.toMatch(/Apply:\n\s+>/);
     // The second body line must not leak into the passive rendering.
     expect(section).not.toContain("DOM extractor は可視範囲");
     // Content after the blank line is definitely kept out.
     expect(section).not.toContain("次のセクションに書かれた詳細");
   });
 
-  it("renders contextual-level skill with the Guidance (contextual) header and multi-line body", () => {
+  it("renders contextual-level skill as an Apply header with a multi-line body", () => {
     const skill = makeGuidanceSkill("gh-tree", "GitHub Tree", "contextual", guidanceBody);
     const section = generateSkillsSectionForLoop([skill], new Set());
 
-    expect(section).toContain("Guidance (contextual):");
+    // Contextual form: "Apply:" on its own line followed by "  > " bullets.
+    expect(section).toMatch(/Apply:\n\s+>/);
     expect(section).toContain("  > repo 全体の分析では API / bgFetch を優先すること。");
     expect(section).toContain("  > DOM extractor は可視範囲の補助取得に限定する。");
-    // Non-bullet prefix keeps Guidance visually distinct from extractor APIs.
+    // Non-bullet prefix keeps Apply lines visually distinct from extractor APIs.
     expect(section).not.toContain("- repo 全体の分析では");
     // Content after the blank line (next paragraph) is still not injected.
     expect(section).not.toContain("次のセクションに書かれた詳細");
@@ -555,17 +600,18 @@ describe("skill instruction activation level", () => {
     const legacyMatch: SkillMatch = { ...skill, activationLevel: undefined };
     const section = generateSkillsSectionForLoop([legacyMatch], new Set());
 
-    expect(section).toMatch(/^Guidance:\s+/m);
-    expect(section).not.toContain("Guidance (contextual):");
+    expect(section).toMatch(/^Apply: \S/m);
+    expect(section).not.toMatch(/Apply:\n\s+>/);
   });
 
-  it("short format for already-seen skills keeps a single Guidance line regardless of level", () => {
+  it("short format for already-seen skills keeps a single inline Apply line regardless of level", () => {
     const skill = makeGuidanceSkill("gh-tree", "GitHub Tree", "contextual", guidanceBody);
     const section = generateSkillsSectionForLoop([skill], new Set(["gh-tree"]));
 
     expect(section).toContain("- GitHub Tree (id: gh-tree):");
-    expect(section).toContain("  Guidance: repo 全体の分析では");
-    expect(section).not.toContain("Guidance (contextual):");
+    expect(section).toContain("  Apply: repo 全体の分析では");
+    // Header+bullet contextual form must not leak into short format.
+    expect(section).not.toMatch(/Apply:\n\s+>/);
     expect(section).not.toContain("- DOM extractor は可視範囲");
   });
 
@@ -595,11 +641,12 @@ describe("skill instruction activation level", () => {
 
     const section = generateSkillsSectionForLoop([mixed], new Set());
 
-    expect(section).toContain("Guidance (contextual):");
-    // Guidance uses '  > ' so it doesn't visually merge with '-' extractor bullets.
+    // Contextual form puts Apply: header alone, then '  > ' bullets.
+    expect(section).toMatch(/Apply:\n\s+>/);
+    // Apply body uses '  > ' so it doesn't visually merge with '-' extractor bullets.
     expect(section).toContain("  > repo 全体の分析では API / bgFetch を優先すること。");
     expect(section).toContain("- getFileList(): string[] — リポジトリ内のファイル一覧を取得する");
-    // Guidance body must not be rendered as an extractor-style bullet.
+    // Apply body must not be rendered as an extractor-style bullet.
     expect(section).not.toContain("- repo 全体の分析では");
     expect(section).not.toContain("- DOM extractor は可視範囲");
   });

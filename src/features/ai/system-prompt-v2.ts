@@ -59,29 +59,35 @@ function generateSkillsSection(
     return "";
   }
 
-  const sections: string[] = [];
-  const siteSkills = active.filter((match) => match.skill.scope !== "global");
-  const globalSkills = active.filter((match) => match.skill.scope === "global");
+  // Split by ROLE (callable extractors vs guidance-only) instead of by scope,
+  // so the AI sees two distinct things:
+  //   1. functions it may invoke via browserjs()
+  //   2. site-scoped guidance it should apply to its approach
+  // Scope information (site host(s) vs "any page") stays in each entry header.
+  const extractorSkills = active.filter((match) => match.availableExtractors.length > 0);
+  const guidanceSkills = active.filter((match) => match.availableExtractors.length === 0);
 
-  if (siteSkills.length > 0) {
+  const sections: string[] = [];
+
+  if (extractorSkills.length > 0) {
     sections.push(
-      "# Skills: Site-Specific Extraction",
+      "# Skills: Extractors",
       "",
-      "For well-known sites, use optimized extraction patterns:",
+      "Pre-made functions you can call via `browserjs()` on matching pages. Prefer them over ad-hoc DOM scraping when they fit the task.",
       "",
     );
-    sections.push(renderSkillEntries(siteSkills, shownSkillIds));
+    sections.push(renderSkillEntries(extractorSkills, shownSkillIds));
   }
 
-  if (globalSkills.length > 0) {
+  if (guidanceSkills.length > 0) {
     if (sections.length > 0) sections.push("");
     sections.push(
-      "# Skills: Global",
+      "# Skills: Guidance",
       "",
-      "These skills are available on any page and can be used when their extractor fits the task:",
+      "Site-scoped guidance for this page. Apply it to your tool choice and approach, even when the user did not explicitly mention it. These entries have no callable functions — the `Apply:` line is the actionable content.",
       "",
     );
-    sections.push(renderSkillEntries(globalSkills, shownSkillIds));
+    sections.push(renderSkillEntries(guidanceSkills, shownSkillIds));
   }
 
   return sections.join("\n");
@@ -102,10 +108,10 @@ function renderSkillEntries(
 
     if (shownSkillIds.has(skill.id)) {
       // Short format for already-seen skills.
-      // 既読 skill はトークン節約のため level に関わらず 1 行 Guidance に揃える。
+      // 既読 skill はトークン節約のため level に関わらず 1 行 Apply に揃える。
       lines.push(`- ${skill.name} (id: ${skill.id}): ${skill.description}`);
       if (guidanceSummary) {
-        lines.push(`  Guidance: ${guidanceSummary}`);
+        lines.push(`  Apply: ${guidanceSummary}`);
       }
       lines.push("");
       continue;
@@ -117,16 +123,19 @@ function renderSkillEntries(
     lines.push(skill.description);
 
     if (guidanceSummary) {
-      // Use a non-bullet prefix so Guidance lines do not visually blend with
-      // the extractor API bullets below (both used "- " previously).
+      // Use a non-bullet prefix so Apply lines do not visually blend with
+      // the extractor API bullets below (both used "- " previously). The
+      // single "Apply:" label avoids exposing internal activation levels to
+      // the model — difference between passive and contextual is visible
+      // only in length (1 inline line vs paragraph block).
       if (activationLevel === "contextual" && instructionsMarkdown !== undefined) {
         const paragraph = contextualInstructionParagraph(instructionsMarkdown);
-        lines.push("Guidance (contextual):");
+        lines.push("Apply:");
         for (const bodyLine of paragraph.length > 0 ? paragraph : [guidanceSummary]) {
           lines.push(`  > ${bodyLine}`);
         }
       } else {
-        lines.push(`Guidance: ${guidanceSummary}`);
+        lines.push(`Apply: ${guidanceSummary}`);
       }
     }
     lines.push("");
