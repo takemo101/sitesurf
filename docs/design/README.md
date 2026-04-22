@@ -97,6 +97,8 @@
 | [004-browserjs-script-execution.md](../decisions/004-browserjs-script-execution.md)               | 承認済 | IIFE パターンによるスクリプト実行                   |
 | [005-extension-page-csp-constraints.md](../decisions/005-extension-page-csp-constraints.md)       | 承認済 | Extension Page の CSP 制約と検証コード              |
 | [006-context-management-llm-compaction.md](../decisions/006-context-management-llm-compaction.md) | 承認済 | コンテキスト管理は LLM 圧縮で一本化（Layer 3 廃止） |
+| [007-artifact-storage-unification.md](../decisions/007-artifact-storage-unification.md)           | 承認済 | Artifact ストレージを単一ストアに統合               |
+| [008-skill-instruction-layer.md](../decisions/008-skill-instruction-layer.md)                     | 承認済 | Skill match と instruction activation を分離        |
 
 ## 状態の凡例
 
