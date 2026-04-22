@@ -1,3 +1,4 @@
+import { iterateAllMarkdownLines } from "./markdown-section";
 import type { Skill, SkillParseResult } from "./skill-types";
 
 const INSTRUCTIONS_HEADING = /^#\s+Instructions\s*$/;
@@ -112,21 +113,17 @@ function splitInstructionsAndExtractors(body: string): SplitBody {
   const lines = body.split("\n");
   let instructionsIndex = -1;
   let extractorsIndex = -1;
-  let inCodeBlock = false;
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (/^\s*```/.test(line)) {
-      inCodeBlock = !inCodeBlock;
-      continue;
-    }
-    if (inCodeBlock) continue;
+  let i = -1;
+  for (const { raw, inFence, isFenceMarker } of iterateAllMarkdownLines(body)) {
+    i++;
+    if (isFenceMarker || inFence) continue;
 
-    if (instructionsIndex === -1 && INSTRUCTIONS_HEADING.test(line)) {
+    if (instructionsIndex === -1 && INSTRUCTIONS_HEADING.test(raw)) {
       instructionsIndex = i;
       continue;
     }
-    if (extractorsIndex === -1 && EXTRACTORS_HEADING.test(line)) {
+    if (extractorsIndex === -1 && EXTRACTORS_HEADING.test(raw)) {
       extractorsIndex = i;
     }
   }

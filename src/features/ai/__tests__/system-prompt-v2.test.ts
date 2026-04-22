@@ -643,6 +643,41 @@ describe("skill instruction activation level", () => {
     expect(section).not.toContain("  > この extractor は可視範囲のみを返す");
   });
 
+  it("treats `## Extractor:` inside a fenced code block as documentation, not as an extractor-scoped section", () => {
+    // instruction body が skill 書式の例としてコードフェンス内に
+    // `## Extractor: <id>` を書いている場合、section marker として扱ってはいけない。
+    // fence 無しで section marker 扱いすると、fence 以降の本文ごと
+    // `stripExtractorSections` で削除され、Guidance の要約から本文が失われる。
+    const skill: SkillMatch = {
+      skill: {
+        id: "doc-skill",
+        name: "Doc Skill",
+        description: "instructions with a fenced example referencing ## Extractor:",
+        matchers: { hosts: ["example.com"], paths: ["/docs/**"] },
+        version: "0.1.0",
+        extractors: [],
+        instructionsMarkdown: [
+          "まず docstring を優先して読む。",
+          "```md",
+          "## Extractor: example",
+          "これは書式例で extractor ではない。",
+          "```",
+          "fence の後ろの本文もちゃんと読まれる必要がある。",
+        ].join("\n"),
+      },
+      availableExtractors: [],
+      confidence: 100,
+      activationLevel: "contextual",
+    };
+
+    const section = generateSkillsSectionForLoop([skill], new Set());
+    // fence の前の本文と後ろの本文の両方が contextual paragraph に残るべき。
+    expect(section).toContain("まず docstring を優先して読む。");
+    expect(section).toContain("fence の後ろの本文もちゃんと読まれる必要がある。");
+    // fence 内の `## Extractor: example` 自体は body iterator が fence 内を skip するため出ない。
+    expect(section).not.toContain("## Extractor: example");
+  });
+
   it("does not attach a caution when an `## Extractor:` block references an unknown extractor", () => {
     const extractor = {
       id: "getTitle",
