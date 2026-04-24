@@ -59,7 +59,12 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
     id: "openai-codex",
     name: "OpenAI (ChatGPT/Codex)",
     defaultModel: defaultFor("openai", "gpt-5.4"),
-    models: modelsFor("openai"),
+    // Codex API は openai 全モデルを受け付けない。pi-mono 参考の許可パターン:
+    // codex variants と gpt-5.x (および gpt-5.x-mini) のみ。
+    // o-series / gpt-4 / -chat-latest / -pro / -nano / 無印 gpt-5 は弾く。
+    models: modelsFor("openai").filter(
+      (id) => id.includes("codex") || /^gpt-5\.\d+(-mini)?$/.test(id),
+    ),
     authType: "oauth",
   },
   google: {
