@@ -50,7 +50,8 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
     id: "openai",
     name: "OpenAI (API)",
     defaultModel: defaultFor("openai", "gpt-5.4"),
-    models: modelsFor("openai"),
+    // codex variants は ChatGPT backend (Codex) 経由でのみ動くので、API キー側からは除外
+    models: modelsFor("openai").filter((id) => !id.includes("codex")),
     authType: "apikey",
     placeholder: "sk-...",
   },
