@@ -258,6 +258,11 @@ export const GENERATED_MODELS: Record<string, ProviderModels> = {
         "reasoning": true
       },
       {
+        "id": "gpt-5.5",
+        "name": "GPT-5.5",
+        "reasoning": true
+      },
+      {
         "id": "o1",
         "name": "o1",
         "reasoning": true
@@ -525,6 +530,11 @@ export const GENERATED_MODELS: Record<string, ProviderModels> = {
       {
         "id": "kimi-k2.5",
         "name": "Kimi K2.5",
+        "reasoning": true
+      },
+      {
+        "id": "kimi-k2.6",
+        "name": "Kimi K2.6",
         "reasoning": true
       }
     ]
