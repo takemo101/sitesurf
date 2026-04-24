@@ -37,20 +37,6 @@ function defaultFor(key: string, fallback: string): string {
   return GENERATED_MODELS[key]?.defaultModel ?? fallback;
 }
 
-// Codex APIで利用可能なモデル (pi-mono参考)
-const CODEX_MODELS = [
-  "gpt-5.1",
-  "gpt-5.1-codex",
-  "gpt-5.1-codex-max",
-  "gpt-5.1-codex-mini",
-  "gpt-5.2",
-  "gpt-5.2-codex",
-  "gpt-5.3-codex",
-  "gpt-5.3-codex-spark",
-  "gpt-5.4",
-  "gpt-5.4-mini",
-];
-
 export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
   anthropic: {
     id: "anthropic",
@@ -64,15 +50,16 @@ export const PROVIDERS: Record<ProviderId, ProviderInfo> = {
     id: "openai",
     name: "OpenAI (API)",
     defaultModel: defaultFor("openai", "gpt-5.4"),
-    models: modelsFor("openai"),
+    // codex variants は ChatGPT backend (Codex) 経由でのみ動くので、API キー側からは除外
+    models: modelsFor("openai").filter((id) => !id.includes("codex")),
     authType: "apikey",
     placeholder: "sk-...",
   },
   "openai-codex": {
     id: "openai-codex",
     name: "OpenAI (ChatGPT/Codex)",
-    defaultModel: "gpt-5.1-codex-mini",
-    models: CODEX_MODELS,
+    defaultModel: defaultFor("openai", "gpt-5.4"),
+    models: modelsFor("openai"),
     authType: "oauth",
   },
   google: {

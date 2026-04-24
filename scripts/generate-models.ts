@@ -3,6 +3,7 @@
 import { writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { execSync } from "node:child_process";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT = join(__dirname, "..", "src", "shared", "models.generated.ts");
@@ -39,7 +40,6 @@ const SKIP_PATTERNS = [
   /^gemma/,
   /^gemini-.*embedding/,
   /^gpt-image/,
-  /codex/i,
   /-preview-\d/,
 ];
 
@@ -106,6 +106,9 @@ export const GENERATED_MODELS: Record<string, ProviderModels> = ${JSON.stringify
 
   writeFileSync(OUTPUT, output, "utf-8");
   console.log(`\nGenerated ${OUTPUT}`);
+
+  console.log("Formatting with vp fmt ...");
+  execSync(`npx vp fmt --write "${OUTPUT}"`, { stdio: "inherit" });
 }
 
 main().catch((e) => {
